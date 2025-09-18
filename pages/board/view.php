@@ -174,12 +174,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comment_submit'])) {
             } else {
                 $pdo = Database::getInstance()->getConnection();
 
-                $sql = "INSERT INTO board_comments (board_id, user_id, content)
-                        VALUES (?, ?, ?)";
+                $sql = "INSERT INTO board_comments (board_id, user_id, author_name, author_email, content)
+                        VALUES (?, ?, ?, ?, ?)";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute([
                     $id,
                     $currentUser['id'],
+                    $currentUser['name'],
+                    $currentUser['email'],
                     $comment_content
                 ]);
 
