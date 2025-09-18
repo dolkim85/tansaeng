@@ -69,8 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $sql = "INSERT INTO boards (category_id, user_id, title, content, summary, attached_files)
-                    VALUES (?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO boards (category_id, user_id, title, content, summary, attached_files, author_name, author_email)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 $category_id,
@@ -78,7 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $title,
                 $content,
                 $summary ?: substr(strip_tags($content), 0, 200),
-                !empty($attached_files) ? json_encode($attached_files) : null
+                !empty($attached_files) ? json_encode($attached_files) : null,
+                $currentUser['name'],
+                $currentUser['email']
             ]);
             
             $post_id = $pdo->lastInsertId();
@@ -91,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
         } catch (Exception $e) {
             $pdo->rollback();
-            $error = '게시글 등록에 실패했습니다.';
+            $error = '게시글 등록에 실패했습니다: ' . $e->getMessage();
         }
     }
 }
