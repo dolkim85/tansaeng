@@ -13,6 +13,9 @@ try {
     $db = Database::getInstance();
     $dbConnected = true;
     
+    // Get category filter from URL
+    $selectedCategory = intval($_GET['category'] ?? 0);
+
     // Get categories from categories table (admin managed) with product counts
     $pdo = $db->getConnection();
     $stmt = $pdo->query("
@@ -25,26 +28,40 @@ try {
     ");
     $categories = $stmt->fetchAll();
 
-    // Get featured products from admin managed products table
-    $stmt = $pdo->query(
-        "SELECT p.*, c.name as category_name
-         FROM products p
-         LEFT JOIN categories c ON p.category_id = c.id
-         WHERE p.featured = 1 AND p.status = 'active'
-         ORDER BY p.created_at DESC LIMIT 8"
-    );
-    $featuredProducts = $stmt->fetchAll();
-
-    // If no featured products, show all active products
-    if (empty($featuredProducts)) {
+    // Get products based on category filter
+    if ($selectedCategory) {
+        // Show products from selected category
+        $stmt = $pdo->prepare(
+            "SELECT p.*, c.name as category_name
+             FROM products p
+             LEFT JOIN categories c ON p.category_id = c.id
+             WHERE p.category_id = ? AND p.status = 'active'
+             ORDER BY p.created_at DESC LIMIT 20"
+        );
+        $stmt->execute([$selectedCategory]);
+        $featuredProducts = $stmt->fetchAll();
+    } else {
+        // Get featured products from admin managed products table
         $stmt = $pdo->query(
             "SELECT p.*, c.name as category_name
              FROM products p
              LEFT JOIN categories c ON p.category_id = c.id
-             WHERE p.status = 'active'
+             WHERE p.featured = 1 AND p.status = 'active'
              ORDER BY p.created_at DESC LIMIT 8"
         );
         $featuredProducts = $stmt->fetchAll();
+
+        // If no featured products, show all active products
+        if (empty($featuredProducts)) {
+            $stmt = $pdo->query(
+                "SELECT p.*, c.name as category_name
+                 FROM products p
+                 LEFT JOIN categories c ON p.category_id = c.id
+                 WHERE p.status = 'active'
+                 ORDER BY p.created_at DESC LIMIT 8"
+            );
+            $featuredProducts = $stmt->fetchAll();
+        }
     }
 } catch (Exception $e) {
     // 데이터베이스 연결 실패시 샘플 데이터 사용
@@ -169,7 +186,7 @@ try {
                 <div class="categories-container">
                     <div class="categories-grid">
                         <?php foreach ($categories as $category): ?>
-                        <div class="category-card" onclick="location.href='/pages/store/products.php?category=<?= $category['id'] ?>'">
+                        <div class="category-card" onclick="location.href='/pages/store/?category=<?= $category['id'] ?>'">
                             <div class="category-icon">
                                 <?php
                                 $icons = ['🌱', '🚿', '💧', '🛠️'];
@@ -188,15 +205,34 @@ try {
                 </div>
             </section>
 
-            <!-- Featured Products -->
+            <!-- Products -->
             <section class="products-section">
                 <div class="section-header">
-                    <h2>✨ 추천 제품</h2>
+                    <h2>
+                        <?php if ($selectedCategory): ?>
+                            <?php
+                            $selectedCategoryName = '';
+                            foreach ($categories as $cat) {
+                                if ($cat['id'] == $selectedCategory) {
+                                    $selectedCategoryName = $cat['name'];
+                                    break;
+                                }
+                            }
+                            ?>
+                            🔍 <?= htmlspecialchars($selectedCategoryName) ?> 제품
+                        <?php else: ?>
+                            ✨ 추천 제품
+                        <?php endif; ?>
+                    </h2>
                     <div class="section-nav">
-                        <button class="nav-btn" onclick="showProducts('featured')">추천</button>
-                        <button class="nav-btn" onclick="showProducts('new')">신상품</button>
-                        <button class="nav-btn" onclick="showProducts('bestseller')">베스트</button>
-                        <button class="nav-btn" onclick="showProducts('sale')">할인</button>
+                        <?php if ($selectedCategory): ?>
+                            <a href="/pages/store/" class="nav-btn">전체 보기</a>
+                        <?php else: ?>
+                            <button class="nav-btn" onclick="showProducts('featured')">추천</button>
+                            <button class="nav-btn" onclick="showProducts('new')">신상품</button>
+                            <button class="nav-btn" onclick="showProducts('bestseller')">베스트</button>
+                            <button class="nav-btn" onclick="showProducts('sale')">할인</button>
+                        <?php endif; ?>
                     </div>
                 </div>
                 
