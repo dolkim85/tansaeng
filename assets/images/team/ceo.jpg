@@ -1,0 +1,7 @@
+<svg width="300" height="300" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="300" fill="#E8F5E8"/>
+  <circle cx="150" cy="120" r="40" fill="#4CAF50"/>
+  <path d="M150 90 L150 85 M135 105 L165 105 M130 130 Q150 140 170 130" stroke="#2E7D32" stroke-width="3" fill="none"/>
+  <rect x="120" y="180" width="60" height="80" fill="#4CAF50" rx="5"/>
+  <text x="150" y="280" font-family="Arial" font-size="12" fill="#2E7D32" text-anchor="middle">Team Member</text>
+</svg>
