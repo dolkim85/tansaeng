@@ -49,24 +49,31 @@ try {
     $stmt->execute([$product['category_id'], $productId]);
     $relatedProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Get product reviews
-    $sql = "SELECT r.*, u.name as author_name
-            FROM reviews r
-            LEFT JOIN users u ON r.user_id = u.id
-            WHERE r.product_id = ? AND r.status = 'published'
-            ORDER BY r.created_at DESC LIMIT 10";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$productId]);
-    $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Get product reviews (if reviews table exists)
+    try {
+        $sql = "SELECT r.*, u.name as author_name
+                FROM reviews r
+                LEFT JOIN users u ON r.user_id = u.id
+                WHERE r.product_id = ? AND r.status = 'published'
+                ORDER BY r.created_at DESC LIMIT 10";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$productId]);
+        $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Calculate average rating
-    if (!empty($reviews)) {
-        $totalRating = array_sum(array_column($reviews, 'rating'));
-        $averageRating = round($totalRating / count($reviews), 1);
+        // Calculate average rating
+        if (!empty($reviews)) {
+            $totalRating = array_sum(array_column($reviews, 'rating'));
+            $averageRating = round($totalRating / count($reviews), 1);
+        }
+    } catch (Exception $reviewError) {
+        // Reviews table doesn't exist yet - skip reviews
+        $reviews = [];
+        $averageRating = 0;
     }
 
 } catch (Exception $e) {
-    $error = '제품 정보를 불러올 수 없습니다.';
+    $error = '제품 정보를 불러올 수 없습니다: ' . $e->getMessage();
+    error_log("Product detail error: " . $e->getMessage());
 }
 
 // Parse images
