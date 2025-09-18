@@ -27,27 +27,41 @@ echo "☁️ 클라우드 서버에 배포 중..."
 ssh -i "/home/spinmoll/.ssh/tansaeng.pem" -o StrictHostKeyChecking=no ubuntu@1.201.17.34 << 'EOF'
     cd /var/www/html
 
+    # 웹 디렉토리 확인 및 생성
+    echo "📁 웹 디렉토리 설정 중..."
+    sudo mkdir -p /var/www/html
+    cd /var/www/html
+
     # Git 저장소 확인 및 업데이트
     if [ ! -d ".git" ]; then
         echo "📥 저장소 클론 중..."
-        sudo rm -rf *
-        sudo git clone https://github.com/dolkim85/tansaeng.git .
+        sudo rm -rf /var/www/html/*
+        sudo git clone https://github.com/dolkim85/tansaeng.git /tmp/tansaeng
+        sudo cp -r /tmp/tansaeng/* /var/www/html/
+        sudo rm -rf /tmp/tansaeng
     else
         echo "🔄 최신 변경사항 가져오는 중..."
         sudo git pull origin main
     fi
 
+    # Apache 설치 및 설정
+    echo "🔧 Apache 설치 및 설정 중..."
+    sudo apt update -y
+    sudo apt install -y apache2
+    sudo systemctl enable apache2
+    sudo systemctl start apache2
+
     # SSL 인증서 설정
     echo "🔐 SSL 인증서 설정 중..."
     sudo mkdir -p /etc/ssl/tansaeng
-    sudo cp ssl/www.tansaeng.com.crt /etc/ssl/tansaeng/
-    sudo cp ssl/www.tansaeng.com.key /etc/ssl/tansaeng/
+    sudo cp /var/www/html/ssl/www.tansaeng.com.crt /etc/ssl/tansaeng/
+    sudo cp /var/www/html/ssl/www.tansaeng.com.key /etc/ssl/tansaeng/
     sudo chmod 600 /etc/ssl/tansaeng/www.tansaeng.com.key
     sudo chmod 644 /etc/ssl/tansaeng/www.tansaeng.com.crt
 
     # Apache 가상호스트 설정
     echo "⚙️ Apache 가상호스트 설정 중..."
-    sudo cp ssl/www.tansaeng.com.conf /etc/apache2/sites-available/
+    sudo cp /var/www/html/ssl/www.tansaeng.com.conf /etc/apache2/sites-available/
     sudo a2ensite www.tansaeng.com.conf
     sudo a2enmod ssl rewrite headers
     sudo a2dissite 000-default.conf
