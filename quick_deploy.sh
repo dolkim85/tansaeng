@@ -44,12 +44,18 @@ ssh -i "/home/spinmoll/.ssh/tansaeng.pem" -o StrictHostKeyChecking=no ubuntu@1.2
         sudo git pull origin main
     fi
 
-    # Apache 설치 및 설정
-    echo "🔧 Apache 설치 및 설정 중..."
+    # Apache 및 PHP 설치 및 설정
+    echo "🔧 Apache 및 PHP 설치 및 설정 중..."
     sudo apt update -y
-    sudo apt install -y apache2
+    sudo apt install -y apache2 php libapache2-mod-php php-mysql php-curl php-json php-mbstring
     sudo systemctl enable apache2
     sudo systemctl start apache2
+
+    # PHP 모듈 활성화
+    sudo a2enmod php8.3
+    sudo a2enmod rewrite
+    sudo a2enmod ssl
+    sudo a2enmod headers
 
     # SSL 인증서 설정
     echo "🔐 SSL 인증서 설정 중..."
