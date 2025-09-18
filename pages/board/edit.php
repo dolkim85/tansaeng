@@ -79,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $content = $_POST['content'] ?? '';
         $category_id = $_POST['category_id'] ?? $post['category_id'];
         $summary = trim($_POST['summary'] ?? '');
+        $is_notice = isset($_POST['is_notice']) ? 1 : 0;
         $remove_files = $_POST['remove_files'] ?? [];
         
         if (empty($title)) {
@@ -90,60 +91,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             try {
                 $pdo->beginTransaction();
-                
-                $password_hash = $new_password ? password_hash($new_password, PASSWORD_DEFAULT) : $post['password'];
-                
-                $sql = "UPDATE board_posts SET title = ?, content = ?, author = ?, password = ?, email = ?, post_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-                $stmt = $pdo->prepare($sql);
-                $stmt->execute([$title, $content, $author, $password_hash, $email, $post_type, $id]);
-                
-                if (!empty($remove_files)) {
-                    foreach ($remove_files as $file_id) {
-                        $sql = "SELECT file_path FROM board_attachments WHERE id = ? AND post_id = ?";
-                        $stmt = $pdo->prepare($sql);
-                        $stmt->execute([$file_id, $id]);
-                        $file_path = $stmt->fetchColumn();
-                        
-                        if ($file_path && file_exists(__DIR__ . '/../../' . $file_path)) {
-                            unlink(__DIR__ . '/../../' . $file_path);
-                        }
-                        
-                        $sql = "DELETE FROM board_attachments WHERE id = ? AND post_id = ?";
-                        $stmt = $pdo->prepare($sql);
-                        $stmt->execute([$file_id, $id]);
-                    }
+
+                // Handle file uploads first
+                $attached_files = [];
+                if ($post['attached_files']) {
+                    $attached_files = json_decode($post['attached_files'], true) ?: [];
                 }
-                
+
+                // Remove selected files
+                if (!empty($remove_files)) {
+                    foreach ($remove_files as $file_index) {
+                        if (isset($attached_files[$file_index])) {
+                            $file_path = __DIR__ . '/../../' . $attached_files[$file_index]['path'];
+                            if (file_exists($file_path)) {
+                                unlink($file_path);
+                            }
+                            unset($attached_files[$file_index]);
+                        }
+                    }
+                    $attached_files = array_values($attached_files); // Re-index array
+                }
+
+                // Add new files
                 if (!empty($_FILES['attachments']['name'][0])) {
                     $upload_dir = __DIR__ . '/../../uploads/board/';
                     if (!is_dir($upload_dir)) {
                         mkdir($upload_dir, 0755, true);
                     }
-                    
+
                     foreach ($_FILES['attachments']['name'] as $key => $filename) {
                         if ($_FILES['attachments']['error'][$key] === UPLOAD_ERR_OK) {
                             $original_filename = $filename;
                             $file_extension = pathinfo($filename, PATHINFO_EXTENSION);
                             $new_filename = uniqid() . '.' . $file_extension;
                             $file_path = $upload_dir . $new_filename;
-                            
+
                             if (move_uploaded_file($_FILES['attachments']['tmp_name'][$key], $file_path)) {
-                                $sql = "INSERT INTO board_attachments (post_id, filename, original_filename, file_path, file_size, file_type) VALUES (?, ?, ?, ?, ?, ?)";
-                                $stmt = $pdo->prepare($sql);
-                                $stmt->execute([
-                                    $id,
-                                    $new_filename,
-                                    $original_filename,
-                                    '/uploads/board/' . $new_filename,
-                                    $_FILES['attachments']['size'][$key],
-                                    $_FILES['attachments']['type'][$key]
-                                ]);
+                                $attached_files[] = [
+                                    'name' => $original_filename,
+                                    'path' => '/uploads/board/' . $new_filename,
+                                    'size' => $_FILES['attachments']['size'][$key],
+                                    'type' => $_FILES['attachments']['type'][$key]
+                                ];
                             }
                         }
                     }
                 }
-                
+
+                $sql = "UPDATE boards SET category_id = ?, title = ?, content = ?, summary = ?, is_notice = ?, attached_files = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([
+                    $category_id,
+                    $title,
+                    $content,
+                    $summary ?: substr(strip_tags($content), 0, 200),
+                    $is_notice,
+                    !empty($attached_files) ? json_encode($attached_files) : null,
+                    $id
+                ]);
+
                 $pdo->commit();
+                $success = '게시글이 수정되었습니다.';
+
+                // Refresh post data
+                $stmt = $pdo->prepare("SELECT b.*, c.name as category_name FROM boards b JOIN board_categories c ON b.category_id = c.id WHERE b.id = ?");
+                $stmt->execute([$id]);
+                $post = $stmt->fetch();
+
+                // Update attachments display
+                $attachments = [];
+                if ($post['attached_files']) {
+                    $attached_files_data = json_decode($post['attached_files'], true);
+                    if (is_array($attached_files_data)) {
+                        foreach ($attached_files_data as $index => $file) {
+                            $attachments[] = [
+                                'id' => $index,
+                                'file_path' => $file['path'] ?? '',
+                                'original_filename' => $file['name'] ?? '',
+                                'file_type' => $file['type'] ?? 'application/octet-stream'
+                            ];
+                        }
+                    }
+                }
+
                 header("Location: view.php?id=$id");
                 exit;
                 
@@ -349,31 +379,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="hidden" name="password" value="<?= htmlspecialchars($_POST['password']) ?>">
                 <?php endif; ?>
                 
-                <div class="form-group">
-                    <label class="form-label">게시글 유형</label>
-                    <select name="post_type" class="form-input" style="width: 200px;">
-                        <option value="general" <?= $post['post_type'] === 'general' ? 'selected' : '' ?>>일반글</option>
-                        <option value="review" <?= $post['post_type'] === 'review' ? 'selected' : '' ?>>상품리뷰</option>
-                    </select>
-                </div>
-                
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">작성자 *</label>
-                        <input type="text" name="author" class="form-input" required 
-                               value="<?= htmlspecialchars($post['author']) ?>">
+                        <label class="form-label">카테고리 *</label>
+                        <select name="category_id" class="form-input" required>
+                            <?php foreach ($categories as $category): ?>
+                                <option value="<?= $category['id'] ?>" <?= $post['category_id'] == $category['id'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($category['name']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
+                    <?php if ($isAdmin): ?>
                     <div class="form-group">
-                        <label class="form-label">새 비밀번호</label>
-                        <input type="password" name="new_password" class="form-input" 
-                               placeholder="변경하지 않으려면 비워두세요">
+                        <label class="form-label">게시글 유형</label>
+                        <div style="padding-top: 10px;">
+                            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+                                <input type="checkbox" name="is_notice" value="1" <?= $post['is_notice'] ? 'checked' : '' ?>>
+                                공지사항으로 설정
+                            </label>
+                        </div>
                     </div>
+                    <?php endif; ?>
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">이메일</label>
-                    <input type="email" name="email" class="form-input" 
-                           value="<?= htmlspecialchars($post['email'] ?? '') ?>">
+                    <label class="form-label">요약 (선택사항)</label>
+                    <textarea name="summary" class="form-input" rows="2" placeholder="게시글 요약을 입력하세요 (미입력시 자동 생성)"><?= htmlspecialchars($post['summary'] ?? '') ?></textarea>
                 </div>
                 
                 <div class="form-group">
