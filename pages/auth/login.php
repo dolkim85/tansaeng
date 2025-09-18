@@ -104,19 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <button type="submit" class="btn btn-primary btn-full">로그인</button>
                 
-                <?php if (!$dbConnected): ?>
-                <div class="demo-notice">
-                    <h3>🔧 데모 계정</h3>
-                    <p>데이터베이스 설정 완료 전까지 아래 계정으로 테스트하세요:</p>
-                    <div class="demo-credentials">
-                        <p><strong>이메일:</strong> admin@tangsaeng.com</p>
-                        <p><strong>비밀번호:</strong> admin2025</p>
-                    </div>
-                    <button type="button" onclick="fillAdminCredentials()" class="btn btn-outline btn-sm">
-                        자동 입력
-                    </button>
-                </div>
-                <?php endif; ?>
                 
                 <div class="auth-links">
                     <a href="/pages/auth/register.php">회원가입</a>
@@ -167,54 +154,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <script src="/assets/js/auth.js"></script>
     <script type="module" src="/assets/js/firebase-auth.js"></script>
-    <script>
-        function fillAdminCredentials() {
-            document.getElementById('email').value = 'admin@tangsaeng.com';
-            document.getElementById('password').value = 'admin2025';
-        }
-    </script>
 </body>
 </html>
 
 <style>
-.demo-notice {
-    background: #E3F2FD;
-    border: 2px solid #2196F3;
-    padding: 1.5rem;
-    border-radius: 8px;
-    margin: 1.5rem 0;
-    text-align: center;
-}
-
-.demo-notice h3 {
-    color: #1976D2;
-    margin-bottom: 1rem;
-}
-
-.demo-notice p {
-    color: #555;
-    margin-bottom: 1rem;
-}
-
-.demo-credentials {
-    background: white;
-    padding: 1rem;
-    border-radius: 6px;
-    margin: 1rem 0;
-    text-align: left;
-    display: inline-block;
-}
-
-.demo-credentials p {
-    margin: 0.3rem 0;
-    font-family: monospace;
-    color: #333;
-}
-
-.btn-sm {
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-}
 
 /* Social Login Styles */
 .social-login-section {
