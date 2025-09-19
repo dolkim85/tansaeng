@@ -486,9 +486,11 @@
 
 .product-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
+    gap: 1rem;
     margin-bottom: 0.6rem;
+    flex-wrap: wrap;
 }
 
 .product-category {
@@ -507,11 +509,11 @@
 }
 
 .stars {
-    font-size: 0.9rem;
+    font-size: 0.7rem;
 }
 
 .rating-count {
-    font-size: 0.8rem;
+    font-size: 0.6rem;
     color: #666;
 }
 
@@ -700,7 +702,15 @@
     }
     
     .hero-text h1 {
-        font-size: 2.5rem;
+        font-size: 1.8rem;
+    }
+
+    .hero-text > p {
+        font-size: 1.1rem;
+    }
+
+    .hero-description {
+        font-size: 0.9rem;
     }
     
     .filter-header,
@@ -766,11 +776,15 @@
 
 @media (max-width: 480px) {
     .hero-text h1 {
-        font-size: 2rem;
+        font-size: 1.5rem;
     }
-    
+
     .hero-text > p {
-        font-size: 1.2rem;
+        font-size: 1rem;
+    }
+
+    .hero-description {
+        font-size: 0.8rem;
     }
     
     .benefits-grid {

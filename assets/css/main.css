@@ -578,8 +578,16 @@ p {
         gap: 1.5rem;
     }
 
-    h1 { font-size: 1.8rem; }
-    h2 { font-size: 1.5rem; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.2rem; }
+
+    .navbar .logo {
+        font-size: 1.2rem;
+    }
+
+    .nav-menu a {
+        font-size: 0.9rem;
+    }
 
     .section-title {
         font-size: 2rem;
