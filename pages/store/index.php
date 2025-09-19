@@ -210,24 +210,17 @@ try {
                         </button>
                         <div class="mobile-category-dropdown" id="mobileCategoryDropdown">
                             <div class="mobile-category-item" onclick="location.href='/pages/store/'">
-                                <div class="mobile-category-icon">🏠</div>
                                 <div class="mobile-category-info">
                                     <h4>전체 카테고리</h4>
-                                    <p>모든 제품 보기</p>
                                 </div>
+                                <p>전체</p>
                             </div>
                             <?php foreach ($categories as $category): ?>
                             <div class="mobile-category-item" onclick="location.href='/pages/store/?category=<?= $category['id'] ?>'">
-                                <div class="mobile-category-icon">
-                                    <?php
-                                    $icons = ['🌱', '🚿', '💧', '🛠️', '🎯', '⚡', '💡'];
-                                    echo $icons[($category['id'] - 1) % count($icons)];
-                                    ?>
-                                </div>
                                 <div class="mobile-category-info">
                                     <h4><?= htmlspecialchars($category['name']) ?></h4>
-                                    <p><?= htmlspecialchars($category['description'] ?? '') ?> (<?= $category['product_count'] ?? 0 ?>개)</p>
                                 </div>
+                                <p><?= $category['product_count'] ?? 0 ?>개</p>
                             </div>
                             <?php endforeach; ?>
                         </div>
@@ -245,8 +238,7 @@ try {
                             </div>
                             <div class="category-info">
                                 <h3><?= htmlspecialchars($category['name']) ?></h3>
-                                <p><?= htmlspecialchars($category['description'] ?? '') ?></p>
-                                <span class="category-count"><?= $category['product_count'] ?? 0 ?>개 제품</span>
+                                <span class="category-count"><?= $category['product_count'] ?? 0 ?>개</span>
                             </div>
                             <div class="category-arrow">→</div>
                         </div>
