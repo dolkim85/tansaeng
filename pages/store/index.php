@@ -178,8 +178,9 @@ try {
         </section>
 
         <div class="container">
-            <!-- Filter & Sort -->
-            <section class="filter-section">
+            <div class="store-content">
+                <!-- Filter & Sort -->
+                <section class="filter-section">
                 <div class="filter-header">
                     <h2>제품 카테고리</h2>
                     <div class="filter-controls">
@@ -245,10 +246,10 @@ try {
                         <?php endforeach; ?>
                     </div>
                 </div>
-            </section>
+                </section>
 
-            <!-- Products -->
-            <section class="products-section">
+                <!-- Products -->
+                <section class="products-section">
                 <div class="section-header">
                     <h2>
                         <?php if ($selectedCategory): ?>
@@ -354,7 +355,8 @@ try {
                         <a href="/pages/store/products.php" class="btn btn-outline">더 많은 제품 보기</a>
                     </div>
                 <?php endif; ?>
-            </section>
+                </section>
+            </div>
 
             <!-- Benefits Section -->
             <section class="benefits-section">
