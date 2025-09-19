@@ -332,7 +332,10 @@ try {
                                         </button>
                                         <?php else: ?>
                                         <button onclick="event.stopPropagation(); alert('로그인 후 이용 가능합니다'); location.href='/pages/auth/login.php'" class="btn btn-primary btn-block">
-                                            로그인 후 구매
+                                            장바구니 담기
+                                        </button>
+                                        <button onclick="event.stopPropagation(); alert('로그인 후 이용 가능합니다'); location.href='/pages/auth/login.php'" class="btn btn-outline btn-block">
+                                            바로 구매
                                         </button>
                                         <?php endif; ?>
                                     </div>
@@ -391,16 +394,29 @@ try {
         function toggleCategorySection() {
             const header = document.querySelector('.filter-category-header');
             const list = document.getElementById('categoryFilterList');
+            const icon = header.querySelector('.filter-toggle-icon');
 
             header.classList.toggle('collapsed');
             list.classList.toggle('collapsed');
+
+            // Update icon rotation
+            if (header.classList.contains('collapsed')) {
+                icon.textContent = '▶';
+            } else {
+                icon.textContent = '▼';
+            }
         }
 
         function toggleCategoryFilter(categoryId) {
             const checkbox = document.getElementById('category-checkbox-' + categoryId);
 
-            // Toggle checkbox visual state
-            checkbox.classList.toggle('checked');
+            // Reset all other checkboxes first
+            document.querySelectorAll('.filter-category-checkbox').forEach(cb => {
+                cb.classList.remove('checked');
+            });
+
+            // Check the selected one
+            checkbox.classList.add('checked');
 
             // Handle filtering logic
             if (categoryId === 0) {
@@ -417,6 +433,12 @@ try {
             document.querySelectorAll('.filter-category-checkbox').forEach(checkbox => {
                 checkbox.classList.remove('checked');
             });
+
+            // Check the "전체" checkbox
+            const allCheckbox = document.getElementById('category-checkbox-0');
+            if (allCheckbox) {
+                allCheckbox.classList.add('checked');
+            }
 
             // Redirect to show all products
             location.href = '/pages/store/';

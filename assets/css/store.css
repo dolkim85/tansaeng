@@ -245,19 +245,23 @@
 .filter-category-list {
     max-height: 300px;
     overflow: hidden;
-    transition: max-height 0.3s ease;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
 }
 
 .filter-category-list.collapsed {
     max-height: 0;
+    opacity: 0;
 }
 
 .filter-category-item {
     display: flex;
     align-items: center;
-    padding: 0.4rem 0;
+    padding: 0.4rem 0.6rem;
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s ease, border-radius 0.2s ease;
+    border-radius: 4px;
+    margin: 0.1rem 0;
 }
 
 .filter-category-item:hover {
@@ -274,6 +278,7 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    transition: all 0.2s ease;
 }
 
 .filter-category-checkbox.checked {
