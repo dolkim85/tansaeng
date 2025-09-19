@@ -474,30 +474,32 @@ try {
             flex: 1;
             display: flex;
             flex-direction: column;
-            padding: 15px;
+            padding: 1rem;
         }
-        
+
         .product-title {
-            font-size: 16px;
+            font-size: 0.95rem;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 0.6rem;
             flex: 1;
+            line-height: 1.3;
         }
-        
+
         .product-price {
-            font-size: 18px;
+            font-size: 1.1rem;
             font-weight: 700;
-            color: #007bff;
+            color: #2E7D32;
         }
 
         .product-actions {
             margin-top: auto;
         }
-        
+
         .product-description {
             color: #666;
-            font-size: 14px;
-            margin-bottom: 10px;
+            font-size: 0.75rem;
+            margin-bottom: 0.8rem;
+            line-height: 1.4;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;

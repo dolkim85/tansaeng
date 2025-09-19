@@ -382,7 +382,7 @@
 
 /* Product Info */
 .product-info {
-    padding: 1.5rem;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -398,9 +398,9 @@
 .product-category {
     background: #E8F5E8;
     color: #2E7D32;
-    padding: 0.3rem 0.8rem;
-    border-radius: 15px;
-    font-size: 0.8rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
     font-weight: 600;
 }
 
@@ -421,17 +421,17 @@
 
 .product-title {
     color: #2E7D32;
-    margin-bottom: 0.8rem;
-    font-size: 1.2rem;
+    margin-bottom: 0.6rem;
+    font-size: 0.95rem;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.3;
 }
 
 .product-description {
     color: #666;
-    font-size: 0.9rem;
-    line-height: 1.5;
-    margin-bottom: 1rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    margin-bottom: 0.8rem;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -458,36 +458,37 @@
 .price {
     color: #2E7D32;
     font-weight: 700;
-    font-size: 1.3rem;
+    font-size: 1.1rem;
 }
 
 .product-features {
     display: flex;
-    gap: 0.8rem;
-    margin-bottom: 1.5rem;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
     flex-wrap: wrap;
 }
 
 .feature {
     background: #f8f9fa;
     color: #666;
-    padding: 0.3rem 0.8rem;
-    border-radius: 15px;
-    font-size: 0.8rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
 }
 
 .product-actions {
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
+    gap: 0.6rem;
     margin-top: auto;
 }
 
 .btn-block {
     width: 100%;
     text-align: center;
-    padding: 1rem;
+    padding: 0.7rem;
     font-weight: 600;
+    font-size: 0.8rem;
 }
 
 /* No Products */

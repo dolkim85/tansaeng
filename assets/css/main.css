@@ -318,22 +318,23 @@ p {
 }
 
 .product-info {
-    padding: 1.5rem;
+    padding: 1rem;
 }
 
 .product-info h3 {
     color: #1B5E20;
     margin-bottom: 0.5rem;
+    font-size: 0.95rem;
 }
 
 .product-info p {
     color: #666;
-    font-size: 0.95rem;
-    margin-bottom: 1rem;
+    font-size: 0.75rem;
+    margin-bottom: 0.8rem;
 }
 
 .product-price {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     font-weight: 600;
     color: #FFA726;
 }
