@@ -291,8 +291,8 @@
 /* Product Grid */
 .products-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 2rem;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1.5rem;
 }
 
 .product-card {
@@ -304,7 +304,7 @@
     border: 2px solid transparent;
     display: flex;
     flex-direction: column;
-    height: 580px;
+    height: 520px;
 }
 
 .product-card:hover {
@@ -619,13 +619,13 @@
     }
     
     .products-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1.5rem;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
     }
 
     .product-card {
         height: auto;
-        min-height: 500px;
+        min-height: 480px;
     }
     
     .benefits-grid {
@@ -672,11 +672,12 @@
     }
     
     .products-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
     }
 
     .product-card {
         height: auto;
-        min-height: 450px;
+        min-height: 400px;
     }
 }
