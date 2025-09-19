@@ -13,8 +13,6 @@ try {
     $db = Database::getInstance();
     $dbConnected = true;
     
-    // Get category filter from URL
-    $selectedCategory = intval($_GET['category'] ?? 0);
 
     // Get categories from categories table (admin managed) with product counts
     $pdo = $db->getConnection();
@@ -69,20 +67,24 @@ try {
     
     // 샘플 카테고리 데이터 (관리자에서 관리하는 카테고리와 동일하게)
     $categories = [
-        ['id' => 1, 'name' => '코코피트 배지', 'description' => '천연 코코넛 섬유 배지', 'product_count' => 1],
-        ['id' => 2, 'name' => '펄라이트 배지', 'description' => '우수한 배수성 무기질 배지', 'product_count' => 1],
-        ['id' => 3, 'name' => '혼합 배지', 'description' => '다양한 재료 혼합 배지', 'product_count' => 0],
+        ['id' => 1, 'name' => '씨앗/종자', 'description' => '고품질 씨앗과 종자', 'product_count' => 1],
+        ['id' => 2, 'name' => '코코피트 배지', 'description' => '천연 코코넛 섬유 배지', 'product_count' => 1],
+        ['id' => 3, 'name' => '양액/비료', 'description' => '작물별 맞춤형 양액', 'product_count' => 1],
         ['id' => 4, 'name' => '재배용품', 'description' => 'IoT 센서 및 모니터링 장비', 'product_count' => 1],
-        ['id' => 5, 'name' => '씨앗/종자', 'description' => '고품질 씨앗과 종자', 'product_count' => 1],
-        ['id' => 6, 'name' => '양액/비료', 'description' => '작물별 맞춤형 양액', 'product_count' => 1],
-        ['id' => 7, 'name' => 'LED 조명', 'description' => '식물 성장용 LED 조명', 'product_count' => 1]
+        ['id' => 5, 'name' => '펄라이트 배지', 'description' => '우수한 배수성 무기질 배지', 'product_count' => 0],
+        ['id' => 6, 'name' => '혼합 배지', 'description' => '다양한 재료 혼합 배지', 'product_count' => 0],
+        ['id' => 7, 'name' => 'LED 조명', 'description' => '식물 성장용 LED 조명', 'product_count' => 0]
     ];
     
+    // Get category filter from URL and filter products
+    $selectedCategory = intval($_GET['category'] ?? 0);
+
     // 샘플 제품 데이터 (관리자에서 관리하는 제품 구조와 동일하게)
-    $featuredProducts = [
+    $allProducts = [
         [
             'id' => 1,
             'name' => '토마토 씨앗 (방울토마토)',
+            'category_id' => 1,
             'category_name' => '씨앗/종자',
             'description' => '고품질 방울토마토 씨앗으로 높은 발아율을 자랑합니다',
             'price' => 5000,
@@ -92,6 +94,7 @@ try {
         [
             'id' => 2,
             'name' => '코코피트 배지 (10L)',
+            'category_id' => 2,
             'category_name' => '코코피트 배지',
             'description' => '천연 코코넛 섬유로 만든 친환경 배지',
             'price' => 15000,
@@ -101,6 +104,7 @@ try {
         [
             'id' => 3,
             'name' => '토마토 전용 양액 (1L)',
+            'category_id' => 3,
             'category_name' => '양액/비료',
             'description' => '토마토 전용 맞춤형 양액으로 최적의 영양소 비율 제공',
             'price' => 35000,
@@ -110,6 +114,7 @@ try {
         [
             'id' => 4,
             'name' => 'IoT 환경 센서 키트',
+            'category_id' => 4,
             'category_name' => '재배용품',
             'description' => '온습도, pH, EC 센서 통합 키트',
             'price' => 150000,
@@ -117,6 +122,15 @@ try {
             'featured' => 1
         ]
     ];
+
+    // Filter products by category if selected
+    if ($selectedCategory > 0) {
+        $featuredProducts = array_filter($allProducts, function($product) use ($selectedCategory) {
+            return $product['category_id'] == $selectedCategory;
+        });
+    } else {
+        $featuredProducts = $allProducts;
+    }
 }
 ?>
 <!DOCTYPE html>
