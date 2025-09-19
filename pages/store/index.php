@@ -182,19 +182,8 @@ try {
                 <!-- Filter & Sort -->
                 <section class="filter-section">
                 <div class="filter-header">
-                    <h2>제품 카테고리</h2>
-                    <div class="filter-controls">
-                        <select id="sortSelect" onchange="sortProducts()">
-                            <option value="newest">최신 순</option>
-                            <option value="popular">인기 순</option>
-                            <option value="price-low">낮은 가격 순</option>
-                            <option value="price-high">높은 가격 순</option>
-                        </select>
-                        <div class="view-toggle">
-                            <button onclick="toggleView('grid')" class="view-btn active" id="gridView">⊞</button>
-                            <button onclick="toggleView('list')" class="view-btn" id="listView">☰</button>
-                        </div>
-                    </div>
+                    <h4>필터</h4>
+                    <button class="filter-reset-btn" onclick="resetAllFilters()">전체해제</button>
                 </div>
                 
                 <!-- Categories -->
@@ -227,23 +216,26 @@ try {
                         </div>
                     </div>
 
-                    <!-- Desktop Categories Grid -->
-                    <div class="categories-grid">
-                        <?php foreach ($categories as $category): ?>
-                        <div class="category-card" onclick="location.href='/pages/store/?category=<?= $category['id'] ?>'">
-                            <div class="category-icon">
-                                <?php
-                                $icons = ['🌱', '🚿', '💧', '🛠️'];
-                                echo $icons[($category['id'] - 1) % count($icons)];
-                                ?>
-                            </div>
-                            <div class="category-info">
-                                <h3><?= htmlspecialchars($category['name']) ?></h3>
-                                <span class="category-count"><?= $category['product_count'] ?? 0 ?>개</span>
-                            </div>
-                            <div class="category-arrow">→</div>
+                    <!-- Desktop Categories Filter -->
+                    <div class="filter-category-section">
+                        <div class="filter-category-header" onclick="toggleCategorySection()">
+                            <h5>카테고리</h5>
+                            <span class="filter-toggle-icon">▼</span>
                         </div>
-                        <?php endforeach; ?>
+                        <div class="filter-category-list" id="categoryFilterList">
+                            <div class="filter-category-item" onclick="toggleCategoryFilter(0)">
+                                <div class="filter-category-checkbox" id="category-checkbox-0"></div>
+                                <span class="filter-category-label">전체</span>
+                                <span class="filter-category-count">전체</span>
+                            </div>
+                            <?php foreach ($categories as $category): ?>
+                            <div class="filter-category-item" onclick="toggleCategoryFilter(<?= $category['id'] ?>)">
+                                <div class="filter-category-checkbox" id="category-checkbox-<?= $category['id'] ?>"></div>
+                                <span class="filter-category-label"><?= htmlspecialchars($category['name']) ?></span>
+                                <span class="filter-category-count"><?= $category['product_count'] ?? 0 ?>개</span>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                 </div>
                 </section>
@@ -395,6 +387,55 @@ try {
             const dropdown = document.getElementById('mobileCategoryDropdown');
             dropdown.classList.toggle('active');
         }
+
+        function toggleCategorySection() {
+            const header = document.querySelector('.filter-category-header');
+            const list = document.getElementById('categoryFilterList');
+
+            header.classList.toggle('collapsed');
+            list.classList.toggle('collapsed');
+        }
+
+        function toggleCategoryFilter(categoryId) {
+            const checkbox = document.getElementById('category-checkbox-' + categoryId);
+
+            // Toggle checkbox visual state
+            checkbox.classList.toggle('checked');
+
+            // Handle filtering logic
+            if (categoryId === 0) {
+                // All categories selected
+                location.href = '/pages/store/';
+            } else {
+                // Specific category selected
+                location.href = '/pages/store/?category=' + categoryId;
+            }
+        }
+
+        function resetAllFilters() {
+            // Reset all checkboxes
+            document.querySelectorAll('.filter-category-checkbox').forEach(checkbox => {
+                checkbox.classList.remove('checked');
+            });
+
+            // Redirect to show all products
+            location.href = '/pages/store/';
+        }
+
+        // Initialize selected category
+        document.addEventListener('DOMContentLoaded', function() {
+            <?php if ($selectedCategory): ?>
+                const selectedCheckbox = document.getElementById('category-checkbox-<?= $selectedCategory ?>');
+                if (selectedCheckbox) {
+                    selectedCheckbox.classList.add('checked');
+                }
+            <?php else: ?>
+                const allCheckbox = document.getElementById('category-checkbox-0');
+                if (allCheckbox) {
+                    allCheckbox.classList.add('checked');
+                }
+            <?php endif; ?>
+        });
 
         // Close mobile category menu when clicking outside
         document.addEventListener('click', function(event) {
