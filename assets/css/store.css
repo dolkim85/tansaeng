@@ -352,7 +352,7 @@
 .section-header h2 {
     color: #2E7D32;
     margin: 0;
-    font-size: 2rem;
+    font-size: 1.5rem;
 }
 
 .section-nav {
@@ -363,11 +363,12 @@
 .nav-btn {
     background: transparent;
     border: 2px solid #e0e0e0;
-    padding: 0.5rem 1rem;
-    border-radius: 25px;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
     cursor: pointer;
     transition: all 0.3s ease;
     font-weight: 500;
+    font-size: 0.8rem;
 }
 
 .nav-btn:hover,

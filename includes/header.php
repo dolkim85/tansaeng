@@ -59,14 +59,14 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 
         <div class="nav-auth">
             <?php if ($currentUser): ?>
-                <span>안녕하세요, <?= htmlspecialchars($currentUser['name']) ?>님</span>
+                <span><?= htmlspecialchars($currentUser['name']) ?>님</span>
                 <?php if ($currentUser['role'] === 'admin'): ?>
-                    <a href="/admin/" class="btn btn-admin">관리자페이지</a>
+                    <a href="/admin/" class="admin-link">관리자</a>
                 <?php endif; ?>
-                <a href="/pages/auth/logout.php" class="btn btn-outline">로그아웃</a>
+                <a href="/pages/auth/logout.php" class="logout-link">로그아웃</a>
             <?php else: ?>
-                <a href="/pages/auth/login.php" class="btn btn-outline">로그인</a>
-                <a href="/pages/auth/register.php" class="btn btn-primary">회원가입</a>
+                <a href="/pages/auth/login.php" class="login-link">로그인</a>
+                <a href="/pages/auth/register.php" class="register-link">회원가입</a>
             <?php endif; ?>
         </div>
 

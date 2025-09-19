@@ -153,7 +153,53 @@ p {
 
 .nav-auth {
     display: flex;
-    gap: 1rem;
+    gap: 1.5rem;
+}
+
+.nav-auth a {
+    color: #666;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.nav-auth a:hover {
+    color: #2E7D32;
+}
+
+.nav-auth a.login-link {
+    color: #2E7D32;
+}
+
+.nav-auth a.register-link {
+    color: #FFA726;
+}
+
+.nav-auth a.register-link:hover {
+    color: #F57C00;
+}
+
+.nav-auth a.admin-link {
+    color: #FF6B35;
+}
+
+.nav-auth a.admin-link:hover {
+    color: #E55A30;
+}
+
+.nav-auth a.logout-link {
+    color: #666;
+}
+
+.nav-auth a.logout-link:hover {
+    color: #999;
+}
+
+.nav-auth span {
+    color: #2E7D32;
+    font-size: 0.9rem;
+    font-weight: 500;
 }
 
 .mobile-menu-toggle {
@@ -587,6 +633,14 @@ p {
 
     .nav-menu a {
         font-size: 0.9rem;
+    }
+
+    .nav-auth a {
+        font-size: 0.8rem;
+    }
+
+    .nav-auth span {
+        font-size: 0.8rem;
     }
 
     .section-title {
