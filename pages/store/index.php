@@ -198,6 +198,42 @@ try {
                 
                 <!-- Categories -->
                 <div class="categories-container">
+                    <!-- Mobile Category Menu -->
+                    <div class="mobile-category-menu">
+                        <button class="category-hamburger" onclick="toggleMobileCategories()">
+                            <div class="hamburger-icon">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                            카테고리 선택
+                        </button>
+                        <div class="mobile-category-dropdown" id="mobileCategoryDropdown">
+                            <div class="mobile-category-item" onclick="location.href='/pages/store/'">
+                                <div class="mobile-category-icon">🏠</div>
+                                <div class="mobile-category-info">
+                                    <h4>전체 카테고리</h4>
+                                    <p>모든 제품 보기</p>
+                                </div>
+                            </div>
+                            <?php foreach ($categories as $category): ?>
+                            <div class="mobile-category-item" onclick="location.href='/pages/store/?category=<?= $category['id'] ?>'">
+                                <div class="mobile-category-icon">
+                                    <?php
+                                    $icons = ['🌱', '🚿', '💧', '🛠️', '🎯', '⚡', '💡'];
+                                    echo $icons[($category['id'] - 1) % count($icons)];
+                                    ?>
+                                </div>
+                                <div class="mobile-category-info">
+                                    <h4><?= htmlspecialchars($category['name']) ?></h4>
+                                    <p><?= htmlspecialchars($category['description'] ?? '') ?> (<?= $category['product_count'] ?? 0 ?>개)</p>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
+                    <!-- Desktop Categories Grid -->
                     <div class="categories-grid">
                         <?php foreach ($categories as $category): ?>
                         <div class="category-card" onclick="location.href='/pages/store/?category=<?= $category['id'] ?>'">
@@ -360,5 +396,21 @@ try {
     <?php include '../../includes/footer.php'; ?>
     <script src="/assets/js/main.js"></script>
     <script src="/assets/js/store.js"></script>
+    <script>
+        function toggleMobileCategories() {
+            const dropdown = document.getElementById('mobileCategoryDropdown');
+            dropdown.classList.toggle('active');
+        }
+
+        // Close mobile category menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.querySelector('.mobile-category-menu');
+            const dropdown = document.getElementById('mobileCategoryDropdown');
+
+            if (menu && !menu.contains(event.target)) {
+                dropdown.classList.remove('active');
+            }
+        });
+    </script>
 </body>
 </html>
