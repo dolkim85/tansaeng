@@ -24,11 +24,16 @@ class Environment {
                 self::$environment = 'production'; // 기본값
             }
         } else {
-            // CLI 환경 - 서버 위치로 판단
-            if (file_exists('/var/www/html')) {
+            // CLI 환경 - 더 정확한 판단
+            $hostname = gethostname();
+            $currentPath = getcwd();
+
+            if (strpos($currentPath, '/var/www/html') !== false) {
                 self::$environment = 'production'; // 클라우드 서버
-            } else {
+            } elseif (strpos($currentPath, '/home/spinmoll') !== false) {
                 self::$environment = 'local'; // 로컬 개발 환경
+            } else {
+                self::$environment = 'production'; // 기본값
             }
         }
 
