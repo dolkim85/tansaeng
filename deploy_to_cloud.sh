@@ -52,8 +52,29 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
     # 권한 설정
     echo "🔐 파일 권한 설정 중..."
     sudo chmod -R 755 /var/www/html/
+    sudo mkdir -p /var/www/html/uploads/
     sudo chmod -R 777 /var/www/html/uploads/
     sudo chown -R www-data:www-data /var/www/html/
+
+    # 환경별 설정 확인
+    echo "🔧 환경별 설정 확인 중..."
+    if [ -f "/var/www/html/config/environment.php" ]; then
+        echo "✅ 환경별 설정 시스템 배포됨"
+    else
+        echo "❌ 환경별 설정 파일이 없습니다"
+    fi
+
+    # 데이터베이스 연결 테스트
+    echo "🔌 데이터베이스 연결 테스트 중..."
+    php -r "
+        require_once '/var/www/html/config/database.php';
+        try {
+            \$db = DatabaseConfig::getConnection();
+            echo '✅ 데이터베이스 연결 성공\n';
+        } catch (Exception \$e) {
+            echo '❌ 데이터베이스 연결 실패: ' . \$e->getMessage() . '\n';
+        }
+    "
 
     # 웹서버 재시작
     echo "🔄 웹서버 재시작 중..."

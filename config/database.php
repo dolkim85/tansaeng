@@ -1,17 +1,21 @@
 <?php
-// Gabia Database Configuration
+// Environment-aware Database Configuration
+require_once __DIR__ . '/environment.php';
+
 class DatabaseConfig {
     private static $host;
     private static $dbname;
     private static $username;
     private static $password;
-    
+
     private static function loadConfig() {
-        // 가비아 호스팅 설정
-        self::$host = 'localhost';
-        self::$dbname = 'tansaeng_db';  // 실제 DB명 수정
-        self::$username = 'root';  // 실제 사용자명
-        self::$password = '';  // MySQL 비밀번호 (로컬은 빈 비밀번호)
+        // 환경별 자동 설정
+        $config = Environment::getDatabaseConfig();
+
+        self::$host = $config['host'];
+        self::$dbname = $config['dbname'];
+        self::$username = $config['username'];
+        self::$password = $config['password'];
     }
     
     public static function getConnection() {
