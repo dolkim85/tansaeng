@@ -11,7 +11,7 @@ class DatabaseConfig {
         self::$host = 'localhost';
         self::$dbname = 'tansaeng_db';  // 실제 DB명 수정
         self::$username = 'root';  // 실제 사용자명
-        self::$password = 'qjawns3445';  // MySQL 비밀번호
+        self::$password = '';  // MySQL 비밀번호 (로컬은 빈 비밀번호)
     }
     
     public static function getConnection() {

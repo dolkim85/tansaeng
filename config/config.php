@@ -11,7 +11,7 @@ define('MAX_UPLOAD_SIZE', 50 * 1024 * 1024); // 50MB
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'tansaeng_db');
 define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_PASS', '');  // 로컬 MySQL 비밀번호
 
 // Session Configuration
 define('SESSION_TIMEOUT', 7200); // 2 hours
