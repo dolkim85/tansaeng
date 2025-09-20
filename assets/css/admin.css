@@ -1208,11 +1208,31 @@ input:checked + .slider:before {
     }
     
     .stats-grid {
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
     }
-    
+
     .dashboard-grid {
         grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    /* 모바일 태블릿에서 통계 카드 간소화 */
+    .stat-card {
+        padding: 1.25rem 1rem;
+    }
+
+    .stat-icon {
+        font-size: 2.2rem;
+    }
+
+    .stat-info h3 {
+        font-size: 1.6rem;
+    }
+
+    /* 최근 활동 섹션에서 세 번째 카드 숨기기 */
+    .dashboard-card:nth-child(3) {
+        display: none;
     }
 }
 
@@ -1289,30 +1309,110 @@ input:checked + .slider:before {
     .admin-header-content {
         padding: 0 0.5rem;
     }
-    
+
     .admin-content {
         padding: 0.5rem;
     }
-    
+
     .card-header,
     .card-body {
         padding: 1rem;
     }
-    
+
     .stat-card {
         padding: 1rem;
         flex-direction: column;
         text-align: center;
     }
-    
+
     .stat-icon {
         margin-right: 0;
         margin-bottom: 0.5rem;
+        font-size: 2rem;
     }
-    
+
+    .stat-info h3 {
+        font-size: 1.5rem;
+    }
+
+    .stat-info p {
+        font-size: 0.9rem;
+    }
+
+    .stat-info small {
+        font-size: 0.75rem;
+    }
+
     .recent-item {
         flex-direction: column;
         align-items: flex-start;
         gap: 0.5rem;
+    }
+
+    /* 모바일에서 대시보드 간소화 */
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* 5번째 카드 숨기기 (식물 이미지) */
+    .stat-card:nth-child(5) {
+        display: none;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    /* 최근 활동 섹션 단순화 */
+    .dashboard-card:nth-child(n+3) {
+        display: none;
+    }
+
+    .page-header {
+        padding: 1rem 0;
+        text-align: center;
+    }
+
+    .page-header h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .page-header p {
+        font-size: 0.85rem;
+        color: #666;
+    }
+
+    /* 빠른 작업 버튼 모바일 최적화 */
+    .quick-actions {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+    }
+
+    .quick-action {
+        padding: 1rem 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .action-icon {
+        font-size: 1.5rem !important;
+        margin-bottom: 0.25rem;
+    }
+
+    /* 카드 간격 줄이기 */
+    .dashboard-card {
+        margin-bottom: 1rem;
+    }
+
+    .card-header h3 {
+        font-size: 1rem;
+    }
+
+    .no-data {
+        padding: 1rem;
+        font-size: 0.85rem;
     }
 }
