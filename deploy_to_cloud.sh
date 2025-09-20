@@ -22,7 +22,7 @@ fi
 git commit -m "$commit_message"
 
 echo "📤 GitHub에 푸시 중..."
-git push origin master
+git push origin uploaded-board-store_mobile_v1
 
 # 2. 클라우드 서버에 배포
 echo "☁️ 클라우드 서버에 배포 중..."
@@ -39,9 +39,12 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         echo "📥 저장소 클론 중..."
         sudo rm -rf *
         sudo git clone https://github.com/dolkim85/tansaeng.git .
+        sudo git checkout uploaded-board-store_mobile_v1
     else
         echo "🔄 최신 변경사항 가져오는 중..."
-        sudo git pull origin master
+        sudo git fetch origin
+        sudo git checkout uploaded-board-store_mobile_v1
+        sudo git pull origin uploaded-board-store_mobile_v1
     fi
 
     # 권한 설정
