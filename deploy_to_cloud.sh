@@ -43,8 +43,10 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
     else
         echo "🔄 최신 변경사항 가져오는 중..."
         sudo git fetch origin
+        sudo git reset --hard HEAD
+        sudo git clean -fd
         sudo git checkout main
-        sudo git pull origin main
+        sudo git reset --hard origin/main
     fi
 
     # 권한 설정
