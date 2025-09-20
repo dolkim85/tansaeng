@@ -24,8 +24,12 @@ class Environment {
                 self::$environment = 'production'; // 기본값
             }
         } else {
-            // CLI 환경 (배포 스크립트 등)
-            self::$environment = 'local';
+            // CLI 환경 - 서버 위치로 판단
+            if (file_exists('/var/www/html')) {
+                self::$environment = 'production'; // 클라우드 서버
+            } else {
+                self::$environment = 'local'; // 로컬 개발 환경
+            }
         }
 
         return self::$environment;
