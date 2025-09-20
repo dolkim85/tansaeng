@@ -86,6 +86,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (mobileToggle) {
         mobileToggle.addEventListener('click', function() {
             navMenu.classList.toggle('active');
+            mobileToggle.classList.toggle('active');
         });
     }
 });

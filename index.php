@@ -73,13 +73,25 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                 <p class="hero-description">
                     <?= nl2br(htmlspecialchars($siteSettings['hero_description'] ?? '고품질 수경재배 배지와 AI 기반 식물분석 서비스로 여러분의 스마트팜을 더욱 스마트하게 만들어드립니다.')) ?>
                 </p>
-                <div class="hero-buttons">
-                    <a href="/pages/products/" class="btn btn-primary">제품 보기</a>
-                    <a href="/pages/plant-analysis/" class="btn btn-secondary">AI 식물분석</a>
+                <div class="hero-links">
+                    <a href="/pages/products/" class="hero-link">제품 보기</a>
+                    <a href="/pages/plant-analysis/" class="hero-link">AI 식물분석</a>
                 </div>
             </div>
             <div class="hero-image">
-                <img src="<?= htmlspecialchars($siteSettings['hero_background'] ?? '/assets/images/hero-smart-farm.jpg') ?>" alt="스마트팜 이미지" loading="lazy">
+                <?php
+                $heroMedia = $siteSettings['hero_background'] ?? '/assets/images/hero-smart-farm.jpg';
+                $fileExt = strtolower(pathinfo($heroMedia, PATHINFO_EXTENSION));
+
+                if (in_array($fileExt, ['mp4', 'webm', 'ogg'])): ?>
+                    <video autoplay muted loop>
+                        <source src="<?= htmlspecialchars($heroMedia) ?>" type="video/<?= $fileExt ?>">
+                        <!-- 비디오 지원하지 않는 브라우저용 대체 이미지 -->
+                        <img src="/assets/images/hero-smart-farm.jpg" alt="스마트팜 이미지" loading="lazy">
+                    </video>
+                <?php else: ?>
+                    <img src="<?= htmlspecialchars($heroMedia) ?>" alt="스마트팜 이미지" loading="lazy">
+                <?php endif; ?>
             </div>
         </div>
     </section>
@@ -125,42 +137,65 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
     <section class="products-section">
         <div class="container">
             <div class="section-header">
-                <h2 class="section-title">주요 제품</h2>
+                <h2 class="section-title">인기 제품</h2>
                 <a href="/pages/products/" class="section-link">전체 제품 보기 →</a>
             </div>
 
             <div class="products-grid" id="featured-products">
-                <!-- Featured products will be loaded here -->
-                <div class="product-card">
+                <a href="/pages/store/product.php?id=1" class="product-card">
                     <div class="product-image">
                         <img src="/assets/images/products/coco-peat.jpg" alt="코코피트 배지" loading="lazy">
                     </div>
                     <div class="product-info">
-                        <h3>코코피트 배지</h3>
-                        <p>천연 코코넛 섬유로 만든 친환경 배지</p>
+                        <h3>코코피트</h3>
                         <div class="product-price">15,000원</div>
                     </div>
-                </div>
-                <div class="product-card">
+                </a>
+                <a href="/pages/store/product.php?id=2" class="product-card">
                     <div class="product-image">
                         <img src="/assets/images/products/perlite.jpg" alt="펄라이트 배지" loading="lazy">
                     </div>
                     <div class="product-info">
-                        <h3>펄라이트 배지</h3>
-                        <p>우수한 배수성을 가진 무기질 배지</p>
+                        <h3>펄라이트</h3>
                         <div class="product-price">12,000원</div>
                     </div>
-                </div>
-                <div class="product-card">
+                </a>
+                <a href="/pages/store/product.php?id=3" class="product-card">
                     <div class="product-image">
                         <img src="/assets/images/products/mixed.jpg" alt="혼합 배지" loading="lazy">
                     </div>
                     <div class="product-info">
-                        <h3>혼합 배지</h3>
-                        <p>다양한 재료를 혼합한 맞춤형 배지</p>
+                        <h3>혼합배지</h3>
                         <div class="product-price">18,000원</div>
                     </div>
-                </div>
+                </a>
+                <a href="/pages/store/product.php?id=4" class="product-card">
+                    <div class="product-image">
+                        <img src="/assets/images/products/organic.jpg" alt="유기질 배지" loading="lazy">
+                    </div>
+                    <div class="product-info">
+                        <h3>유기질배지</h3>
+                        <div class="product-price">16,000원</div>
+                    </div>
+                </a>
+                <a href="/pages/store/product.php?id=5" class="product-card">
+                    <div class="product-image">
+                        <img src="/assets/images/products/hydro.jpg" alt="수경재배 키트" loading="lazy">
+                    </div>
+                    <div class="product-info">
+                        <h3>수경키트</h3>
+                        <div class="product-price">25,000원</div>
+                    </div>
+                </a>
+                <a href="/pages/store/product.php?id=6" class="product-card">
+                    <div class="product-image">
+                        <img src="/assets/images/products/nutrients.jpg" alt="영양액" loading="lazy">
+                    </div>
+                    <div class="product-info">
+                        <h3>영양액</h3>
+                        <div class="product-price">8,000원</div>
+                    </div>
+                </a>
             </div>
         </div>
     </section>
@@ -172,18 +207,17 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                 <div class="about-text">
                     <h2>탄생 소개</h2>
                     <p class="about-description">
-                        탄생은 스마트팜 분야의 선두주자로서 고품질 배지 제조와
-                        AI 기반 식물분석 서비스를 제공하는 전문업체입니다.
+                        고품질 배지 제조와 AI 기반 식물분석 서비스를 제공하는 스마트팜 전문업체입니다.
                     </p>
-                    <ul class="about-features">
-                        <li>✓ 15년 이상의 배지 제조 경험</li>
-                        <li>✓ ISO 9001 품질 인증</li>
-                        <li>✓ 친환경 제조 프로세스</li>
-                        <li>✓ 전국 배송 서비스</li>
-                    </ul>
+                    <div class="about-features-mobile">
+                        <span>✓ 15년+ 경험</span>
+                        <span>✓ ISO 인증</span>
+                        <span>✓ 친환경</span>
+                        <span>✓ 전국배송</span>
+                    </div>
                     <div class="about-buttons">
-                        <a href="/pages/company/about.php" class="btn btn-outline">회사소개</a>
-                        <a href="/pages/support/contact.php" class="btn btn-primary">문의하기</a>
+                        <a href="/pages/company/about.php" class="about-link">회사소개</a>
+                        <a href="/pages/support/contact.php" class="about-link">문의하기</a>
                     </div>
                 </div>
                 <div class="about-image">
