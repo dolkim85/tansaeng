@@ -64,13 +64,31 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         echo "❌ 환경별 설정 파일이 없습니다"
     fi
 
-    # 데이터베이스 연결 테스트
+    # 데이터베이스 연결 테스트 및 테이블 생성
     echo "🔌 데이터베이스 연결 테스트 중..."
     php -r "
         require_once '/var/www/html/config/database.php';
         try {
             \$db = DatabaseConfig::getConnection();
             echo '✅ 데이터베이스 연결 성공\n';
+
+            // site_settings 테이블 존재 확인 및 생성
+            \$sql = \"SHOW TABLES LIKE 'site_settings'\";
+            \$result = \$db->query(\$sql);
+            if (\$result->rowCount() == 0) {
+                echo '📝 site_settings 테이블 생성 중...\n';
+                \$createSql = \"CREATE TABLE site_settings (
+                    id int AUTO_INCREMENT PRIMARY KEY,
+                    setting_key varchar(255) NOT NULL UNIQUE,
+                    setting_value text,
+                    created_at datetime DEFAULT CURRENT_TIMESTAMP,
+                    updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )\";
+                \$db->exec(\$createSql);
+                echo '✅ site_settings 테이블 생성 완료\n';
+            } else {
+                echo '✅ site_settings 테이블 존재 확인됨\n';
+            }
         } catch (Exception \$e) {
             echo '❌ 데이터베이스 연결 실패: ' . \$e->getMessage() . '\n';
         }

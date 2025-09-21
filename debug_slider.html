@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>슬라이더 디버깅</title>
+    <style>
+        body { margin: 20px; font-family: Arial; }
+        .test-area { border: 2px solid red; padding: 20px; margin: 10px 0; }
+        .hero-slider-controls {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            background: #f0f0f0;
+            height: 80px;
+            align-items: center;
+        }
+        .slider-prev, .slider-next {
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid #333;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+        }
+        .hero-slider-indicators {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            padding: 20px;
+            background: #e0e0e0;
+        }
+        .slider-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid #333;
+            background: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+        }
+        .slider-indicator.active {
+            background: rgba(255, 255, 255, 1);
+        }
+    </style>
+</head>
+<body>
+    <h2>슬라이더 컨트롤 테스트</h2>
+
+    <div class="test-area">
+        <h3>1. 화살표 버튼 테스트</h3>
+        <div class="hero-slider-controls">
+            <button class="slider-prev" onclick="testPrev()">‹</button>
+            <button class="slider-next" onclick="testNext()">›</button>
+        </div>
+        <div id="arrow-result">버튼을 클릭해보세요</div>
+    </div>
+
+    <div class="test-area">
+        <h3>2. 인디케이터 테스트</h3>
+        <div class="hero-slider-indicators">
+            <button class="slider-indicator active" onclick="testGoTo(0)"></button>
+            <button class="slider-indicator" onclick="testGoTo(1)"></button>
+        </div>
+        <div id="indicator-result">점을 클릭해보세요</div>
+    </div>
+
+    <div class="test-area">
+        <h3>3. 실제 heroSlider 객체 테스트</h3>
+        <button onclick="checkHeroSlider()">heroSlider 객체 확인</button>
+        <div id="object-result">버튼을 클릭해서 확인</div>
+    </div>
+
+    <script>
+        function testPrev() {
+            document.getElementById('arrow-result').innerHTML = '← 이전 버튼 클릭됨!';
+        }
+
+        function testNext() {
+            document.getElementById('arrow-result').innerHTML = '→ 다음 버튼 클릭됨!';
+        }
+
+        function testGoTo(index) {
+            document.getElementById('indicator-result').innerHTML = `인디케이터 ${index} 클릭됨!`;
+        }
+
+        function checkHeroSlider() {
+            if (typeof heroSlider !== 'undefined') {
+                document.getElementById('object-result').innerHTML = 'heroSlider 객체 존재함! 함수들: ' + Object.keys(heroSlider).join(', ');
+            } else {
+                document.getElementById('object-result').innerHTML = '❌ heroSlider 객체가 없음!';
+            }
+        }
+
+        // 메인 페이지에서 사용하는 heroSlider 객체 복사
+        const heroSlider = {
+            currentSlide: 0,
+            totalSlides: 2,
+
+            prev() {
+                alert('이전 슬라이드로 이동!');
+            },
+
+            next() {
+                alert('다음 슬라이드로 이동!');
+            },
+
+            goTo(index) {
+                alert(`슬라이드 ${index}로 이동!`);
+            }
+        };
+    </script>
+</body>
+</html>
