@@ -79,19 +79,45 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                 </div>
             </div>
             <div class="hero-image">
-                <?php
-                $heroMedia = $siteSettings['hero_background'] ?? '/assets/images/hero-smart-farm.jpg';
-                $fileExt = strtolower(pathinfo($heroMedia, PATHINFO_EXTENSION));
+                <div class="hero-slider">
+                    <?php
+                    // 여러 미디어 파일 지원 (콤마로 구분)
+                    $heroMediaList = $siteSettings['hero_media_list'] ?? $siteSettings['hero_background'] ?? '/assets/images/hero-smart-farm.jpg';
+                    $mediaFiles = array_map('trim', explode(',', $heroMediaList));
+                    $totalSlides = count($mediaFiles);
 
-                if (in_array($fileExt, ['mp4', 'webm', 'ogg'])): ?>
-                    <video autoplay muted loop>
-                        <source src="<?= htmlspecialchars($heroMedia) ?>" type="video/<?= $fileExt ?>">
-                        <!-- 비디오 지원하지 않는 브라우저용 대체 이미지 -->
-                        <img src="/assets/images/hero-smart-farm.jpg" alt="스마트팜 이미지" loading="lazy">
-                    </video>
-                <?php else: ?>
-                    <img src="<?= htmlspecialchars($heroMedia) ?>" alt="스마트팜 이미지" loading="lazy">
-                <?php endif; ?>
+                    foreach ($mediaFiles as $index => $heroMedia):
+                        $fileExt = strtolower(pathinfo($heroMedia, PATHINFO_EXTENSION));
+                        $isActive = $index === 0 ? 'active' : '';
+                    ?>
+                        <div class="hero-slide <?= $isActive ?>" data-slide="<?= $index ?>">
+                            <?php if (in_array($fileExt, ['mp4', 'webm', 'ogg'])): ?>
+                                <video autoplay muted loop playsinline>
+                                    <source src="<?= htmlspecialchars($heroMedia) ?>" type="video/<?= $fileExt ?>">
+                                    <!-- 비디오 지원하지 않는 브라우저용 대체 이미지 -->
+                                    <img src="/assets/images/hero-smart-farm.jpg" alt="스마트팜 이미지" loading="lazy">
+                                </video>
+                            <?php else: ?>
+                                <img src="<?= htmlspecialchars($heroMedia) ?>" alt="스마트팜 이미지 <?= $index + 1 ?>" loading="<?= $index === 0 ? 'eager' : 'lazy' ?>">
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+
+                    <?php if ($totalSlides > 1): ?>
+                        <!-- 슬라이더 컨트롤 -->
+                        <div class="hero-slider-controls">
+                            <button class="slider-prev" onclick="heroSlider.prev()">‹</button>
+                            <button class="slider-next" onclick="heroSlider.next()">›</button>
+                        </div>
+
+                        <!-- 슬라이더 인디케이터 -->
+                        <div class="hero-slider-indicators">
+                            <?php for ($i = 0; $i < $totalSlides; $i++): ?>
+                                <button class="slider-indicator <?= $i === 0 ? 'active' : '' ?>" onclick="heroSlider.goTo(<?= $i ?>)"></button>
+                            <?php endfor; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </section>
@@ -278,9 +304,100 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
     </section>
 
     <script>
+    // Hero Slider functionality
+    const heroSlider = {
+        currentSlide: 0,
+        totalSlides: 0,
+        autoSlideInterval: null,
+        autoSlideDelay: 5000, // 5초마다 자동 슬라이드
+
+        init() {
+            const slides = document.querySelectorAll('.hero-slide');
+            this.totalSlides = slides.length;
+
+            console.log('슬라이더 초기화:', this.totalSlides, '개 슬라이드');
+
+            if (this.totalSlides > 1) {
+                this.startAutoSlide();
+                console.log('자동 슬라이드 시작');
+
+                // 슬라이더 영역에 마우스 hover 시 자동 슬라이드 일시정지
+                const sliderContainer = document.querySelector('.hero-slider');
+                if (sliderContainer) {
+                    sliderContainer.addEventListener('mouseenter', () => {
+                        this.stopAutoSlide();
+                        console.log('자동 슬라이드 일시정지');
+                    });
+                    sliderContainer.addEventListener('mouseleave', () => {
+                        this.startAutoSlide();
+                        console.log('자동 슬라이드 재시작');
+                    });
+                }
+            }
+        },
+
+        goTo(slideIndex) {
+            if (slideIndex < 0 || slideIndex >= this.totalSlides) return;
+
+            console.log('슬라이드 이동:', this.currentSlide, '→', slideIndex);
+
+            // 현재 활성 슬라이드 비활성화
+            const currentSlide = document.querySelector('.hero-slide.active');
+            const currentIndicator = document.querySelector('.slider-indicator.active');
+
+            if (currentSlide) currentSlide.classList.remove('active');
+            if (currentIndicator) currentIndicator.classList.remove('active');
+
+            // 새 슬라이드 활성화
+            const newSlide = document.querySelector(`[data-slide="${slideIndex}"]`);
+            const newIndicator = document.querySelectorAll('.slider-indicator')[slideIndex];
+
+            if (newSlide) newSlide.classList.add('active');
+            if (newIndicator) newIndicator.classList.add('active');
+
+            this.currentSlide = slideIndex;
+        },
+
+        next() {
+            const nextSlide = (this.currentSlide + 1) % this.totalSlides;
+            this.goTo(nextSlide);
+        },
+
+        prev() {
+            const prevSlide = this.currentSlide === 0 ? this.totalSlides - 1 : this.currentSlide - 1;
+            this.goTo(prevSlide);
+        },
+
+        startAutoSlide() {
+            if (this.totalSlides <= 1) return;
+
+            this.stopAutoSlide(); // 기존 인터벌 제거
+            this.autoSlideInterval = setInterval(() => {
+                this.next();
+            }, this.autoSlideDelay);
+        },
+
+        stopAutoSlide() {
+            if (this.autoSlideInterval) {
+                clearInterval(this.autoSlideInterval);
+                this.autoSlideInterval = null;
+            }
+        }
+    };
+
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('페이지 로드 완료, 슬라이더 초기화 시작');
+
+        // Initialize hero slider
+        heroSlider.init();
+
         // Initialize page functionality
         console.log('Tansaeng Smart Farm Website Loaded');
+    });
+
+    // 에러 캐치
+    window.addEventListener('error', function(e) {
+        console.error('JavaScript 에러:', e.error);
     });
     </script>
 

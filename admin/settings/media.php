@@ -13,6 +13,51 @@ if (!$isAdmin) {
 $success = '';
 $error = '';
 
+// 파일 삭제 처리
+if (isset($_GET['delete_media'])) {
+    try {
+        $pdo = DatabaseConfig::getConnection();
+        $mediaToDelete = $_GET['delete_media'];
+        $deleteType = $_GET['type'] ?? 'hero_media';
+
+        if ($deleteType === 'hero_media') {
+            // 히어로 미디어 리스트에서 삭제
+            $sql = "SELECT setting_value FROM site_settings WHERE setting_key = 'hero_media_list'";
+            $stmt = $pdo->query($sql);
+            $currentMediaList = $stmt->fetchColumn() ?: '';
+
+            $mediaFiles = array_map('trim', explode(',', $currentMediaList));
+            $mediaFiles = array_filter($mediaFiles, function($file) use ($mediaToDelete) {
+                return $file !== $mediaToDelete;
+            });
+
+            $newMediaList = implode(',', $mediaFiles);
+            $sql = "UPDATE site_settings SET setting_value = ? WHERE setting_key = 'hero_media_list'";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$newMediaList]);
+        } else {
+            // 단일 미디어 파일 삭제 (로고, 파비콘, 회사소개 이미지 등)
+            $sql = "UPDATE site_settings SET setting_value = '' WHERE setting_key = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$deleteType]);
+        }
+
+        // 실제 파일 삭제
+        $filePath = __DIR__ . '/../../' . ltrim($mediaToDelete, '/');
+        if (file_exists($filePath)) {
+            unlink($filePath);
+        }
+
+        $success = '미디어 파일이 삭제되었습니다.';
+
+        // 페이지 새로고침으로 GET 파라미터 제거
+        header('Location: ' . $_SERVER['PHP_SELF']);
+        exit;
+    } catch (Exception $e) {
+        $error = '파일 삭제 중 오류가 발생했습니다: ' . $e->getMessage();
+    }
+}
+
 // 파일 업로드 처리
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -44,7 +89,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // 배경 이미지 업로드 처리
+        // 히어로 미디어 다중 업로드 처리
+        if (isset($_FILES['hero_media']) && !empty($_FILES['hero_media']['name'][0])) {
+            $newHeroMediaPaths = [];
+            $files = $_FILES['hero_media'];
+
+            // 기존 미디어 리스트 가져오기
+            $existingMediaList = $currentSettings['hero_media_list'] ?? '';
+            $existingMediaFiles = !empty($existingMediaList) ? array_map('trim', explode(',', $existingMediaList)) : [];
+
+            for ($i = 0; $i < count($files['name']); $i++) {
+                if ($files['error'][$i] === UPLOAD_ERR_OK) {
+                    $fileInfo = pathinfo($files['name'][$i]);
+                    $fileName = 'hero_media_' . time() . '_' . $i . '.' . $fileInfo['extension'];
+
+                    if (move_uploaded_file($files['tmp_name'][$i], $uploadDir . $fileName)) {
+                        $newHeroMediaPaths[] = '/uploads/media/' . $fileName;
+                    }
+                }
+            }
+
+            if (!empty($newHeroMediaPaths)) {
+                // 기존 파일들과 새 파일들 합치기
+                $allMediaFiles = array_merge($existingMediaFiles, $newHeroMediaPaths);
+                $settings['hero_media_list'] = implode(',', $allMediaFiles);
+            }
+        }
+
+        // 단일 배경 이미지 업로드 처리 (하위 호환성)
         if (isset($_FILES['hero_bg']) && $_FILES['hero_bg']['error'] === UPLOAD_ERR_OK) {
             $bgInfo = pathinfo($_FILES['hero_bg']['name']);
             $bgName = 'hero_bg_' . time() . '.' . $bgInfo['extension'];
@@ -146,9 +218,17 @@ try {
                                     <small>권장 크기: 200x60px, PNG/JPG/SVG 형식</small>
                                 </div>
                                 <?php if (!empty($currentSettings['site_logo'])): ?>
-                                    <div class="current-image">
+                                    <div class="current-media-preview">
                                         <p>현재 로고:</p>
-                                        <img src="<?= htmlspecialchars($currentSettings['site_logo']) ?>" alt="현재 로고" style="max-height: 60px;">
+                                        <div class="media-preview-compact">
+                                            <img src="<?= htmlspecialchars($currentSettings['site_logo']) ?>" alt="현재 로고">
+                                            <div class="media-compact-info">
+                                                <div class="media-compact-name"><?= basename($currentSettings['site_logo']) ?></div>
+                                                <a href="?delete_media=<?= urlencode($currentSettings['site_logo']) ?>&type=site_logo"
+                                                   onclick="return confirm('로고를 삭제하시겠습니까?')"
+                                                   class="btn-delete-compact">🗑️</a>
+                                            </div>
+                                        </div>
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -158,9 +238,17 @@ try {
                                 <input type="file" id="favicon" name="favicon" accept="image/*">
                                 <small>권장 크기: 32x32px, ICO/PNG 형식</small>
                                 <?php if (!empty($currentSettings['site_favicon'])): ?>
-                                    <div class="current-image">
+                                    <div class="current-media-preview">
                                         <p>현재 파비콘:</p>
-                                        <img src="<?= htmlspecialchars($currentSettings['site_favicon']) ?>" alt="현재 파비콘" style="max-height: 32px;">
+                                        <div class="media-preview-compact">
+                                            <img src="<?= htmlspecialchars($currentSettings['site_favicon']) ?>" alt="현재 파비콘">
+                                            <div class="media-compact-info">
+                                                <div class="media-compact-name"><?= basename($currentSettings['site_favicon']) ?></div>
+                                                <a href="?delete_media=<?= urlencode($currentSettings['site_favicon']) ?>&type=site_favicon"
+                                                   onclick="return confirm('파비콘을 삭제하시겠습니까?')"
+                                                   class="btn-delete-compact">🗑️</a>
+                                            </div>
+                                        </div>
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -188,9 +276,46 @@ try {
                         </div>
 
                         <div class="form-group">
-                            <label for="hero_bg">히어로 배경 이미지</label>
+                            <label for="hero_media">히어로 미디어 슬라이더 (다중 선택)</label>
+                            <div class="upload-area">
+                                <input type="file" id="hero_media" name="hero_media[]" accept="image/*,video/*" multiple class="form-control">
+                                <small>권장 크기: 1920x1080px, JPG/PNG/MP4/WEBM 형식. 여러 파일을 선택하면 자동 슬라이더로 표시됩니다.</small>
+                            </div>
+                            <?php if (!empty($currentSettings['hero_media_list'])): ?>
+                                <div class="current-media-list">
+                                    <p>현재 미디어 슬라이더:</p>
+                                    <div class="media-preview-grid-compact">
+                                        <?php
+                                        $mediaFiles = explode(',', $currentSettings['hero_media_list']);
+                                        foreach ($mediaFiles as $index => $mediaFile):
+                                            $fileExt = strtolower(pathinfo(trim($mediaFile), PATHINFO_EXTENSION));
+                                        ?>
+                                            <div class="media-preview-compact">
+                                                <?php if (in_array($fileExt, ['mp4', 'webm', 'ogg'])): ?>
+                                                    <video controls>
+                                                        <source src="<?= htmlspecialchars(trim($mediaFile)) ?>" type="video/<?= $fileExt ?>">
+                                                    </video>
+                                                <?php else: ?>
+                                                    <img src="<?= htmlspecialchars(trim($mediaFile)) ?>" alt="미디어 <?= $index + 1 ?>">
+                                                <?php endif; ?>
+                                                <div class="media-compact-info">
+                                                    <div class="media-compact-name"><?= basename(trim($mediaFile)) ?></div>
+                                                    <div class="media-compact-type"><?= strtoupper($fileExt) ?></div>
+                                                    <a href="?delete_media=<?= urlencode(trim($mediaFile)) ?>&type=hero_media"
+                                                       onclick="return confirm('이 파일을 삭제하시겠습니까?')"
+                                                       class="btn-delete-compact">🗑️</a>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="hero_bg">히어로 배경 이미지 (단일, 하위 호환성)</label>
                             <input type="file" id="hero_bg" name="hero_bg" accept="image/*">
-                            <small>권장 크기: 1920x1080px, JPG/PNG 형식</small>
+                            <small>권장 크기: 1920x1080px, JPG/PNG 형식 (위의 다중 미디어를 사용하지 않을 경우)</small>
                             <?php if (!empty($currentSettings['hero_background'])): ?>
                                 <div class="current-image">
                                     <p>현재 배경 이미지:</p>
@@ -208,9 +333,17 @@ try {
                             <input type="file" id="about_image" name="about_image" accept="image/*">
                             <small>권장 크기: 800x600px, JPG/PNG 형식</small>
                             <?php if (!empty($currentSettings['about_image'])): ?>
-                                <div class="current-image">
-                                    <p>현재 이미지:</p>
-                                    <img src="<?= htmlspecialchars($currentSettings['about_image']) ?>" alt="회사 소개" style="max-width: 300px; max-height: 200px;">
+                                <div class="current-media-preview">
+                                    <p>현재 회사 소개 이미지:</p>
+                                    <div class="media-preview-compact">
+                                        <img src="<?= htmlspecialchars($currentSettings['about_image']) ?>" alt="회사 소개">
+                                        <div class="media-compact-info">
+                                            <div class="media-compact-name"><?= basename($currentSettings['about_image']) ?></div>
+                                            <a href="?delete_media=<?= urlencode($currentSettings['about_image']) ?>&type=about_image"
+                                               onclick="return confirm('회사 소개 이미지를 삭제하시겠습니까?')"
+                                               class="btn-delete-compact">🗑️</a>
+                                        </div>
+                                    </div>
                                 </div>
                             <?php endif; ?>
                         </div>

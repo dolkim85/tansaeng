@@ -334,16 +334,300 @@ p {
     min-height: 400px;
 }
 
-.hero-image img,
-.hero-image video {
+.hero-slider {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+    overflow: hidden;
+    border-radius: 12px;
+}
+
+.hero-slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.8s ease-in-out;
+    z-index: 1;
+}
+
+.hero-slide.active {
+    opacity: 1;
+    z-index: 2;
+}
+
+.hero-slide img,
+.hero-slide video {
     width: 100%;
     height: 100%;
     object-fit: cover;
     border-radius: 12px;
 }
 
-.hero-image video {
+.hero-slide video {
     background-color: #000;
+}
+
+/* 슬라이더 컨트롤 */
+.hero-slider-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    z-index: 100;
+    pointer-events: none;
+}
+
+.slider-prev,
+.slider-next {
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.slider-prev:hover,
+.slider-next:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    border-color: rgba(255, 255, 255, 1);
+}
+
+/* 슬라이더 인디케이터 */
+.hero-slider-indicators {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    gap: 8px;
+    z-index: 100;
+}
+
+.slider-indicator {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.slider-indicator:hover {
+    background: rgba(255, 255, 255, 0.8);
+    transform: scale(1.2);
+}
+
+.slider-indicator.active {
+    background: rgba(255, 255, 255, 1);
+    border-color: rgba(255, 255, 255, 1);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+    transform: scale(1.1);
+}
+
+/* Admin Media Upload Grid Styles */
+.media-upload-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 2px dashed #e9ecef;
+}
+
+.media-preview-item {
+    position: relative;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
+}
+
+.media-preview-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.media-preview-item img,
+.media-preview-item video {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+}
+
+.media-preview-info {
+    padding: 10px;
+    background: white;
+}
+
+.media-preview-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.media-preview-type {
+    font-size: 0.8rem;
+    color: #666;
+    text-transform: uppercase;
+}
+
+.media-upload-area {
+    border: 2px dashed #007bff;
+    background: rgba(0, 123, 255, 0.05);
+    padding: 40px 20px;
+    text-align: center;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.media-upload-area:hover {
+    border-color: #0056b3;
+    background: rgba(0, 123, 255, 0.1);
+}
+
+.media-upload-area i {
+    font-size: 2rem;
+    color: #007bff;
+    margin-bottom: 10px;
+}
+
+.media-upload-text {
+    color: #007bff;
+    font-weight: 500;
+    margin-bottom: 5px;
+}
+
+.media-upload-hint {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.media-preview-actions {
+    padding: 10px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.btn-delete {
+    display: inline-block;
+    padding: 5px 10px;
+    background: #dc3545;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    transition: background-color 0.2s ease;
+}
+
+.btn-delete:hover {
+    background: #c82333;
+    color: white;
+    text-decoration: none;
+}
+
+/* Compact Media Preview Styles */
+.media-preview-grid-compact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.media-preview-compact {
+    display: flex;
+    align-items: center;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 8px;
+    min-width: 250px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.media-preview-compact img,
+.media-preview-compact video {
+    width: 60px;
+    height: 45px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.media-compact-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.media-compact-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 150px;
+}
+
+.media-compact-type {
+    font-size: 0.75rem;
+    color: #666;
+    text-transform: uppercase;
+}
+
+.btn-delete-compact {
+    display: inline-block;
+    padding: 2px 6px;
+    background: #dc3545;
+    color: white;
+    text-decoration: none;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    transition: background-color 0.2s ease;
+    margin-left: auto;
+}
+
+.btn-delete-compact:hover {
+    background: #c82333;
+    color: white;
+    text-decoration: none;
+}
+
+.current-media-preview {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
 }
 
 /* Features Section */
@@ -736,7 +1020,7 @@ p {
         grid-template-columns: 1fr;
         gap: 2rem;
         text-align: center;
-        padding: 0 15px;
+        padding: 0 25px;
         align-items: center;
     }
 
