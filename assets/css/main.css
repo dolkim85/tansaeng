@@ -666,7 +666,7 @@ p {
 /* Responsive Design */
 @media (max-width: 768px) {
     .container {
-        padding: 0 15px;
+        padding: 0 20px; /* 15px → 20px로 증가 */
     }
 
     /* Mobile Header - Ensure sticky positioning */
@@ -677,10 +677,16 @@ p {
         background-color: white !important;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
         width: 100% !important;
+        padding: 0 5px; /* 헤더 자체에 추가 패딩 */
     }
 
     .navbar {
-        padding: 1rem 0 !important;
+        padding: 1rem 15px !important; /* 좌우 패딩 추가 */
+    }
+
+    /* 로고와 햄버거 메뉴 간격 개선 */
+    .navbar .container {
+        padding: 0 10px; /* 네비바 내 컨테이너 패딩 */
     }
 
     /* Mobile Navigation */
@@ -693,7 +699,7 @@ p {
         height: calc(100vh - 80px);
         background: white;
         flex-direction: column;
-        padding: 1rem;
+        padding: 1.5rem 20px; /* 좌우 패딩 증가 */
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         gap: 0;
         overflow-y: auto;
@@ -999,6 +1005,48 @@ p {
 }
 
 @media (max-width: 480px) {
+    /* 작은 화면에서 더 넉넉한 패딩 */
+    .container {
+        padding: 0 25px; /* 20px → 25px로 증가 */
+    }
+
+    .header {
+        padding: 0 8px; /* 헤더 패딩 증가 */
+    }
+
+    .navbar {
+        padding: 1rem 20px !important; /* 네비바 패딩 증가 */
+    }
+
+    .navbar .container {
+        padding: 0 5px; /* 더 넉넉한 간격 */
+    }
+
+    /* 모바일 메뉴 패딩 증가 */
+    .nav-menu {
+        padding: 1.5rem 25px; /* 좌우 패딩 더 증가 */
+    }
+
+    /* 햄버거 메뉴 위치 조정 */
+    .mobile-menu-toggle {
+        margin-right: 5px; /* 오른쪽 여백 추가 */
+    }
+
+    /* 로고 좌측 여백 추가 */
+    .navbar .logo {
+        margin-left: 5px;
+    }
+
+    /* 메인 콘텐츠 영역 패딩 개선 */
+    .hero-section .container,
+    .features-section .container,
+    .products-section .container,
+    .about-section .container,
+    .news-section .container,
+    .cta-section .container {
+        padding-left: 25px;
+        padding-right: 25px;
+    }
 
     .features-section,
     .products-section,
