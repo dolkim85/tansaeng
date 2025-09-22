@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>햄버거 메뉴 테스트</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        .header {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+            height: 60px;
+        }
+
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            height: 100%;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2E7D32;
+        }
+
+        .nav-menu {
+            display: none;
+            position: fixed;
+            top: 60px;
+            left: 0;
+            width: 100%;
+            height: calc(100vh - 60px);
+            background: white;
+            flex-direction: column;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 999;
+            visibility: hidden;
+            opacity: 0;
+            transform: translateX(-100%);
+            transition: all 0.3s ease;
+        }
+
+        .nav-menu.active {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            transform: translateX(0) !important;
+        }
+
+        .nav-menu li {
+            list-style: none;
+            margin-bottom: 15px;
+        }
+
+        .nav-menu a {
+            display: block;
+            padding: 15px 10px;
+            color: #333;
+            text-decoration: none;
+            font-size: 16px;
+            border-radius: 4px;
+        }
+
+        .nav-menu a:hover {
+            background: #f5f5f5;
+        }
+
+        .mobile-menu-toggle {
+            display: flex !important;
+            background: none !important;
+            border: none !important;
+            cursor: pointer !important;
+            width: 30px !important;
+            height: 30px !important;
+            flex-direction: column !important;
+            justify-content: space-around !important;
+            align-items: center !important;
+            padding: 5px !important;
+            z-index: 10000 !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            outline: 2px solid red;
+        }
+
+        .mobile-menu-toggle span {
+            display: block !important;
+            width: 20px !important;
+            height: 2px !important;
+            background-color: #2E7D32 !important;
+            border-radius: 1px !important;
+            transition: all 0.3s ease !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        .content {
+            margin-top: 80px;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="navbar">
+            <div class="logo">탄생</div>
+
+            <ul class="nav-menu" id="nav-menu">
+                <li><a href="/">홈</a></li>
+                <li><a href="/pages/company/about.php">기업소개</a></li>
+                <li><a href="/pages/products/">배지설명</a></li>
+                <li><a href="/pages/store/">스토어</a></li>
+                <li><a href="/pages/board/">게시판</a></li>
+                <li><a href="/pages/support/">고객지원</a></li>
+            </ul>
+
+            <button class="mobile-menu-toggle" id="mobile-menu-toggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </nav>
+    </header>
+
+    <div class="content">
+        <h1>햄버거 메뉴 테스트</h1>
+        <p>콘솔을 열고 햄버거 메뉴(빨간 테두리)를 클릭해보세요.</p>
+        <p>로그가 나타나는지 확인하세요.</p>
+    </div>
+
+    <script src="/assets/js/main.js"></script>
+</body>
+</html>

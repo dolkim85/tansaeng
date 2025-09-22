@@ -401,6 +401,9 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
     });
     </script>
 
+    <!-- Main JavaScript -->
+    <script src="/assets/js/main.js"></script>
+
     <?php include 'includes/footer.php'; ?>
 </body>
 </html>

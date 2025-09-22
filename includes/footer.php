@@ -16,11 +16,11 @@ if (!isset($siteSettings)) {
 }
 
 // Footer configuration with database values
-$company_name = $siteSettings['site_title'] ?? '탄생';
-$company_desc = $siteSettings['footer_company_desc'] ?? '스마트팜 배지 전문업체';
-$company_address = $siteSettings['footer_address'] ?? '서울특별시 강남구 테헤란로 123';
-$company_phone = $siteSettings['footer_phone'] ?? '1588-0000';
-$company_email = $siteSettings['footer_email'] ?? 'contact@tansaeng.com';
+$company_name = $siteSettings['company_name'] ?? $siteSettings['site_title'] ?? '탄생';
+$company_desc = $siteSettings['company_intro_subtitle'] ?? $siteSettings['footer_company_desc'] ?? '스마트팜 배지 전문업체';
+$company_address = $siteSettings['company_address'] ?? $siteSettings['footer_address'] ?? '서울특별시 강남구 테헤란로 123';
+$company_phone = $siteSettings['contact_phone'] ?? $siteSettings['footer_phone'] ?? '1588-0000';
+$company_email = $siteSettings['contact_email'] ?? $siteSettings['footer_email'] ?? 'contact@tansaeng.com';
 $current_year = date('Y');
 
 // Parse JSON menu arrays
@@ -41,9 +41,9 @@ $companyMenu = parseMenuItems($siteSettings['footer_menu_company'] ?? '');
                 <h3><?= htmlspecialchars($company_name) ?></h3>
                 <p><?= htmlspecialchars($company_desc) ?></p>
                 <div class="footer-contact">
-                    <p>📍 <?= htmlspecialchars($company_address) ?></p>
-                    <p>📞 <?= htmlspecialchars($company_phone) ?></p>
-                    <p>✉️ <?= htmlspecialchars($company_email) ?></p>
+                    <div class="contact-item">📍 <?= htmlspecialchars($company_address) ?></div>
+                    <div class="contact-item">📞 <?= htmlspecialchars($company_phone) ?></div>
+                    <div class="contact-item">✉️ <?= htmlspecialchars($company_email) ?></div>
                 </div>
                 <div class="footer-social">
                     <?php if (!empty($siteSettings['footer_social_youtube'])): ?>
@@ -104,7 +104,7 @@ $companyMenu = parseMenuItems($siteSettings['footer_menu_company'] ?? '');
                         <li><a href="/pages/company/about.php">회사소개</a></li>
                         <li><a href="/pages/company/history.php">연혁</a></li>
                         <li><a href="/pages/company/location.php">오시는길</a></li>
-                        <li><a href="/pages/board/">공지사항</a></li>
+                        <li><a href="/pages/support/notice.php">공지사항</a></li>
                     <?php endif; ?>
                 </ul>
             </div>
@@ -116,3 +116,94 @@ $companyMenu = parseMenuItems($siteSettings['footer_menu_company'] ?? '');
         </div>
     </div>
 </footer>
+
+<style>
+/* 푸터 최적화 스타일 */
+.footer-contact {
+    margin: 15px 0;
+}
+
+.footer-contact .contact-item {
+    display: inline-block;
+    margin-right: 15px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.footer-social {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.footer-social a {
+    display: inline-block !important;
+    font-size: 20px;
+    margin-right: 0 !important;
+    padding: 5px;
+    transition: transform 0.3s ease;
+}
+
+.footer-social a:hover {
+    transform: scale(1.2);
+}
+
+.footer-section ul {
+    columns: 2;
+    column-gap: 20px;
+    list-style: none;
+    padding: 0;
+}
+
+.footer-section ul li {
+    margin-bottom: 8px;
+    break-inside: avoid;
+}
+
+.footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    border-top: 1px solid #333;
+    padding-top: 20px;
+}
+
+.footer-bottom p {
+    margin: 0;
+    font-size: 14px;
+}
+
+/* 모바일에서 푸터 최적화 */
+@media (max-width: 768px) {
+    .footer-contact .contact-item {
+        display: block;
+        margin-right: 0;
+        margin-bottom: 5px;
+    }
+
+    .footer-section ul {
+        columns: 1;
+    }
+
+    .footer-bottom {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .footer-content {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+}
+
+/* 태블릿에서 푸터 최적화 */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .footer-content {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>

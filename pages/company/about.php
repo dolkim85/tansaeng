@@ -62,12 +62,12 @@ try {
                     <div class="mission">
                         <div class="icon">🎯</div>
                         <h3>미션 (Mission)</h3>
-                        <p>최고 품질의 배지와 혁신적인 기술을 통해 지속 가능한 농업 생태계를 구축하고, 전 세계 식량 안보에 기여합니다.</p>
+                        <p><?= htmlspecialchars($siteSettings['company_mission'] ?? '최고 품질의 배지와 혁신적인 기술을 통해 지속 가능한 농업 생태계를 구축하고, 전 세계 식량 안보에 기여합니다.') ?></p>
                     </div>
                     <div class="vision">
                         <div class="icon">🚀</div>
                         <h3>비전 (Vision)</h3>
-                        <p>스마트팜 기술의 글로벌 리더로서 농업의 미래를 선도하며, 모든 사람이 건강한 농산물을 접할 수 있는 세상을 만듭니다.</p>
+                        <p><?= htmlspecialchars($siteSettings['company_vision'] ?? '스마트팜 기술의 글로벌 리더로서 농업의 미래를 선도하며, 모든 사람이 건강한 농산물을 접할 수 있는 세상을 만듭니다.') ?></p>
                     </div>
                 </div>
             </section>
@@ -75,6 +75,11 @@ try {
             <!-- Core Values -->
             <section class="core-values">
                 <h2>핵심 가치</h2>
+                <?php if (!empty($siteSettings['company_values'])): ?>
+                    <div class="values-content">
+                        <?= nl2br(htmlspecialchars($siteSettings['company_values'])) ?>
+                    </div>
+                <?php else: ?>
                 <div class="values-grid">
                     <div class="value-item">
                         <div class="value-icon">🌱</div>
@@ -97,11 +102,17 @@ try {
                         <p>최적화된 솔루션으로 농업 생산성 향상에 기여합니다.</p>
                     </div>
                 </div>
+                <?php endif; ?>
             </section>
 
             <!-- Company Stats -->
             <section class="company-stats">
                 <h2>탄생의 성과</h2>
+                <?php if (!empty($siteSettings['company_achievements'])): ?>
+                    <div class="achievements-content">
+                        <?= nl2br(htmlspecialchars($siteSettings['company_achievements'])) ?>
+                    </div>
+                <?php else: ?>
                 <div class="stats-grid">
                     <div class="stat-item">
                         <div class="stat-number">10+</div>
@@ -120,11 +131,17 @@ try {
                         <div class="stat-label">고객 만족도</div>
                     </div>
                 </div>
+                <?php endif; ?>
             </section>
 
             <!-- Technology -->
             <section class="technology-section">
                 <h2>우리의 기술</h2>
+                <?php if (!empty($siteSettings['company_technology'])): ?>
+                    <div class="technology-content">
+                        <?= nl2br(htmlspecialchars($siteSettings['company_technology'])) ?>
+                    </div>
+                <?php else: ?>
                 <div class="tech-grid">
                     <div class="tech-item">
                         <h3>🤖 AI 식물분석</h3>
@@ -143,6 +160,7 @@ try {
                         <p>다양한 IoT 센서를 통해 최적의 성장 환경을 자동으로 조절합니다.</p>
                     </div>
                 </div>
+                <?php endif; ?>
             </section>
 
             <!-- Contact Info -->
@@ -152,19 +170,16 @@ try {
                     <div class="contact-details">
                         <h3>회사 정보</h3>
                         <div class="detail-item">
-                            <strong>주소:</strong> 서울특별시 강남구 테헤란로 123
+                            <strong>주소:</strong> <?= htmlspecialchars($siteSettings['company_address'] ?? '서울특별시 강남구 테헤란로 123') ?>
                         </div>
                         <div class="detail-item">
-                            <strong>전화:</strong> 02-0000-0000
+                            <strong>전화:</strong> <?= htmlspecialchars($siteSettings['contact_phone'] ?? '02-0000-0000') ?>
                         </div>
                         <div class="detail-item">
-                            <strong>팩스:</strong> 02-0000-0001
+                            <strong>이메일:</strong> <?= htmlspecialchars($siteSettings['contact_email'] ?? 'info@tangsaeng.com') ?>
                         </div>
                         <div class="detail-item">
-                            <strong>이메일:</strong> info@tangsaeng.com
-                        </div>
-                        <div class="detail-item">
-                            <strong>영업시간:</strong> 평일 09:00 - 18:00 (주말 및 공휴일 휴무)
+                            <strong>영업시간:</strong> <?= htmlspecialchars($siteSettings['business_hours'] ?? '평일 09:00 - 18:00 (주말 및 공휴일 휴무)') ?>
                         </div>
                     </div>
                     <div class="map-placeholder">

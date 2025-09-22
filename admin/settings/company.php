@@ -32,7 +32,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'company_partners' => trim($_POST['company_partners'] ?? ''),
             'company_awards' => trim($_POST['company_awards'] ?? ''),
             'company_research' => trim($_POST['company_research'] ?? ''),
-            'company_future_plans' => trim($_POST['company_future_plans'] ?? '')
+            'company_future_plans' => trim($_POST['company_future_plans'] ?? ''),
+            // 연락처 정보도 회사소개에서 관리
+            'company_address' => trim($_POST['company_address'] ?? ''),
+            'contact_phone' => trim($_POST['contact_phone'] ?? ''),
+            'contact_email' => trim($_POST['contact_email'] ?? ''),
+            'business_hours' => trim($_POST['business_hours'] ?? '')
         ];
 
         foreach ($settings as $key => $value) {
@@ -226,6 +231,38 @@ AI 식물질병 진단 시스템 연구') ?></textarea>
 2026년: 스마트팜 통합 플랫폼 출시
 2027년: 연구개발센터 확장
 2030년: 글로벌 배지 시장 톱5 진입') ?></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>📞 연락처 정보</h3>
+
+                        <div class="form-group">
+                            <label for="company_address">회사 주소</label>
+                            <input type="text" id="company_address" name="company_address"
+                                   value="<?= htmlspecialchars($currentSettings['company_address'] ?? '') ?>"
+                                   placeholder="회사 주소를 입력하세요">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="contact_phone">연락처 전화번호</label>
+                            <input type="tel" id="contact_phone" name="contact_phone"
+                                   value="<?= htmlspecialchars($currentSettings['contact_phone'] ?? '') ?>"
+                                   placeholder="010-0000-0000">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="contact_email">연락처 이메일</label>
+                            <input type="email" id="contact_email" name="contact_email"
+                                   value="<?= htmlspecialchars($currentSettings['contact_email'] ?? '') ?>"
+                                   placeholder="contact@company.com">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="business_hours">영업시간</label>
+                            <input type="text" id="business_hours" name="business_hours"
+                                   value="<?= htmlspecialchars($currentSettings['business_hours'] ?? '') ?>"
+                                   placeholder="평일 09:00 - 18:00">
                         </div>
                     </div>
 

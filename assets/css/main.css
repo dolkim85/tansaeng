@@ -222,6 +222,15 @@ p {
     padding: 5px;
 }
 
+@media (max-width: 768px) {
+    .mobile-menu-toggle {
+        display: flex !important;
+        z-index: 10000 !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+}
+
 .mobile-menu-toggle span {
     display: block;
     width: 20px;
@@ -975,23 +984,30 @@ p {
 
     /* Mobile Navigation */
     .nav-menu {
-        display: none;
-        position: fixed;
-        top: 80px;
-        left: 0;
-        width: 100%;
-        height: calc(100vh - 80px);
-        background: white;
-        flex-direction: column;
-        padding: 1.5rem 20px; /* 좌우 패딩 증가 */
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        gap: 0;
-        overflow-y: auto;
-        z-index: 999;
+        display: none !important;
+        position: fixed !important;
+        top: 80px !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: calc(100vh - 80px) !important;
+        background: white !important;
+        flex-direction: column !important;
+        padding: 1.5rem 20px !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+        gap: 0 !important;
+        overflow-y: auto !important;
+        z-index: 9999 !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        transform: translateX(-100%) !important;
+        transition: all 0.3s ease !important;
     }
 
     .nav-menu.active {
-        display: flex;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        transform: translateX(0) !important;
     }
 
     .nav-menu li {
@@ -1007,7 +1023,14 @@ p {
     }
 
     .mobile-menu-toggle {
-        display: flex;
+        display: flex !important;
+        z-index: 10000 !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative !important;
+        background: none !important;
+        border: none !important;
+        cursor: pointer !important;
     }
 
     /* Mobile Sections */

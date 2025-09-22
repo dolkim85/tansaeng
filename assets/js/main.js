@@ -1,16 +1,20 @@
 // 탄생 - 메인 JavaScript 파일
 
+console.log('=== MAIN.JS LOADED ===', new Date().toLocaleTimeString());
+
 // Global Variables
 let isLoading = false;
 let cartCount = 0;
 
 // DOM Ready
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== DOM CONTENT LOADED ===', new Date().toLocaleTimeString());
     initializeApp();
 });
 
 // Initialize App
 function initializeApp() {
+    console.log('=== INITIALIZING APP ===');
     initMobileMenu();
     initMobileMenuSingleSelect();
     initScrollToTop();
@@ -19,7 +23,7 @@ function initializeApp() {
     initFormValidation();
     initTooltips();
     initSmoothScroll();
-    
+    console.log('=== APP INITIALIZATION COMPLETE ===');
 }
 
 // Mobile Menu Single Selection
@@ -70,32 +74,110 @@ function initMobileMenuSingleSelect() {
 
 // Mobile Menu
 function initMobileMenu() {
-    const mobileToggle = document.querySelector('.mobile-menu-toggle');
-    const navigation = document.querySelector('.main-navigation');
-    
-    if (mobileToggle && navigation) {
-        mobileToggle.addEventListener('click', toggleMobileMenu);
-        
-        // Close menu when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!navigation.contains(e.target) && !mobileToggle.contains(e.target)) {
-                navigation.classList.remove('active');
-            }
+    console.log('Main.js initMobileMenu called');
+
+    // 약간의 지연을 주어 DOM이 완전히 로드되도록 함
+    setTimeout(function() {
+        const mobileToggle = document.querySelector('.mobile-menu-toggle');
+        const navigation = document.querySelector('.nav-menu');
+
+        console.log('Main.js elements (delayed):', {
+            mobileToggle,
+            navigation,
+            toggleExists: !!mobileToggle,
+            navExists: !!navigation
         });
-        
-        // Close menu when window resizes
-        window.addEventListener('resize', function() {
-            if (window.innerWidth > 768) {
-                navigation.classList.remove('active');
-            }
-        });
-    }
+
+        if (mobileToggle && navigation) {
+            console.log('Main.js toggle display:', window.getComputedStyle(mobileToggle).display);
+            console.log('Main.js nav display:', window.getComputedStyle(navigation).display);
+
+            // 기존 이벤트 리스너를 완전히 제거하고 새로 만들기
+            const newToggle = mobileToggle.cloneNode(true);
+            mobileToggle.parentNode.replaceChild(newToggle, mobileToggle);
+
+            // 새로운 요소에 이벤트 리스너 추가
+            const finalToggle = document.querySelector('.mobile-menu-toggle');
+
+            // 강력한 이벤트 리스너 추가
+            finalToggle.addEventListener('click', function(e) {
+                console.log('=== HAMBURGER CLICKED ===');
+                e.preventDefault();
+                e.stopPropagation();
+
+                const isActive = navigation.classList.contains('active');
+                console.log('Current menu state:', isActive ? 'OPEN' : 'CLOSED');
+
+                navigation.classList.toggle('active');
+                finalToggle.classList.toggle('active');
+
+                console.log('New menu state:', navigation.classList.contains('active') ? 'OPEN' : 'CLOSED');
+                console.log('Navigation classes:', navigation.className);
+                console.log('Toggle classes:', finalToggle.className);
+
+                // 햄버거 아이콘 애니메이션
+                const spans = finalToggle.querySelectorAll('span');
+                spans.forEach((span, index) => {
+                    if (finalToggle.classList.contains('active')) {
+                        if (index === 0) span.style.transform = 'rotate(45deg) translate(5px, 5px)';
+                        if (index === 1) span.style.opacity = '0';
+                        if (index === 2) span.style.transform = 'rotate(-45deg) translate(7px, -6px)';
+                    } else {
+                        span.style.transform = '';
+                        span.style.opacity = '';
+                    }
+                });
+            });
+
+            // 터치 이벤트도 추가 (모바일 대응)
+            finalToggle.addEventListener('touchstart', function(e) {
+                console.log('HAMBURGER TOUCHED');
+            });
+
+            // Close menu when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!navigation.contains(e.target) && !finalToggle.contains(e.target)) {
+                    navigation.classList.remove('active');
+                    finalToggle.classList.remove('active');
+
+                    // 햄버거 아이콘 리셋
+                    const spans = finalToggle.querySelectorAll('span');
+                    spans.forEach(span => {
+                        span.style.transform = '';
+                        span.style.opacity = '';
+                    });
+                }
+            });
+
+            // Close menu when window resizes
+            window.addEventListener('resize', function() {
+                if (window.innerWidth > 768) {
+                    navigation.classList.remove('active');
+                    finalToggle.classList.remove('active');
+                    const spans = finalToggle.querySelectorAll('span');
+                    spans.forEach(span => {
+                        span.style.transform = '';
+                        span.style.opacity = '';
+                    });
+                }
+            });
+
+            console.log('Mobile menu initialization COMPLETED');
+        } else {
+            console.error('Mobile menu initialization FAILED - elements not found');
+            console.log('Available elements with .mobile-menu-toggle class:', document.querySelectorAll('.mobile-menu-toggle'));
+            console.log('Available elements with .nav-menu class:', document.querySelectorAll('.nav-menu'));
+        }
+    }, 200); // 200ms 지연
 }
 
-function toggleMobileMenu() {
-    const navigation = document.querySelector('.main-navigation');
+function toggleMobileMenu(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const navigation = document.querySelector('.nav-menu');
     const toggle = document.querySelector('.mobile-menu-toggle');
-    
+
     if (navigation && toggle) {
         navigation.classList.toggle('active');
         toggle.classList.toggle('active');

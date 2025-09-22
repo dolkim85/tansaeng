@@ -303,6 +303,194 @@ try {
             color: #6c757d;
             cursor: not-allowed;
         }
+
+        /* 모바일 최적화 스타일 */
+        @media (max-width: 768px) {
+            body {
+                padding-top: 60px; /* 고정 헤더를 위한 상단 패딩 */
+            }
+
+            .container {
+                padding: 10px;
+                margin-top: 10px; /* 최소 여백만 */
+            }
+
+            .board-header {
+                flex-direction: column;
+                gap: 15px;
+                padding: 15px;
+            }
+
+            .board-title {
+                font-size: 1.5rem;
+                text-align: center;
+            }
+
+            .board-actions {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .search-section {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+
+            .search-form {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .search-input {
+                max-width: 100%;
+                width: 100%;
+            }
+
+            /* 모바일에서 테이블을 카드형으로 변경 */
+            .board-table {
+                display: none;
+            }
+
+            .mobile-board-list {
+                display: block;
+            }
+
+            .mobile-post-item {
+                background: white;
+                border: none;
+                border-radius: 12px;
+                margin-bottom: 12px;
+                padding: 18px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+
+            .mobile-post-item:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            }
+
+            .mobile-post-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+            }
+
+            .mobile-post-number {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 6px 10px;
+                border-radius: 20px;
+                font-size: 11px;
+                font-weight: 700;
+                min-width: 40px;
+                text-align: center;
+            }
+
+            .mobile-post-badges {
+                display: flex;
+                gap: 6px;
+                align-items: center;
+            }
+
+            .mobile-post-category {
+                background: #28a745;
+                color: white;
+                padding: 5px 10px;
+                border-radius: 15px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+
+            .mobile-post-title {
+                font-size: 17px;
+                font-weight: 700;
+                color: #1a202c;
+                text-decoration: none;
+                line-height: 1.5;
+                margin-bottom: 10px;
+                display: block;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .mobile-post-title:hover {
+                color: #667eea;
+            }
+
+            .mobile-post-summary {
+                font-size: 14px;
+                color: #718096;
+                margin-bottom: 12px;
+                line-height: 1.5;
+                overflow: hidden;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+            }
+
+            .mobile-post-meta {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 12px;
+                color: #a0aec0;
+                border-top: 1px solid #f7fafc;
+                padding-top: 10px;
+            }
+
+            .mobile-post-author-date {
+                display: flex;
+                gap: 12px;
+                align-items: center;
+            }
+
+            .mobile-post-author {
+                font-weight: 600;
+                color: #4a5568;
+            }
+
+            .mobile-post-date {
+                color: #a0aec0;
+            }
+
+            .mobile-post-views {
+                background: #edf2f7;
+                color: #4a5568;
+                padding: 4px 8px;
+                border-radius: 10px;
+                font-size: 11px;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 3px;
+            }
+
+            .pagination {
+                flex-wrap: wrap;
+                gap: 3px;
+            }
+
+            .pagination a,
+            .pagination span {
+                padding: 6px 10px;
+                font-size: 13px;
+            }
+
+            .btn {
+                padding: 10px 16px;
+                font-size: 13px;
+            }
+        }
+
+        /* 데스크톱에서는 모바일 리스트 숨기기 */
+        @media (min-width: 769px) {
+            .mobile-board-list {
+                display: none;
+            }
+        }
         
         .no-posts {
             text-align: center;
@@ -486,6 +674,51 @@ try {
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+
+                <!-- 모바일용 카드 리스트 -->
+                <div class="mobile-board-list">
+                    <?php foreach ($posts as $index => $post): ?>
+                        <div class="mobile-post-item">
+                            <div class="mobile-post-header">
+                                <div class="mobile-post-number">
+                                    <?= $total_posts - ($page - 1) * $per_page - $index ?>
+                                </div>
+                                <div class="mobile-post-badges">
+                                    <span class="mobile-post-category">
+                                        <?= htmlspecialchars($post['category_name']) ?>
+                                    </span>
+                                    <?php if ($post['is_notice']): ?>
+                                        <span class="notice-badge">공지</span>
+                                    <?php endif; ?>
+                                    <?php if ($post['is_featured']): ?>
+                                        <span class="featured-badge">추천</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
+                            <a href="view.php?id=<?= $post['id'] ?>" class="mobile-post-title">
+                                <?= htmlspecialchars($post['title']) ?>
+                            </a>
+
+                            <?php if ($post['summary']): ?>
+                                <div class="mobile-post-summary">
+                                    <?= htmlspecialchars(mb_substr($post['summary'], 0, 100)) ?>...
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="mobile-post-meta">
+                                <div class="mobile-post-author-date">
+                                    <span class="mobile-post-author"><?= htmlspecialchars($post['author_name'] ?: '익명') ?></span>
+                                    <span class="mobile-post-date"><?= date('m.d', strtotime($post['created_at'])) ?></span>
+                                </div>
+                                <div class="mobile-post-views">
+                                    <span>👁</span>
+                                    <span><?= number_format($post['views']) ?></span>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             <?php endif; ?>
         </div>
         
