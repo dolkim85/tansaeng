@@ -1,0 +1,23 @@
+# 관리자 페이지 PHP 업로드 설정
+php_value upload_max_filesize 10M
+php_value post_max_size 12M
+php_value max_file_uploads 20
+php_value max_execution_time 120
+php_value max_input_time 120
+php_value memory_limit 256M
+
+# 관리자 보안 설정
+AuthType Basic
+AuthName "Admin Area"
+# AuthUserFile /path/to/.htpasswd  # 필요시 활성화
+
+# Allow PHP execution in admin area
+<Files "*.php">
+    Order allow,deny
+    Allow from all
+</Files>
+
+# 오류 보고 (개발 모드)
+php_flag display_errors On
+php_flag log_errors On
+php_value error_reporting "E_ALL & ~E_NOTICE"

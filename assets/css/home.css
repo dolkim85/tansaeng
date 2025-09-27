@@ -1,0 +1,603 @@
+/* 홈페이지 전용 스타일 */
+
+/* Hero Section */
+.hero-section {
+    position: relative;
+    height: 600px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.hero-slider {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.hero-slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+    display: flex;
+    align-items: center;
+}
+
+.hero-slide.active {
+    opacity: 1;
+}
+
+.hero-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: brightness(0.7);
+}
+
+.hero-content {
+    position: relative;
+    z-index: 2;
+    color: white;
+    width: 100%;
+    padding: 0 20px;
+}
+
+.hero-content h1 {
+    font-size: 3.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    animation: fadeInUp 1s ease-out;
+}
+
+.hero-content p {
+    font-size: 1.25rem;
+    margin-bottom: 2rem;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    animation: fadeInUp 1s ease-out 0.2s both;
+    max-width: 600px;
+}
+
+.hero-content .btn {
+    animation: fadeInUp 1s ease-out 0.4s both;
+    font-size: 1.125rem;
+    padding: 16px 32px;
+}
+
+/* Hero Controls */
+.hero-controls {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    pointer-events: none;
+}
+
+.hero-prev,
+.hero-next {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    font-size: 2rem;
+    padding: 15px 20px;
+    cursor: pointer;
+    border-radius: 50px;
+    transition: all 0.3s ease;
+    pointer-events: all;
+    backdrop-filter: blur(10px);
+}
+
+.hero-prev:hover,
+.hero-next:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+}
+
+/* Hero Indicators */
+.hero-indicators {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    display: flex;
+    gap: 10px;
+}
+
+.indicator {
+    width: 12px;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.indicator.active,
+.indicator:hover {
+    background: white;
+    transform: scale(1.2);
+}
+
+/* Intro Section */
+.intro-section {
+    padding: 5rem 0;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.intro-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3rem;
+    margin-top: 3rem;
+}
+
+.intro-item {
+    text-align: center;
+    padding: 2rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.intro-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+}
+
+.intro-icon {
+    font-size: 3rem;
+    margin-bottom: 1.5rem;
+    display: block;
+}
+
+.intro-item h3 {
+    color: #2E7D32;
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+}
+
+.intro-item p {
+    color: #666;
+    line-height: 1.6;
+}
+
+/* Products Section */
+.products-section {
+    padding: 5rem 0;
+}
+
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    margin-top: 3rem;
+}
+
+.product-card {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.product-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+}
+
+.product-image {
+    height: 200px;
+    overflow: hidden;
+    position: relative;
+}
+
+.product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.product-card:hover .product-image img {
+    transform: scale(1.1);
+}
+
+.product-info {
+    padding: 1.5rem;
+}
+
+.product-info h3 {
+    color: #2E7D32;
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+}
+
+.product-info p {
+    color: #666;
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+}
+
+/* Analysis Section */
+.analysis-section {
+    padding: 5rem 0;
+    background: linear-gradient(135deg, #E8F5E8 0%, #C8E6C9 100%);
+}
+
+.analysis-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+}
+
+.analysis-text h2 {
+    color: #2E7D32;
+    margin-bottom: 1.5rem;
+    font-size: 2.5rem;
+}
+
+.analysis-text p {
+    color: #333;
+    margin-bottom: 2rem;
+    font-size: 1.125rem;
+    line-height: 1.7;
+}
+
+.feature-list {
+    list-style: none;
+    margin: 2rem 0;
+}
+
+.feature-list li {
+    margin-bottom: 1rem;
+    font-size: 1.125rem;
+    color: #333;
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.feature-list li:before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+.permission-notice,
+.login-notice {
+    background: rgba(255, 255, 255, 0.9);
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    margin: 1.5rem 0;
+    border-left: 4px solid #ff9800;
+}
+
+.analysis-visual {
+    text-align: center;
+}
+
+.analysis-demo {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.analysis-demo:hover {
+    transform: scale(1.02);
+}
+
+.analysis-demo img,
+.analysis-demo video {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.analysis-demo video {
+    border-radius: 12px;
+}
+
+.play-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
+    background: rgba(76, 175, 80, 0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.play-button:hover {
+    background: rgba(76, 175, 80, 1);
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+/* Video Section */
+.video-section {
+    padding: 5rem 0;
+    background: #f8f9fa;
+}
+
+.video-container {
+    max-width: 800px;
+    margin: 0 auto;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    transition: transform 0.3s ease;
+}
+
+.video-container:hover {
+    transform: scale(1.02);
+}
+
+.video-container video {
+    width: 100%;
+    height: 400px;
+    object-fit: cover;
+    display: block;
+    border-radius: 12px;
+}
+
+.video-placeholder {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.video-placeholder:hover {
+    transform: scale(1.02);
+}
+
+.video-placeholder img {
+    width: 100%;
+    height: auto;
+}
+
+.video-play-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100px;
+    height: 100px;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.video-play-button:hover {
+    background: rgba(0, 0, 0, 0.8);
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+.video-play-button span {
+    color: white;
+    font-size: 2.5rem;
+    margin-left: 5px;
+}
+
+/* News Section */
+.news-section {
+    padding: 5rem 0;
+}
+
+.news-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    margin-top: 3rem;
+}
+
+.news-item {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.news-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+}
+
+.news-date {
+    color: #4CAF50;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.news-item h3 {
+    color: #2E7D32;
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+}
+
+.news-item p {
+    color: #666;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+.read-more {
+    color: #4CAF50;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.read-more:hover {
+    color: #2E7D32;
+    text-decoration: underline;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes fadeInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 992px) {
+    .hero-content h1 {
+        font-size: 2.5rem;
+    }
+    
+    .intro-grid,
+    .products-grid,
+    .news-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .analysis-content {
+        grid-template-columns: 1fr;
+        gap: 3rem;
+    }
+    
+    .analysis-text {
+        text-align: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .hero-section {
+        height: 500px;
+    }
+    
+    .hero-content h1 {
+        font-size: 2rem;
+    }
+    
+    .hero-content p {
+        font-size: 1rem;
+    }
+    
+    .intro-grid,
+    .products-grid,
+    .news-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+    
+    .intro-section,
+    .products-section,
+    .analysis-section,
+    .video-section,
+    .news-section {
+        padding: 3rem 0;
+    }
+    
+    .section-header h2 {
+        font-size: 2rem;
+    }
+    
+    .analysis-text h2 {
+        font-size: 2rem;
+    }
+    
+    .hero-prev,
+    .hero-next {
+        font-size: 1.5rem;
+        padding: 10px 15px;
+    }
+    
+    .play-button,
+    .video-play-button {
+        width: 60px;
+        height: 60px;
+        font-size: 1.5rem;
+    }
+    
+    .video-play-button span {
+        font-size: 2rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .hero-section {
+        height: 400px;
+    }
+    
+    .hero-content h1 {
+        font-size: 1.75rem;
+    }
+    
+    .hero-controls {
+        display: none;
+    }
+    
+    .intro-item,
+    .product-card,
+    .news-item {
+        padding: 1.5rem;
+    }
+    
+    .analysis-content {
+        gap: 2rem;
+    }
+}

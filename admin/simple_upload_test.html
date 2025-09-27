@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>간단한 업로드 테스트</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-area {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 이미지 업로드 테스트</h1>
+
+    <div class="test-area">
+        <h3>1. 파일 선택 테스트</h3>
+        <input type="file" id="fileInput" accept="image/*" onchange="testUpload(this.files[0])">
+        <div id="result1" class="result"></div>
+    </div>
+
+    <div class="test-area">
+        <h3>2. 드래그 앤 드롭 테스트</h3>
+        <div id="dropZone" style="height: 100px; line-height: 100px; background: #f8f9fa;">
+            여기에 이미지를 드래그 앤 드롭하세요
+        </div>
+        <div id="result2" class="result"></div>
+    </div>
+
+    <div class="test-area">
+        <h3>3. 디버그 업로드 테스트</h3>
+        <input type="file" id="debugFileInput" accept="image/*" onchange="debugUpload(this.files[0])">
+        <div id="result3" class="result"></div>
+    </div>
+
+    <div class="test-area">
+        <h3>4. API 정보</h3>
+        <button onclick="checkAPI()">일반 API 상태 확인</button>
+        <button onclick="checkDebugAPI()">디버그 API 상태 확인</button>
+        <div id="result4" class="result"></div>
+    </div>
+
+    <script>
+        // 드래그 앤 드롭 설정
+        const dropZone = document.getElementById('dropZone');
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.background = '#e7f3ff';
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.style.background = '#f8f9fa';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.background = '#f8f9fa';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                testUpload(files[0], 'result2');
+            }
+        });
+
+        // 업로드 테스트 함수
+        async function testUpload(file, resultId = 'result1') {
+            const resultDiv = document.getElementById(resultId);
+
+            if (!file) {
+                resultDiv.innerHTML = '<div class="error">파일이 선택되지 않았습니다.</div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="info">업로드 중...</div>';
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                console.log('업로드 시작:', file.name, file.size, 'bytes');
+
+                const response = await fetch('/admin/api/image_upload.php', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin'
+                });
+
+                console.log('응답 상태:', response.status, response.statusText);
+
+                const result = await response.text();
+                console.log('응답 내용:', result);
+
+                try {
+                    const jsonResult = JSON.parse(result);
+
+                    if (response.ok && (jsonResult.success || jsonResult.uploaded === 1)) {
+                        resultDiv.innerHTML = `
+                            <div class="success">
+                                ✅ 업로드 성공!<br>
+                                URL: ${jsonResult.url || jsonResult.location}<br>
+                                파일명: ${jsonResult.fileName || file.name}
+                            </div>
+                            <pre>${JSON.stringify(jsonResult, null, 2)}</pre>
+                        `;
+
+                        // 이미지 표시
+                        if (jsonResult.url || jsonResult.location) {
+                            const img = document.createElement('img');
+                            img.src = jsonResult.url || jsonResult.location;
+                            img.style.maxWidth = '200px';
+                            img.style.margin = '10px 0';
+                            resultDiv.appendChild(img);
+                        }
+                    } else {
+                        resultDiv.innerHTML = `
+                            <div class="error">
+                                ❌ 업로드 실패<br>
+                                오류: ${jsonResult.error || jsonResult.message || '알 수 없는 오류'}
+                            </div>
+                            <pre>${JSON.stringify(jsonResult, null, 2)}</pre>
+                        `;
+                    }
+                } catch (parseError) {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            ❌ 응답 파싱 오류<br>
+                            상태: ${response.status} ${response.statusText}
+                        </div>
+                        <pre>${result}</pre>
+                    `;
+                }
+            } catch (error) {
+                console.error('업로드 오류:', error);
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        ❌ 네트워크 오류<br>
+                        ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 디버그 업로드 함수
+        async function debugUpload(file) {
+            const resultDiv = document.getElementById('result3');
+
+            if (!file) {
+                resultDiv.innerHTML = '<div class="error">파일이 선택되지 않았습니다.</div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="info">디버그 업로드 중...</div>';
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                console.log('디버그 업로드 시작:', file.name, file.size, 'bytes');
+
+                const response = await fetch('/admin/api/debug_image_upload.php', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin'
+                });
+
+                console.log('디버그 응답 상태:', response.status, response.statusText);
+
+                const result = await response.text();
+                console.log('디버그 응답 내용:', result);
+
+                try {
+                    const jsonResult = JSON.parse(result);
+
+                    if (response.ok && (jsonResult.success || jsonResult.uploaded === 1)) {
+                        resultDiv.innerHTML = `
+                            <div class="success">
+                                ✅ 디버그 업로드 성공!<br>
+                                URL: ${jsonResult.url || jsonResult.location}<br>
+                                파일명: ${jsonResult.fileName || file.name}
+                            </div>
+                            <pre>${JSON.stringify(jsonResult, null, 2)}</pre>
+                        `;
+
+                        // 이미지 표시
+                        if (jsonResult.url || jsonResult.location) {
+                            const img = document.createElement('img');
+                            img.src = jsonResult.url || jsonResult.location;
+                            img.style.maxWidth = '200px';
+                            img.style.margin = '10px 0';
+                            resultDiv.appendChild(img);
+                        }
+                    } else {
+                        resultDiv.innerHTML = `
+                            <div class="error">
+                                ❌ 디버그 업로드 실패<br>
+                                오류: ${jsonResult.error || jsonResult.message || '알 수 없는 오류'}
+                            </div>
+                            <pre>${JSON.stringify(jsonResult, null, 2)}</pre>
+                        `;
+                    }
+                } catch (parseError) {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            ❌ 디버그 응답 파싱 오류<br>
+                            상태: ${response.status} ${response.statusText}
+                        </div>
+                        <pre>${result}</pre>
+                    `;
+                }
+            } catch (error) {
+                console.error('디버그 업로드 오류:', error);
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        ❌ 디버그 네트워크 오류<br>
+                        ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // API 상태 확인
+        async function checkAPI() {
+            const resultDiv = document.getElementById('result4');
+            resultDiv.innerHTML = '<div class="info">일반 API 상태 확인 중...</div>';
+
+            try {
+                const response = await fetch('/admin/api/image_upload.php', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+
+                const result = await response.text();
+
+                resultDiv.innerHTML = `
+                    <div class="info">
+                        일반 API 응답 상태: ${response.status} ${response.statusText}
+                    </div>
+                    <pre>${result}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        일반 API 접근 실패: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 디버그 API 상태 확인
+        async function checkDebugAPI() {
+            const resultDiv = document.getElementById('result4');
+            resultDiv.innerHTML = '<div class="info">디버그 API 상태 확인 중...</div>';
+
+            try {
+                const response = await fetch('/admin/api/debug_image_upload.php', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+
+                const result = await response.text();
+
+                resultDiv.innerHTML = `
+                    <div class="info">
+                        디버그 API 응답 상태: ${response.status} ${response.statusText}
+                    </div>
+                    <pre>${result}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        디버그 API 접근 실패: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 페이지 로드시 자동으로 API 상태 확인
+        window.addEventListener('load', checkDebugAPI);
+    </script>
+</body>
+</html>

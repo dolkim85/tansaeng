@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>이미지 업로드 테스트</title>
+    <link rel="stylesheet" href="/assets/css/korean-editor.css">
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+
+        #editor-container {
+            border: 1px solid #ddd;
+            min-height: 300px;
+            margin: 10px 0;
+        }
+
+        .log-area {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 이미지 업로드 테스트</h1>
+
+        <div class="test-section">
+            <h3>1. 기본 API 테스트</h3>
+            <button onclick="testAPI()">API 테스트</button>
+            <div id="api-result" class="test-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. 에디터 테스트</h3>
+            <div id="editor-container">
+                <textarea id="test-editor"
+                          data-korean-editor
+                          data-height="300px"
+                          data-upload-url="/admin/api/test_image_upload.php"
+                          placeholder="여기에 이미지를 드래그 앤 드롭하거나 이미지 버튼을 클릭하세요..."></textarea>
+            </div>
+            <button onclick="testImageButton()">이미지 버튼 테스트</button>
+            <button onclick="clearEditor()">에디터 지우기</button>
+        </div>
+
+        <div class="test-section">
+            <h3>3. 파일 업로드 테스트</h3>
+            <input type="file" id="file-input" accept="image/*" onchange="testFileUpload(this.files[0])">
+            <div id="upload-result" class="test-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. 디버그 로그</h3>
+            <button onclick="clearLog()">로그 지우기</button>
+            <div id="debug-log" class="log-area"></div>
+        </div>
+    </div>
+
+    <script src="/assets/js/korean-editor.js"></script>
+    <script>
+        let debugLog = [];
+
+        // 콘솔 로그 가로채기
+        const originalLog = console.log;
+        const originalError = console.error;
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog('LOG', args.join(' '));
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog('ERROR', args.join(' '));
+        };
+
+        function addLog(type, message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLog.push(`[${timestamp}] ${type}: ${message}`);
+            updateLogDisplay();
+        }
+
+        function updateLogDisplay() {
+            const logElement = document.getElementById('debug-log');
+            logElement.textContent = debugLog.slice(-50).join('\n'); // 최근 50개만 표시
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function clearLog() {
+            debugLog = [];
+            updateLogDisplay();
+        }
+
+        // API 직접 테스트
+        async function testAPI() {
+            const resultDiv = document.getElementById('api-result');
+            resultDiv.innerHTML = '테스트 중...';
+
+            try {
+                const response = await fetch('/admin/api/test_image_upload.php', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+
+                const result = await response.text();
+                resultDiv.innerHTML = `<div class="info">응답 (${response.status}): ${result}</div>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">오류: ${error.message}</div>`;
+            }
+        }
+
+        // 이미지 버튼 테스트
+        function testImageButton() {
+            if (window.koreanEditor) {
+                console.log('에디터 이미지 버튼 클릭 시뮬레이션');
+                window.koreanEditor.showImageDialog();
+            } else {
+                alert('에디터가 초기화되지 않았습니다.');
+            }
+        }
+
+        // 에디터 지우기
+        function clearEditor() {
+            if (window.koreanEditor) {
+                window.koreanEditor.setContent('');
+                console.log('에디터 내용 지워짐');
+            }
+        }
+
+        // 파일 직접 업로드 테스트
+        async function testFileUpload(file) {
+            const resultDiv = document.getElementById('upload-result');
+
+            if (!file) {
+                resultDiv.innerHTML = '<div class="error">파일이 선택되지 않았습니다.</div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '업로드 중...';
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch('/admin/api/test_image_upload.php', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin'
+                });
+
+                const result = await response.json();
+
+                if (response.ok && (result.success || result.uploaded === 1)) {
+                    resultDiv.innerHTML = `<div class="success">업로드 성공: ${result.url || result.location}</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">업로드 실패: ${result.error || result.message}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">오류: ${error.message}</div>`;
+            }
+        }
+
+        // 페이지 로드 시 에디터 초기화 확인
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('페이지 로드 완료');
+
+            setTimeout(() => {
+                const editorContainer = document.querySelector('.korean-editor-container');
+                const textarea = document.querySelector('textarea[data-korean-editor]');
+
+                if (editorContainer) {
+                    console.log('✅ 에디터 자동 초기화 성공');
+                } else if (textarea) {
+                    console.log('❌ 자동 초기화 실패, 수동 초기화 시도');
+                    try {
+                        const container = textarea.parentElement;
+                        const editor = new KoreanEditor(container, {
+                            height: '300px',
+                            placeholder: '에디터 테스트...',
+                            imageUploadUrl: '/admin/api/test_image_upload.php'
+                        });
+                        window.koreanEditor = editor;
+                        console.log('✅ 수동 초기화 성공');
+                    } catch (error) {
+                        console.error('❌ 수동 초기화 실패:', error);
+                    }
+                } else {
+                    console.error('❌ textarea 요소를 찾을 수 없음');
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
