@@ -104,17 +104,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <button type="submit" class="btn btn-primary btn-full">로그인</button>
                 
-                <?php if (!$dbConnected): ?>
+                <?php if (!$dbConnected && $_SERVER['SERVER_NAME'] === 'localhost'): ?>
                 <div class="demo-notice">
-                    <h3>🔧 데모 계정</h3>
-                    <p>데이터베이스 설정 완료 전까지 아래 계정으로 테스트하세요:</p>
-                    <div class="demo-credentials">
-                        <p><strong>이메일:</strong> admin@tangsaeng.com</p>
-                        <p><strong>비밀번호:</strong> admin2025</p>
-                    </div>
-                    <button type="button" onclick="fillAdminCredentials()" class="btn btn-outline btn-sm">
-                        자동 입력
-                    </button>
+                    <h3>🔧 개발 모드</h3>
+                    <p>로컬 개발 환경에서만 표시됩니다</p>
                 </div>
                 <?php endif; ?>
                 
@@ -167,12 +160,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <script src="/assets/js/auth.js"></script>
     <script type="module" src="/assets/js/firebase-auth.js"></script>
-    <script>
-        function fillAdminCredentials() {
-            document.getElementById('email').value = 'admin@tangsaeng.com';
-            document.getElementById('password').value = 'admin2025';
-        }
-    </script>
 </body>
 </html>
 

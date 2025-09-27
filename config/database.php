@@ -4,7 +4,7 @@ class DatabaseConfig {
     private static $host = 'localhost';
     private static $dbname = 'tansaeng_db';
     private static $username = 'root';
-    private static $password = '';  // 실제 비밀번호로 변경 필요
+    private static $password = 'qjawns3445';
 
     public static function getConnection() {
         try {
