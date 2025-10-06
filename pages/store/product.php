@@ -92,6 +92,9 @@ $hasDiscount = !empty($product['discount_percentage']) && $product['discount_per
 $finalPrice = $hasDiscount
     ? $product['price'] * (100 - $product['discount_percentage']) / 100
     : $product['price'];
+
+// Get stock quantity
+$stockQuantity = $product['stock_quantity'] ?? $product['stock'] ?? 0;
 ?>
 
 <!DOCTYPE html>
@@ -215,22 +218,9 @@ $finalPrice = $hasDiscount
                         <h4>🛒 구매하기</h4>
 
                         <!-- Stock Status -->
-                <?php
-                $stockQuantity = $product['stock_quantity'] ?? 0;
-                if ($stockQuantity > 10):
-                ?>
-                    <div class="stock-status in-stock">
-                        ✅ 재고 충분 (<?= $stockQuantity ?>개 남음)
-                    </div>
-                <?php elseif ($stockQuantity > 0): ?>
-                    <div class="stock-status low-stock">
-                        ⚠️ 재고 부족 (<?= $stockQuantity ?>개 남음)
-                    </div>
-                <?php else: ?>
-                    <div class="stock-status out-of-stock">
-                        ❌ 품절
-                    </div>
-                <?php endif; ?>
+                <div id="stockStatus" class="stock-status" data-stock="<?= $stockQuantity ?>">
+                    <!-- JavaScript로 동적 업데이트 -->
+                </div>
 
                 <!-- Quantity Selection -->
                 <div class="quantity-section">
@@ -280,7 +270,16 @@ $finalPrice = $hasDiscount
                 <div id="description" class="tab-content active">
                     <h3>📝 상품 상세설명</h3>
                     <?php if (!empty($product['detailed_description'])): ?>
-                        <div class="product-description-content"><?= $product['detailed_description'] ?></div>
+                        <?php
+                        // 이미지 툴바 제거 함수
+                        function removeImageToolbars($html) {
+                            // image-inline-toolbar div 제거
+                            $html = preg_replace('/<div class="image-inline-toolbar">.*?<\/div>/s', '', $html);
+                            return $html;
+                        }
+                        $cleanDescription = removeImageToolbars($product['detailed_description']);
+                        ?>
+                        <div class="product-description-content"><?= $cleanDescription ?></div>
                     <?php else: ?>
                         <div class="product-description-content"><?= nl2br(htmlspecialchars($product['description'] ?? '상세 설명이 준비 중입니다.')) ?></div>
                     <?php endif; ?>
@@ -441,9 +440,100 @@ $finalPrice = $hasDiscount
 
         // Purchase actions
         function addToCart() {
-            const quantity = document.getElementById('quantityInput').value;
-            alert(`장바구니에 ${quantity}개가 추가되었습니다.`);
-            // TODO: Implement actual cart functionality
+            const quantityInput = document.getElementById('quantityInput');
+            const quantity = parseInt(quantityInput ? quantityInput.value : 1) || 1;
+            const productId = <?= $product['id'] ?>;
+
+            console.log('장바구니 추가 시작 - 상품 ID:', productId, '수량:', quantity);
+
+            // 수량 유효성 검사
+            if (quantity < 1) {
+                alert('수량은 1개 이상이어야 합니다.');
+                return;
+            }
+
+            // 버튼 비활성화 및 로딩 표시
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '추가 중...';
+            button.disabled = true;
+
+            // AJAX로 장바구니에 추가
+            fetch('/api/cart.php?action=add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    product_id: productId,
+                    quantity: quantity
+                })
+            })
+            .then(response => {
+                console.log('응답 상태:', response.status);
+                console.log('응답 헤더:', response.headers);
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        console.error('API 오류 응답:', text);
+                        throw new Error(`HTTP ${response.status}: ${text}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('응답 데이터:', data);
+
+                if (data.success) {
+                    button.textContent = '완료!';
+
+                    // 상세한 성공 메시지 - API 응답 구조에 맞게 수정
+                    const totalItems = data.data?.cart?.item_count || data.data?.item_count || data.cart?.item_count || '?';
+                    const totalAmount = data.data?.cart?.final_total || data.data?.final_total || data.cart?.final_total;
+                    const formattedAmount = totalAmount ? new Intl.NumberFormat('ko-KR').format(totalAmount) : '?';
+
+                    alert(`장바구니에 ${quantity}개가 추가되었습니다!\n총 ${totalItems}개 상품 (${formattedAmount}원)`);
+
+                    // 수량 입력란 초기화
+                    if (quantityInput) {
+                        quantityInput.value = 1;
+                    }
+
+                    // 장바구니 카운트 즉시 업데이트
+                    const cartCountElement = document.querySelector('.cart-count');
+                    if (cartCountElement && totalItems !== '?') {
+                        cartCountElement.textContent = totalItems;
+                        cartCountElement.style.animation = 'pulse 0.5s ease-in-out';
+                    }
+
+                    // 전역 카운트 업데이트 함수 호출
+                    if (typeof window.updateCartCount === 'function') {
+                        window.updateCartCount();
+                    }
+
+                    // 재고 정보 실시간 업데이트
+                    updateProductStock();
+
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.disabled = false;
+                    }, 1500);
+                } else {
+                    button.textContent = originalText;
+                    button.disabled = false;
+                    alert('오류: ' + (data.message || '장바구니 추가에 실패했습니다'));
+                }
+            })
+            .catch(error => {
+                console.error('장바구니 추가 오류:', error);
+                button.textContent = originalText;
+                button.disabled = false;
+
+                let errorMessage = '네트워크 오류가 발생했습니다.';
+                if (error.message.includes('HTTP')) {
+                    errorMessage = 'API 호출 실패: ' + error.message + '\n로그인이 필요할 수 있습니다.';
+                }
+                alert(errorMessage);
+            });
         }
 
         function buyNow() {
@@ -452,8 +542,92 @@ $finalPrice = $hasDiscount
             // TODO: Implement actual purchase functionality
         }
 
+        // 서버에서 현재 재고 정보 조회하여 업데이트
+        async function updateProductStock() {
+            const productId = <?= $product['id'] ?>;
+
+            try {
+                const response = await fetch(`/api/product_stock.php?id=${productId}`);
+                const data = await response.json();
+
+                if (data.success && data.stock !== undefined) {
+                    updateStockDisplay(data.stock);
+                } else {
+                    console.error('재고 정보 조회 실패:', data.message);
+                }
+            } catch (error) {
+                console.error('재고 정보 조회 오류:', error);
+            }
+        }
+
+        // 재고 상태 업데이트 함수
+        function updateStockDisplay(currentStock) {
+            const stockStatus = document.getElementById('stockStatus');
+            const quantityInput = document.getElementById('quantityInput');
+            const increaseBtn = document.getElementById('increaseBtn');
+            const addCartBtn = document.querySelector('button[onclick*="addToCart"]');
+            const buyNowBtn = document.querySelector('button[onclick*="buyNow"]');
+
+            if (!stockStatus) return;
+
+            // 재고 상태 텍스트 및 스타일 업데이트
+            stockStatus.setAttribute('data-stock', currentStock);
+
+            if (currentStock > 10) {
+                stockStatus.className = 'stock-status in-stock';
+                stockStatus.innerHTML = `✅ 재고 충분 (${currentStock}개 남음)`;
+            } else if (currentStock > 0) {
+                stockStatus.className = 'stock-status low-stock';
+                stockStatus.innerHTML = `⚠️ 재고 부족 (${currentStock}개 남음)`;
+            } else {
+                stockStatus.className = 'stock-status out-of-stock';
+                stockStatus.innerHTML = '❌ 품절';
+            }
+
+            // 수량 입력 필드 최대값 업데이트
+            if (quantityInput) {
+                quantityInput.max = currentStock;
+
+                // 현재 입력된 수량이 재고보다 많으면 조정
+                if (parseInt(quantityInput.value) > currentStock) {
+                    quantityInput.value = currentStock > 0 ? currentStock : 1;
+                }
+            }
+
+            // 버튼 상태 업데이트
+            if (currentStock <= 0) {
+                if (addCartBtn) {
+                    addCartBtn.disabled = true;
+                    addCartBtn.textContent = '품절된 상품입니다';
+                }
+                if (buyNowBtn) {
+                    buyNowBtn.disabled = true;
+                    buyNowBtn.textContent = '품절된 상품입니다';
+                }
+                if (increaseBtn) {
+                    increaseBtn.disabled = true;
+                }
+            } else {
+                if (addCartBtn) {
+                    addCartBtn.disabled = false;
+                    addCartBtn.textContent = '🛒 장바구니';
+                }
+                if (buyNowBtn) {
+                    buyNowBtn.disabled = false;
+                    buyNowBtn.textContent = '💳 바로구매';
+                }
+                if (increaseBtn) {
+                    increaseBtn.disabled = false;
+                }
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
+            // 초기 재고 상태 표시
+            const initialStock = <?= $stockQuantity ?>;
+            updateStockDisplay(initialStock);
+
             updateTotalPrice();
 
             // Set up quantity input change handler

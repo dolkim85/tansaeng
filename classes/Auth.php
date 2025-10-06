@@ -95,8 +95,8 @@ class Auth {
 
         return [
             'id' => $_SESSION['user_id'],
-            'email' => $_SESSION['user_email'],
-            'name' => $_SESSION['user_name'],
+            'email' => $_SESSION['user_email'] ?? $_SESSION['email'] ?? null,
+            'name' => $_SESSION['user_name'] ?? $_SESSION['name'] ?? null,
             'user_level' => $_SESSION['user_level'] ?? null,
             'role' => $_SESSION['role'] ?? null,
             'plant_analysis_permission' => $_SESSION['plant_analysis_permission'] ?? 0

@@ -42,8 +42,9 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
         <a href="/" class="logo">
             <?php if ($site_logo): ?>
                 <img src="<?= htmlspecialchars($site_logo) ?>" alt="<?= htmlspecialchars($site_name) ?>" class="logo-image">
+                <span class="logo-text">탄생</span>
             <?php else: ?>
-                <?= htmlspecialchars($site_name) ?>
+                <span class="logo-text">탄생</span>
             <?php endif; ?>
         </a>
 
@@ -67,7 +68,10 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 
         <div class="nav-auth">
             <?php if ($currentUser): ?>
-                <span><?= htmlspecialchars($currentUser['name']) ?>님</span>
+                <a href="/pages/store/cart.php" class="cart-link" id="cartLink">
+                    🛒 장바구니 <span class="cart-count" id="cartCount" style="display: none;">0</span>
+                </a>
+                <span class="user-name"><?= htmlspecialchars($currentUser['name'] ?? '') ?>님</span>
                 <?php if ($currentUser['role'] === 'admin'): ?>
                     <a href="/admin/" class="admin-link">관리자</a>
                 <?php endif; ?>
@@ -87,6 +91,98 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 </header>
 
 <style>
+/* 로고 스타일 */
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+}
+
+.logo-text {
+    font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: #2E7D32;
+    letter-spacing: -0.5px;
+}
+
+.logo-image {
+    height: 32px;
+    width: auto;
+}
+
+/* 장바구니 링크 스타일 */
+.cart-link {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    color: #2E7D32;
+    font-weight: 500;
+    padding: 6px 10px;
+    border-radius: 15px;
+    background: #E8F5E8;
+    margin-right: 10px;
+    transition: all 0.3s ease;
+    position: relative;
+    height: auto;
+    font-size: 14px;
+}
+
+.cart-link:hover {
+    background: #C8E6C9;
+    transform: translateY(-1px);
+}
+
+.cart-count {
+    background: #FFC107;
+    color: #2E7D32;
+    border-radius: 50%;
+    padding: 2px 6px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-left: 5px;
+    min-width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: none;
+    border: 1px solid #FF8F00;
+}
+
+.cart-count.updated {
+    animation: cartBounce 0.5s ease;
+}
+
+@keyframes cartBounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+}
+
+.user-name {
+    margin-right: 10px;
+    color: #333;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    height: auto;
+    font-size: 14px;
+}
+
+/* nav-auth 컨테이너 정렬 */
+.nav-auth {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.nav-auth > * {
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+}
+
 /* 드롭다운 메뉴 스타일 */
 .dropdown {
     position: relative;
@@ -341,6 +437,52 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
             max-height: 200px;
         }
     }
+
+    /* 모바일에서 nav-auth 스타일 재정의 */
+    .nav-auth {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        order: -1;
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #eee;
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .cart-link {
+        background: #E8F5E8;
+        padding: 10px 15px;
+        border-radius: 25px;
+        margin-right: 0;
+        margin-bottom: 10px;
+        order: 1;
+    }
+
+    .user-name {
+        margin-right: 0;
+        margin-bottom: 10px;
+        order: 2;
+        width: 100%;
+        text-align: center;
+        font-size: 16px;
+    }
+
+    .admin-link, .logout-link, .login-link, .register-link {
+        padding: 10px 15px;
+        margin-bottom: 5px;
+        background: #f8f9fa;
+        border-radius: 20px;
+        text-decoration: none;
+        color: #333;
+        transition: background-color 0.3s ease;
+    }
+
+    .admin-link:hover, .logout-link:hover, .login-link:hover, .register-link:hover {
+        background: #e9ecef;
+    }
 }
 </style>
 
@@ -389,5 +531,44 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+
+    // 장바구니 아이템 수 업데이트
+    function updateCartCount() {
+        const cartCount = document.getElementById('cartCount');
+        if (!cartCount) return;
+
+        fetch('/api/cart.php?action=count', {
+            method: 'GET'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const count = data.data?.count || data.count || 0;
+                cartCount.textContent = count;
+
+                // 카운트가 변경되었을 때 애니메이션 효과
+                cartCount.classList.add('updated');
+                setTimeout(() => {
+                    cartCount.classList.remove('updated');
+                }, 500);
+
+                // 카운트가 0이면 숨기기, 0이 아니면 보이기
+                if (count > 0) {
+                    cartCount.style.display = 'flex';
+                } else {
+                    cartCount.style.display = 'none';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('장바구니 카운트 업데이트 오류:', error);
+        });
+    }
+
+    // 페이지 로드시 장바구니 카운트 업데이트
+    updateCartCount();
+
+    // 전역 함수로 등록 (다른 페이지에서 호출할 수 있도록)
+    window.updateCartCount = updateCartCount;
 });
 </script>
