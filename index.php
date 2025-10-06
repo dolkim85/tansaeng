@@ -28,7 +28,7 @@ try {
         $siteSettings[$row['setting_key']] = $row['setting_value'];
     }
 
-    // Get featured products from database
+    // Get featured products first (priority to featured products)
     $stmt = $pdo->query(
         "SELECT p.*, c.name as category_name
          FROM products p
@@ -38,17 +38,30 @@ try {
     );
     $featuredProducts = $stmt->fetchAll();
 
-    // If no featured products, show all active products
-    if (empty($featuredProducts)) {
+    // If we have less than 6 featured products, fill with recent active products
+    $featuredCount = count($featuredProducts);
+    if ($featuredCount < 6) {
+        $remainingSlots = 6 - $featuredCount;
+
+        // Get product IDs we already have to exclude them
+        $excludeIds = array_column($featuredProducts, 'id');
+        $excludeClause = !empty($excludeIds) ? 'AND p.id NOT IN (' . implode(',', $excludeIds) . ')' : '';
+
         $stmt = $pdo->query(
             "SELECT p.*, c.name as category_name
              FROM products p
              LEFT JOIN categories c ON p.category_id = c.id
-             WHERE p.status = 'active'
-             ORDER BY p.created_at DESC LIMIT 6"
+             WHERE p.status = 'active' $excludeClause
+             ORDER BY p.created_at DESC LIMIT $remainingSlots"
         );
-        $featuredProducts = $stmt->fetchAll();
+        $additionalProducts = $stmt->fetchAll();
+
+        // Merge the arrays
+        $featuredProducts = array_merge($featuredProducts, $additionalProducts);
     }
+
+    // Debug log for troubleshooting
+    error_log("Total products shown: " . count($featuredProducts) . " (Featured: $featuredCount)");
 } catch (Exception $e) {
     // Continue with default settings and empty products
 }
@@ -76,11 +89,11 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
     <meta property="og:image" content="<?= APP_URL ?>/assets/images/og-image.jpg">
 
     <!-- CSS -->
-    <link rel="stylesheet" href="/assets/css/main.css">
-    <link rel="stylesheet" href="/assets/css/home.css">
+    <link rel="stylesheet" href="assets/css/main.css">
+    <link rel="stylesheet" href="assets/css/home.css">
 
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars($siteSettings['site_favicon'] ?? '/assets/images/favicon.ico') ?>">
+    <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars($siteSettings['site_favicon'] ?? 'assets/images/favicon.ico') ?>">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -106,7 +119,13 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                     <?php
                     // 여러 미디어 파일 지원 (콤마로 구분)
                     $heroMediaList = $siteSettings['hero_media_list'] ?? $siteSettings['hero_background'] ?? '/assets/images/hero-smart-farm.jpg';
-                    $mediaFiles = array_map('trim', explode(',', $heroMediaList));
+                    // 줄바꿈으로 구분된 이미지 URL 처리
+                    $mediaFiles = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $heroMediaList))));
+
+                    // 만약 배열이 비어있다면 기본 이미지 사용
+                    if (empty($mediaFiles)) {
+                        $mediaFiles = ['/assets/images/hero-smart-farm.jpg'];
+                    }
                     $totalSlides = count($mediaFiles);
 
                     foreach ($mediaFiles as $index => $heroMedia):
@@ -199,7 +218,7 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                                     <div class="product-image-wrap">
                                         <?php
                                         $imageSrc = !empty($product['image_url'])
-                                            ? $product['image_url']
+                                            ? $product['image_url'] . '?v=' . strtotime($product['updated_at'])
                                             : '/assets/images/products/default.jpg';
                                         ?>
                                         <img src="<?= htmlspecialchars($imageSrc) ?>"

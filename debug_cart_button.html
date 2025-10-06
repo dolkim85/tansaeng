@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>장바구니 버튼 디버깅</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ccc; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .error { color: red; }
+        .success { color: green; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🛒 장바구니 버튼 디버깅</h1>
+
+    <div class="test-section">
+        <h2>API 경로 테스트</h2>
+        <button onclick="testRelativePath()">상대 경로 테스트 (../../api/cart.php)</button>
+        <button onclick="testAbsolutePath()">절대 경로 테스트 (/api/cart.php)</button>
+        <div id="pathResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>데이터 전송 테스트</h2>
+        <button onclick="testValidData()">정상 데이터 테스트</button>
+        <button onclick="testInvalidData()">잘못된 데이터 테스트</button>
+        <div id="dataResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>실제 상품 테스트</h2>
+        <button onclick="testProductAdd(1)">상품 1 추가</button>
+        <button onclick="testProductAdd(2)">상품 2 추가</button>
+        <button onclick="testProductAdd(999)">존재하지 않는 상품</button>
+        <div id="productResult"></div>
+    </div>
+
+    <script>
+        function log(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            const className = isError ? 'error' : 'success';
+            element.innerHTML += `<p class="${className}">${message}</p>`;
+        }
+
+        function clearLog(elementId) {
+            document.getElementById(elementId).innerHTML = '';
+        }
+
+        async function testAPI(url, data, resultElementId) {
+            try {
+                console.log('Testing URL:', url);
+                console.log('With data:', data);
+                console.log('JSON body:', JSON.stringify(data));
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const responseText = await response.text();
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                console.log('Response text:', responseText);
+
+                if (!response.ok) {
+                    log(resultElementId, `❌ HTTP ${response.status}: ${responseText}`, true);
+                    return;
+                }
+
+                const result = JSON.parse(responseText);
+                if (result.success) {
+                    log(resultElementId, `✅ 성공: ${result.message}`);
+                } else {
+                    log(resultElementId, `❌ 실패: ${result.message}`, true);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                log(resultElementId, `❌ 오류: ${error.message}`, true);
+            }
+        }
+
+        function testRelativePath() {
+            clearLog('pathResult');
+            testAPI('../../api/cart.php?action=add', {
+                product_id: 1,
+                quantity: 1
+            }, 'pathResult');
+        }
+
+        function testAbsolutePath() {
+            clearLog('pathResult');
+            testAPI('/api/cart.php?action=add', {
+                product_id: 1,
+                quantity: 1
+            }, 'pathResult');
+        }
+
+        function testValidData() {
+            clearLog('dataResult');
+            // 두 가지 방법으로 테스트
+            testAPI('../../api/cart.php?action=add&product_id=1&quantity=2', {
+                product_id: 1,
+                quantity: 2
+            }, 'dataResult');
+        }
+
+        function testInvalidData() {
+            clearLog('dataResult');
+            testAPI('../../api/cart.php?action=add', {
+                // product_id 누락
+                quantity: 1
+            }, 'dataResult');
+        }
+
+        function testProductAdd(productId) {
+            clearLog('productResult');
+            testAPI('../../api/cart.php?action=add', {
+                product_id: productId,
+                quantity: 1
+            }, 'productResult');
+        }
+
+        // 페이지 로드시 현재 위치 표시
+        window.onload = function() {
+            console.log('Current URL:', window.location.href);
+            console.log('Base URL:', window.location.origin);
+        };
+    </script>
+</body>
+</html>

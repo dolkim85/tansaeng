@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>상품 페이지 장바구니 테스트</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        .test-btn { background: #28a745; color: white; border: none; padding: 12px 24px; border-radius: 5px; cursor: pointer; margin: 10px 0; }
+        .test-btn:hover { background: #218838; }
+        .test-btn:disabled { background: #6c757d; cursor: not-allowed; }
+        .log { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; }
+        .error { color: #dc3545; }
+        .success { color: #28a745; }
+        .info { color: #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛒 상품 페이지 장바구니 테스트</h1>
+
+        <div>
+            <p><strong>테스트 상품:</strong> 상품 ID = 1</p>
+            <label>수량: <input type="number" id="quantity" value="1" min="1" max="10"></label>
+        </div>
+
+        <button class="test-btn" onclick="addToCartTest()" id="addBtn">🛒 장바구니에 추가</button>
+        <button class="test-btn" onclick="clearLog()" style="background: #6c757d;">로그 지우기</button>
+
+        <div class="log" id="logOutput"></div>
+    </div>
+
+    <script>
+        let logCount = 0;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('logOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            logCount++;
+
+            logDiv.innerHTML += `<div class="${type}">[${logCount}] ${timestamp} - ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('logOutput').innerHTML = '';
+            logCount = 0;
+        }
+
+        async function addToCartTest() {
+            const quantityInput = document.getElementById('quantity');
+            const quantity = parseInt(quantityInput.value) || 1;
+            const productId = 1; // 테스트용 고정값
+            const button = document.getElementById('addBtn');
+
+            log('=== 장바구니 추가 테스트 시작 ===');
+            log(`상품 ID: ${productId}, 수량: ${quantity}`);
+
+            // 버튼 비활성화
+            const originalText = button.textContent;
+            button.textContent = '추가 중...';
+            button.disabled = true;
+
+            try {
+                log('API 호출 시작: /api/cart.php?action=add');
+
+                const requestBody = JSON.stringify({
+                    product_id: productId,
+                    quantity: quantity
+                });
+
+                log(`요청 데이터: ${requestBody}`);
+
+                const response = await fetch('/api/cart.php?action=add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: requestBody
+                });
+
+                log(`응답 상태: ${response.status} ${response.statusText}`);
+                log(`응답 헤더 Content-Type: ${response.headers.get('Content-Type')}`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    log(`HTTP 오류 응답: ${errorText}`, 'error');
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                log(`응답 데이터: ${JSON.stringify(data, null, 2)}`, 'success');
+
+                if (data.success) {
+                    log('✅ 장바구니 추가 성공!', 'success');
+
+                    const totalItems = data.data?.cart?.item_count || data.data?.item_count || '?';
+                    const totalAmount = data.data?.cart?.final_total || data.data?.final_total || '?';
+
+                    log(`총 ${totalItems}개 상품, 총액: ${totalAmount}원`, 'success');
+
+                    button.textContent = '완료! ✅';
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.disabled = false;
+                    }, 2000);
+                } else {
+                    log(`❌ API 오류: ${data.message}`, 'error');
+                    button.textContent = originalText;
+                    button.disabled = false;
+                }
+
+            } catch (error) {
+                log(`❌ 네트워크 오류: ${error.message}`, 'error');
+                log(`Error stack: ${error.stack}`, 'error');
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        }
+
+        // 페이지 로드시 초기 정보 표시
+        window.onload = function() {
+            log('페이지 로드 완료');
+            log(`현재 URL: ${window.location.href}`);
+            log(`User Agent: ${navigator.userAgent}`);
+        };
+    </script>
+</body>
+</html>

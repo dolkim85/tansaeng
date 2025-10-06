@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>재고 업데이트 테스트</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        .stock-status { padding: 10px; margin: 10px 0; border-radius: 5px; font-weight: bold; }
+        .in-stock { background: #d4edda; color: #155724; }
+        .low-stock { background: #fff3cd; color: #856404; }
+        .out-of-stock { background: #f8d7da; color: #721c24; }
+        .test-btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        .test-btn:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛒 재고 실시간 업데이트 테스트</h1>
+
+        <div>
+            <label>상품 ID: <input type="number" id="productId" value="1" min="1"></label>
+            <label>수량: <input type="number" id="quantity" value="1" min="1" max="10"></label>
+        </div>
+
+        <div id="stockStatus" class="stock-status">
+            로딩 중...
+        </div>
+
+        <button class="test-btn" onclick="getCurrentStock()">현재 재고 조회</button>
+        <button class="test-btn" onclick="addToCartTest()">장바구니 추가 테스트</button>
+        <button class="test-btn" onclick="clearLog()">로그 지우기</button>
+
+        <div class="log" id="logOutput"></div>
+    </div>
+
+    <script>
+        let logCount = 0;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('logOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            logCount++;
+
+            const color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#333';
+            logDiv.innerHTML += `<div style="color: ${color}">[${logCount}] ${timestamp} - ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('logOutput').innerHTML = '';
+            logCount = 0;
+        }
+
+        // 재고 상태 업데이트 함수
+        function updateStockDisplay(currentStock) {
+            const stockStatus = document.getElementById('stockStatus');
+
+            if (currentStock > 10) {
+                stockStatus.className = 'stock-status in-stock';
+                stockStatus.innerHTML = `✅ 재고 충분 (${currentStock}개 남음)`;
+            } else if (currentStock > 0) {
+                stockStatus.className = 'stock-status low-stock';
+                stockStatus.innerHTML = `⚠️ 재고 부족 (${currentStock}개 남음)`;
+            } else {
+                stockStatus.className = 'stock-status out-of-stock';
+                stockStatus.innerHTML = '❌ 품절';
+            }
+        }
+
+        // 현재 재고 조회
+        async function getCurrentStock() {
+            const productId = document.getElementById('productId').value;
+            log(`상품 ID ${productId}의 현재 재고 조회 시작`);
+
+            try {
+                const response = await fetch(`/api/product_stock.php?id=${productId}`);
+                const data = await response.json();
+
+                log(`재고 API 응답: ${JSON.stringify(data)}`);
+
+                if (data.success) {
+                    updateStockDisplay(data.stock);
+                    log(`✅ 현재 재고: ${data.stock}개`, 'success');
+                } else {
+                    log(`❌ 재고 조회 실패: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ 네트워크 오류: ${error.message}`, 'error');
+            }
+        }
+
+        // 장바구니 추가 테스트
+        async function addToCartTest() {
+            const productId = document.getElementById('productId').value;
+            const quantity = document.getElementById('quantity').value;
+
+            log(`상품 ID ${productId}, 수량 ${quantity}개 장바구니 추가 시작`);
+
+            try {
+                const response = await fetch('/api/cart.php?action=add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        product_id: parseInt(productId),
+                        quantity: parseInt(quantity)
+                    })
+                });
+
+                const data = await response.json();
+                log(`장바구니 API 응답: ${JSON.stringify(data, null, 2)}`);
+
+                if (data.success) {
+                    log(`✅ 장바구니 추가 성공`, 'success');
+                    // 재고 정보 재조회
+                    setTimeout(() => {
+                        getCurrentStock();
+                    }, 500);
+                } else {
+                    log(`❌ 장바구니 추가 실패: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ 네트워크 오류: ${error.message}`, 'error');
+            }
+        }
+
+        // 페이지 로드시 초기 재고 조회
+        window.onload = function() {
+            log('페이지 로드 완료');
+            getCurrentStock();
+        };
+    </script>
+</body>
+</html>

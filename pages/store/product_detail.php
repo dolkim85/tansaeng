@@ -112,7 +112,24 @@ try {
                     </div>
                     
                     <div class="product-price">
-                        <span class="current-price"><?= number_format($product['price']) ?>원</span>
+                        <?php
+                        $basePrice = $product['price'];
+                        $shippingCost = $product['shipping_cost'] ?? 0;
+                        $totalPrice = $basePrice + $shippingCost;
+                        ?>
+
+                        <span class="current-price"><?= number_format($basePrice) ?>원</span>
+
+                        <?php if ($shippingCost > 0): ?>
+                            <div class="shipping-details">
+                                <span class="shipping-cost-label">배송비: +<?= number_format($shippingCost) ?>원</span>
+                                <span class="total-price-label">총 결제금액: <?= number_format($totalPrice) ?>원</span>
+                            </div>
+                        <?php else: ?>
+                            <div class="shipping-details">
+                                <span class="free-shipping">무료배송</span>
+                            </div>
+                        <?php endif; ?>
                     </div>
                     
                     <div class="product-description">
@@ -190,7 +207,16 @@ try {
                         <div class="detailed-description">
                             <h3>상세 설명</h3>
                             <?php if (!empty($product['detailed_description'])): ?>
-                                <div class="rich-content"><?= $product['detailed_description'] ?></div>
+                                <?php
+                                // 이미지 툴바 제거 함수
+                                function removeImageToolbarsFromDetail($html) {
+                                    // image-inline-toolbar div 제거
+                                    $html = preg_replace('/<div class="image-inline-toolbar">.*?<\/div>/s', '', $html);
+                                    return $html;
+                                }
+                                $cleanDescription = removeImageToolbarsFromDetail($product['detailed_description']);
+                                ?>
+                                <div class="rich-content"><?= $cleanDescription ?></div>
                             <?php else: ?>
                                 <p><?= nl2br(htmlspecialchars($product['description'])) ?></p>
                             <?php endif; ?>
@@ -506,7 +532,7 @@ try {
         function addToCart(productId) {
             const quantity = parseInt(document.getElementById('quantity').value) || 1;
             
-            fetch('/api/cart.php', {
+            fetch('/api/cart.php?action=add', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -559,7 +585,7 @@ try {
         
         // 장바구니 개수 업데이트 (헤더에 표시)
         function updateCartCount() {
-            fetch('/api/cart.php')
+            fetch('/api/cart.php?action=count')
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -774,6 +800,38 @@ try {
             font-size: 1.5rem;
             font-weight: 700;
             color: #007bff;
+        }
+
+        .shipping-details {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+        }
+
+        .shipping-cost-label {
+            display: block;
+            font-size: 1rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+
+        .total-price-label {
+            display: block;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2E7D32;
+        }
+
+        .free-shipping {
+            display: inline-block;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #2E7D32;
+            background: #E8F5E8;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
         }
         
         .product-description {

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>간단한 API 테스트</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 15px 30px; margin: 10px; font-size: 16px; cursor: pointer; }
+        .result { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 간단한 장바구니 API 테스트</h1>
+
+    <div>
+        <button onclick="testGetCount()">GET: 카운트 조회</button>
+        <button onclick="testAddItem()">POST: 상품 추가</button>
+        <button onclick="testGetItems()">GET: 장바구니 조회</button>
+        <button onclick="clearResults()">결과 지우기</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        function addResult(title, content, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `result ${type}`;
+
+            const timestamp = new Date().toLocaleTimeString();
+            resultDiv.innerHTML = `
+                <h3>[${timestamp}] ${title}</h3>
+                <div>${content}</div>
+            `;
+
+            resultsDiv.appendChild(resultDiv);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function testGetCount() {
+            try {
+                addResult('카운트 조회 시작', 'GET /api/cart.php?action=count 호출 중...');
+
+                const response = await fetch('/api/cart.php?action=count');
+
+                addResult('응답 정보', `
+                    상태 코드: ${response.status}<br>
+                    상태 텍스트: ${response.statusText}<br>
+                    헤더: ${JSON.stringify([...response.headers.entries()])}
+                `);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    addResult('오류 응답', `<pre>${errorText}</pre>`, 'error');
+                    return;
+                }
+
+                const data = await response.json();
+                addResult('성공 응답', `<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+
+            } catch (error) {
+                addResult('예외 발생', `<pre>${error.message}\n${error.stack}</pre>`, 'error');
+            }
+        }
+
+        async function testAddItem() {
+            try {
+                addResult('상품 추가 시작', 'POST /api/cart.php?action=add 호출 중...');
+
+                const requestData = { product_id: 1, quantity: 1 };
+                addResult('요청 데이터', `<pre>${JSON.stringify(requestData, null, 2)}</pre>`);
+
+                const response = await fetch('/api/cart.php?action=add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                addResult('응답 정보', `
+                    상태 코드: ${response.status}<br>
+                    상태 텍스트: ${response.statusText}<br>
+                    Content-Type: ${response.headers.get('Content-Type')}
+                `);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    addResult('오류 응답', `<pre>${errorText}</pre>`, 'error');
+                    return;
+                }
+
+                const data = await response.json();
+                addResult('성공 응답', `<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+
+            } catch (error) {
+                addResult('예외 발생', `<pre>${error.message}\n${error.stack}</pre>`, 'error');
+            }
+        }
+
+        async function testGetItems() {
+            try {
+                addResult('장바구니 조회 시작', 'GET /api/cart.php?action=items 호출 중...');
+
+                const response = await fetch('/api/cart.php?action=items');
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    addResult('오류 응답', `<pre>${errorText}</pre>`, 'error');
+                    return;
+                }
+
+                const data = await response.json();
+                addResult('성공 응답', `<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+
+            } catch (error) {
+                addResult('예외 발생', `<pre>${error.message}\n${error.stack}</pre>`, 'error');
+            }
+        }
+
+        // 전역 오류 핸들러
+        window.onerror = function(message, source, lineno, colno, error) {
+            addResult('전역 JavaScript 오류', `
+                메시지: ${message}<br>
+                파일: ${source}:${lineno}:${colno}<br>
+                스택: ${error ? error.stack : 'N/A'}
+            `, 'error');
+        };
+
+        // Promise 거부 핸들러
+        window.addEventListener('unhandledrejection', function(event) {
+            addResult('처리되지 않은 Promise 거부', `<pre>${event.reason}</pre>`, 'error');
+        });
+
+        // 페이지 로드시 기본 정보 표시
+        window.onload = function() {
+            addResult('페이지 로드 완료', `
+                URL: ${window.location.href}<br>
+                User Agent: ${navigator.userAgent}<br>
+                시간: ${new Date().toISOString()}
+            `);
+        };
+    </script>
+</body>
+</html>

@@ -49,13 +49,16 @@ class KoreanEditor {
     }
     
     createEditor() {
+        // CSS 스타일 주입 (정렬 클래스가 없는 경우)
+        this.injectAlignmentStyles();
+
         // 기존 textarea 숨기기
         const textarea = this.container.querySelector('textarea');
         if (textarea) {
             textarea.style.display = 'none';
             this.originalTextarea = textarea;
         }
-        
+
         // 에디터 컨테이너 생성
         this.editorContainer = document.createElement('div');
         this.editorContainer.className = 'korean-editor-container';
@@ -79,7 +82,45 @@ class KoreanEditor {
         // 폼 제출시 원본 textarea에 내용 복사
         this.setupFormSubmit();
     }
-    
+
+    injectAlignmentStyles() {
+        // 이미 스타일이 주입되었는지 확인
+        if (document.getElementById('korean-editor-alignment-styles')) {
+            return;
+        }
+
+        const style = document.createElement('style');
+        style.id = 'korean-editor-alignment-styles';
+        style.textContent = `
+            .text-align-left {
+                text-align: left !important;
+            }
+            .text-align-center {
+                text-align: center !important;
+            }
+            .text-align-right {
+                text-align: right !important;
+            }
+            .text-align-justify {
+                text-align: justify !important;
+            }
+            /* 에디터 내부에서만 적용되도록 범위 제한 */
+            .korean-editor-container .edit-area .text-align-left {
+                text-align: left !important;
+            }
+            .korean-editor-container .edit-area .text-align-center {
+                text-align: center !important;
+            }
+            .korean-editor-container .edit-area .text-align-right {
+                text-align: right !important;
+            }
+            .korean-editor-container .edit-area .text-align-justify {
+                text-align: justify !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     createToolbar() {
         this.toolbar = document.createElement('div');
         this.toolbar.className = 'korean-editor-toolbar';
@@ -531,37 +572,84 @@ class KoreanEditor {
     handleTextAlignment(command) {
         const selection = window.getSelection();
         if (selection.rangeCount === 0) return;
-        
+
+        let element = null;
+        let range = selection.getRangeAt(0);
+
         // 현재 선택된 요소 또는 부모 블록 요소 찾기
-        let element = selection.anchorNode;
-        if (element.nodeType === Node.TEXT_NODE) {
-            element = element.parentElement;
+        if (selection.anchorNode) {
+            element = selection.anchorNode;
+            if (element.nodeType === Node.TEXT_NODE) {
+                element = element.parentElement;
+            }
         }
-        
+
         // 블록 요소까지 올라가기
         while (element && !this.isBlockElement(element) && element !== this.editArea) {
             element = element.parentElement;
         }
-        
+
+        // 첫 번째 줄에서 블록 요소가 없는 경우 또는 editArea 자체인 경우
         if (!element || element === this.editArea) {
-            // 선택된 텍스트를 div로 감싸기
-            const range = selection.getRangeAt(0);
-            const content = range.extractContents();
+            // 현재 커서 위치에서 새 div 생성
             const div = document.createElement('div');
-            div.appendChild(content);
-            range.insertNode(div);
+
+            // 선택 영역이 있는 경우
+            if (!range.collapsed) {
+                const content = range.extractContents();
+                div.appendChild(content);
+                range.insertNode(div);
+            } else {
+                // 커서만 있는 경우 - 현재 줄의 내용을 찾아서 처리
+                const startContainer = range.startContainer;
+
+                if (startContainer === this.editArea) {
+                    // editArea 바로 안에 커서가 있는 경우
+                    div.innerHTML = '<br>';
+                    this.editArea.insertBefore(div, this.editArea.firstChild);
+                } else if (startContainer.nodeType === Node.TEXT_NODE) {
+                    // 텍스트 노드 안에 커서가 있는 경우
+                    const textNode = startContainer;
+                    const parent = textNode.parentNode;
+
+                    if (parent === this.editArea) {
+                        // 텍스트가 직접 editArea 안에 있는 경우
+                        div.appendChild(textNode.cloneNode(true));
+                        parent.replaceChild(div, textNode);
+                    } else {
+                        // 다른 요소 안에 있는 경우
+                        while (parent && parent !== this.editArea && !this.isBlockElement(parent)) {
+                            element = parent;
+                            break;
+                        }
+                        if (!element) {
+                            div.innerHTML = '<br>';
+                            range.insertNode(div);
+                        }
+                    }
+                } else {
+                    // 다른 요소 내에서 커서가 있는 경우
+                    div.innerHTML = '<br>';
+                    range.insertNode(div);
+                }
+            }
+
             element = div;
-            
+
             // 선택 영역 복원
             selection.removeAllRanges();
             const newRange = document.createRange();
             newRange.selectNodeContents(div);
+            if (div.firstChild && div.firstChild.nodeType === Node.TEXT_NODE) {
+                newRange.setStart(div.firstChild, 0);
+                newRange.setEnd(div.firstChild, div.firstChild.textContent.length);
+            }
             selection.addRange(newRange);
         }
-        
+
         // 기존 정렬 클래스 제거
         element.classList.remove('text-align-left', 'text-align-center', 'text-align-right', 'text-align-justify');
-        
+
         // 새 정렬 클래스 추가
         switch (command) {
             case 'justifyLeft':
@@ -577,7 +665,7 @@ class KoreanEditor {
                 element.classList.add('text-align-justify');
                 break;
         }
-        
+
         this.updateToolbarState();
         this.updateOriginalTextarea();
     }
@@ -827,19 +915,49 @@ class KoreanEditor {
 
             if (selection.rangeCount > 0) {
                 const range = selection.getRangeAt(0);
-                range.insertNode(img);
 
-                // 커서를 이미지 다음으로 이동
-                range.setStartAfter(img);
-                range.setEndAfter(img);
+                // 이미지를 별도의 div로 감싸서 독립적인 블록으로 처리
+                const imageWrapper = document.createElement('div');
+                imageWrapper.style.margin = '10px 0';
+                imageWrapper.appendChild(img);
+
+                // 새로운 문단을 위한 div 생성
+                const newParagraph = document.createElement('div');
+                newParagraph.innerHTML = '<br>'; // 빈 문단 표시용
+
+                range.insertNode(imageWrapper);
+
+                // 이미지 다음에 새 문단 삽입
+                range.setStartAfter(imageWrapper);
+                range.insertNode(newParagraph);
+
+                // 커서를 새 문단으로 이동
+                range.setStart(newParagraph, 0);
+                range.setEnd(newParagraph, 0);
                 selection.removeAllRanges();
                 selection.addRange(range);
 
-                console.log('이미지가 에디터에 삽입되었습니다.');
+                console.log('이미지가 블록으로 삽입되고 새 문단이 생성되었습니다.');
             } else {
                 // 선택 영역이 없는 경우 에디터 끝에 추가
-                this.editArea.appendChild(img);
-                console.log('이미지가 에디터 끝에 추가되었습니다.');
+                const imageWrapper = document.createElement('div');
+                imageWrapper.style.margin = '10px 0';
+                imageWrapper.appendChild(img);
+
+                const newParagraph = document.createElement('div');
+                newParagraph.innerHTML = '<br>';
+
+                this.editArea.appendChild(imageWrapper);
+                this.editArea.appendChild(newParagraph);
+
+                // 커서를 새 문단으로 이동
+                const range = document.createRange();
+                range.setStart(newParagraph, 0);
+                range.setEnd(newParagraph, 0);
+                selection.removeAllRanges();
+                selection.addRange(range);
+
+                console.log('이미지와 새 문단이 에디터 끝에 추가되었습니다.');
             }
 
             // 이미지 로드 후 자동 선택

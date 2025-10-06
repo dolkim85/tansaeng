@@ -62,11 +62,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // 슬라이더 이미지 업로드 처리
+        if (isset($_FILES['slider_images'])) {
+            $sliderImages = [];
+            $existingSliderImages = trim($_POST['hero_media_list'] ?? '');
+
+            // 기존 이미지 목록이 있으면 배열로 변환
+            if (!empty($existingSliderImages)) {
+                $sliderImages = array_filter(explode(',', $existingSliderImages));
+            }
+
+            $fileCount = count($_FILES['slider_images']['name']);
+            for ($i = 0; $i < $fileCount; $i++) {
+                if ($_FILES['slider_images']['error'][$i] === UPLOAD_ERR_OK) {
+                    $sliderInfo = pathinfo($_FILES['slider_images']['name'][$i]);
+                    $sliderName = 'hero_media_' . time() . '_' . $i . '.' . $sliderInfo['extension'];
+                    if (move_uploaded_file($_FILES['slider_images']['tmp_name'][$i], $uploadDir . $sliderName)) {
+                        $sliderImages[] = '/uploads/media/' . $sliderName;
+                    }
+                }
+            }
+
+            if (!empty($sliderImages)) {
+                $settings['hero_media_list'] = implode(',', $sliderImages);
+            }
+        }
+
         // 텍스트 설정 저장
         $textSettings = [
             'hero_title' => trim($_POST['hero_title'] ?? ''),
             'hero_subtitle' => trim($_POST['hero_subtitle'] ?? ''),
             'hero_description' => trim($_POST['hero_description'] ?? ''),
+            'hero_media_list' => trim($_POST['hero_media_list'] ?? ''),
             'about_video_url' => trim($_POST['about_video_url'] ?? ''),
             'gallery_images' => trim($_POST['gallery_images'] ?? ''),
             'social_youtube' => trim($_POST['social_youtube'] ?? ''),
@@ -188,15 +215,84 @@ try {
                         </div>
 
                         <div class="form-group">
-                            <label for="hero_bg">히어로 배경 이미지</label>
+                            <label for="hero_bg">히어로 배경 이미지 (단일)</label>
                             <input type="file" id="hero_bg" name="hero_bg" accept="image/*">
-                            <small>권장 크기: 1920x1080px, JPG/PNG 형식</small>
+                            <small>권장 크기: 1920x1080px, JPG/PNG 형식 (단일 이미지 업로드)</small>
                             <?php if (!empty($currentSettings['hero_background'])): ?>
                                 <div class="current-image">
                                     <p>현재 배경 이미지:</p>
                                     <img src="<?= htmlspecialchars($currentSettings['hero_background']) ?>" alt="현재 배경" style="max-width: 300px; max-height: 200px;">
                                 </div>
                             <?php endif; ?>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="hero_media_list">메인페이지 슬라이더 이미지 관리</label>
+
+                            <!-- 직관적인 이미지 업로드 영역 -->
+                            <div class="image-upload-section">
+                                <div class="upload-instructions">
+                                    <h4>💡 이미지 업로드 방법</h4>
+                                    <ul>
+                                        <li><strong>컴퓨터에서 선택:</strong> "이미지 추가" 버튼을 클릭하여 여러 이미지를 한번에 업로드</li>
+                                        <li><strong>드래그 앤 드롭:</strong> 파일을 업로드 영역에 직접 끌어다 놓기</li>
+                                        <li><strong>이미지 순서:</strong> 업로드한 순서대로 슬라이더에 표시됩니다</li>
+                                        <li><strong>권장 크기:</strong> 1920x1080px (풀스크린), 최대 20MB</li>
+                                    </ul>
+                                </div>
+
+                                <div class="upload-buttons">
+                                    <button type="button" onclick="insertSliderImage()" class="btn btn-primary" id="sliderUploadBtn">
+                                        📷 이미지 추가 (컴퓨터에서 선택)
+                                    </button>
+                                    <button type="button" onclick="toggleTextEditor()" class="btn btn-secondary">
+                                        📝 직접 URL 입력
+                                    </button>
+                                    <button type="button" onclick="previewSlider()" class="btn btn-success">
+                                        👁️ 슬라이더 미리보기
+                                    </button>
+                                    <button type="button" onclick="testFunction()" class="btn btn-outline">
+                                        🧪 테스트
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 업로드된 이미지 목록 관리 -->
+                            <div id="uploaded_images_list" class="uploaded-images-list">
+                                <h4>업로드된 슬라이더 이미지 (<span id="image_count">0</span>개)</h4>
+                                <div id="images_grid" class="images-grid">
+                                    <!-- 업로드된 이미지들이 여기에 표시됩니다 -->
+                                </div>
+                                <div class="image-management-actions">
+                                    <button type="button" onclick="sortImages()" class="btn btn-outline">🔄 순서 변경</button>
+                                    <button type="button" onclick="clearSliderImages()" class="btn btn-danger">🗑️ 전체 삭제</button>
+                                </div>
+                            </div>
+
+                            <!-- URL 직접 입력 (숨김 상태) -->
+                            <div id="text_editor_section" class="text-editor-section" style="display: none;">
+                                <div class="editor-container">
+                                    <textarea id="hero_media_list" name="hero_media_list" class="form-control editor-textarea" rows="6"
+                                        placeholder="슬라이더에 사용할 이미지 URL을 한 줄에 하나씩 입력하세요.
+예시:
+/uploads/media/slider1.jpg
+/uploads/media/slider2.jpg
+/uploads/media/slider3.jpg"><?= htmlspecialchars($currentSettings['hero_media_list'] ?? '') ?></textarea>
+                                    <div class="editor-help">
+                                        <p><strong>URL 직접 입력 방법:</strong></p>
+                                        <ul>
+                                            <li>각 이미지 URL을 새 줄에 입력하세요</li>
+                                            <li>상대 경로 (/uploads/media/image.jpg) 또는 절대 URL 사용 가능</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 미리보기 영역 -->
+                            <div id="slider_preview" class="slider-preview" style="display: none;">
+                                <h4>슬라이더 미리보기:</h4>
+                                <div class="preview-container"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -228,11 +324,34 @@ try {
                         <h3>갤러리 및 포트폴리오</h3>
 
                         <div class="form-group">
-                            <label for="gallery_images">갤러리 이미지 URL</label>
-                            <textarea id="gallery_images" name="gallery_images" class="form-control" rows="6" placeholder="한 줄에 하나씩 이미지 URL을 입력하세요"><?= htmlspecialchars($currentSettings['gallery_images'] ?? '/assets/images/gallery1.jpg
+                            <label for="gallery_images">갤러리 이미지 목록</label>
+                            <div class="editor-container">
+                                <div class="editor-toolbar">
+                                    <button type="button" onclick="insertGalleryImage()" class="toolbar-btn">📷 이미지 추가</button>
+                                    <button type="button" onclick="previewGallery()" class="toolbar-btn">👁️ 미리보기</button>
+                                    <button type="button" onclick="clearGalleryImages()" class="toolbar-btn">🗑️ 전체 삭제</button>
+                                </div>
+                                <textarea id="gallery_images" name="gallery_images" class="form-control editor-textarea" rows="6"
+                                    placeholder="갤러리에 사용할 이미지 URL을 한 줄에 하나씩 입력하세요.
+예시:
+/uploads/media/gallery1.jpg
+/uploads/media/gallery2.jpg
+/uploads/media/gallery3.jpg"><?= htmlspecialchars($currentSettings['gallery_images'] ?? '/assets/images/gallery1.jpg
 /assets/images/gallery2.jpg
 /assets/images/gallery3.jpg') ?></textarea>
-                            <small>각 이미지 URL을 새 줄에 입력하세요</small>
+                                <div class="editor-help">
+                                    <p><strong>사용법:</strong></p>
+                                    <ul>
+                                        <li>각 이미지 URL을 새 줄에 입력하세요</li>
+                                        <li>상대 경로 (/uploads/media/image.jpg) 또는 절대 URL 사용 가능</li>
+                                        <li>권장 크기: 800x600px, JPG/PNG 형식</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div id="gallery_preview" class="slider-preview" style="display: none;">
+                                <h4>갤러리 미리보기:</h4>
+                                <div class="preview-container gallery-preview-container"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -287,7 +406,7 @@ try {
                             <li><strong>파비콘:</strong> 32x32px ICO 또는 PNG</li>
                             <li><strong>히어로 배경:</strong> 1920x1080px, 파일 크기 1MB 이하</li>
                             <li><strong>갤러리:</strong> 800x600px, JPG 형식 권장</li>
-                            <li><strong>최대 파일 크기:</strong> 5MB</li>
+                            <li><strong>최대 파일 크기:</strong> 20MB</li>
                             <li><strong>지원 형식:</strong> JPG, PNG, GIF, SVG</li>
                         </ul>
                     </div>
@@ -295,5 +414,805 @@ try {
             </div>
         </main>
     </div>
+
+    <style>
+        .editor-container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .editor-toolbar {
+            background: #f8f9fa;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+        }
+
+        .toolbar-btn {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .toolbar-btn:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+        }
+
+        .editor-textarea {
+            border: none !important;
+            border-radius: 0 !important;
+            resize: vertical;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .editor-help {
+            background: #f8f9fa;
+            padding: 15px;
+            font-size: 13px;
+        }
+
+        .editor-help ul {
+            margin: 10px 0 0 20px;
+            color: #666;
+        }
+
+        .slider-preview {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .preview-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .preview-item {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .preview-item img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+        }
+
+        .preview-item p {
+            padding: 10px;
+            margin: 0;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+
+        .upload-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .upload-modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .upload-modal h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        .file-upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: border-color 0.3s ease;
+        }
+
+        .file-upload-area:hover {
+            border-color: #4CAF50;
+        }
+
+        .file-upload-area.dragover {
+            border-color: #4CAF50;
+            background-color: #f0fff0;
+        }
+
+        .upload-progress {
+            display: none;
+            margin-top: 15px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e9ecef;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #4CAF50;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* 개선된 슬라이더 관리 스타일 */
+        .image-upload-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .upload-instructions {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .upload-instructions h4 {
+            margin-top: 0;
+            color: #2E7D32;
+        }
+
+        .upload-instructions ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .upload-instructions li {
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+
+        .upload-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .uploaded-images-list {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .uploaded-images-list h4 {
+            color: #2E7D32;
+            margin-bottom: 15px;
+        }
+
+        .images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+            min-height: 50px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .images-grid:empty::before {
+            content: "아직 업로드된 이미지가 없습니다. 위의 '이미지 추가' 버튼을 클릭하거나 이 영역에 이미지를 드래그하세요.";
+            display: block;
+            text-align: center;
+            color: #999;
+            font-style: italic;
+            line-height: 2;
+        }
+
+        .image-item {
+            position: relative;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .image-item:hover {
+            transform: translateY(-2px);
+        }
+
+        .image-item img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+        }
+
+        .image-item-info {
+            padding: 10px;
+        }
+
+        .image-item-title {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .image-item-actions {
+            display: flex;
+            gap: 5px;
+            justify-content: space-between;
+        }
+
+        .image-item-btn {
+            background: none;
+            border: 1px solid #ddd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s ease;
+        }
+
+        .image-item-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .image-item-btn.delete {
+            color: #dc3545;
+            border-color: #dc3545;
+        }
+
+        .image-item-btn.delete:hover {
+            background: #dc3545;
+            color: white;
+        }
+
+        .image-item-order {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .image-management-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .text-editor-section {
+            margin-top: 20px;
+        }
+
+        .btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #45a049;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #4CAF50;
+            border: 1px solid #4CAF50;
+        }
+
+        .btn-outline:hover {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+    </style>
+
+    <script>
+        // 테스트 함수
+        function testFunction() {
+            alert('테스트 버튼이 클릭되었습니다!');
+            console.log('테스트 함수 호출됨');
+        }
+
+        // 슬라이더 이미지 추가 함수
+        function insertSliderImage() {
+            console.log('슬라이더 이미지 추가 함수 호출됨');
+            alert('슬라이더 이미지 추가 함수가 호출되었습니다!');
+
+            // 기존의 hidden file input이 있으면 제거
+            const existingInput = document.getElementById('hiddenSliderFileInput');
+            if (existingInput) {
+                existingInput.remove();
+            }
+
+            // 새로운 file input 생성
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.id = 'hiddenSliderFileInput';
+            fileInput.accept = 'image/*';
+            fileInput.multiple = true;
+            fileInput.style.display = 'none';
+
+            // 파일 선택 이벤트 리스너
+            fileInput.addEventListener('change', function(e) {
+                console.log('파일 선택됨:', e.target.files.length, '개');
+                if (e.target.files.length > 0) {
+                    uploadSliderImages(e.target.files);
+                }
+            });
+
+            // body에 추가하고 클릭
+            document.body.appendChild(fileInput);
+            fileInput.click();
+        }
+
+        // 갤러리 이미지 추가 함수
+        function insertGalleryImage() {
+            console.log('갤러리 이미지 추가 함수 호출됨');
+
+            // 기존의 hidden file input이 있으면 제거
+            const existingInput = document.getElementById('hiddenGalleryFileInput');
+            if (existingInput) {
+                existingInput.remove();
+            }
+
+            // 새로운 file input 생성
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.id = 'hiddenGalleryFileInput';
+            fileInput.accept = 'image/*';
+            fileInput.multiple = true;
+            fileInput.style.display = 'none';
+
+            // 파일 선택 이벤트 리스너
+            fileInput.addEventListener('change', function(e) {
+                console.log('갤러리 파일 선택됨:', e.target.files.length, '개');
+                if (e.target.files.length > 0) {
+                    uploadGalleryImages(e.target.files);
+                }
+            });
+
+            // body에 추가하고 클릭
+            document.body.appendChild(fileInput);
+            fileInput.click();
+        }
+
+        // 슬라이더 이미지 업로드 처리
+        function uploadSliderImages(files) {
+            console.log('슬라이더 이미지 업로드 시작:', files.length, '개');
+
+            const formData = new FormData();
+
+            // 기존 폼 데이터 추가 (다른 설정 유지)
+            const form = document.querySelector('form');
+            const formInputs = form.querySelectorAll('input, textarea, select');
+            formInputs.forEach(input => {
+                if (input.type !== 'file' && input.name) {
+                    formData.append(input.name, input.value);
+                }
+            });
+
+            // 슬라이더 이미지 파일들 추가
+            for (let i = 0; i < files.length; i++) {
+                formData.append('slider_images[]', files[i]);
+                console.log('파일 추가:', files[i].name);
+            }
+
+            // 업로드 상태 표시
+            showUploadStatus('슬라이더 이미지 업로드 중...', files.length);
+
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('서버 응답 받음');
+                return response.text();
+            })
+            .then(data => {
+                console.log('업로드 완료');
+                hideUploadStatus();
+                alert('슬라이더 이미지가 성공적으로 업로드되었습니다!');
+                // 페이지 새로고침하여 업로드된 이미지 반영
+                location.reload();
+            })
+            .catch(error => {
+                console.error('업로드 오류:', error);
+                hideUploadStatus();
+                alert('업로드 중 오류가 발생했습니다: ' + error.message);
+            });
+        }
+
+        // 갤러리 이미지 업로드 처리
+        function uploadGalleryImages(files) {
+            console.log('갤러리 이미지 업로드 시작:', files.length, '개');
+
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('slider_images[]', files[i]);
+            }
+
+            showUploadStatus('갤러리 이미지 업로드 중...', files.length);
+
+            fetch('/admin/includes/upload_slider_images.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const textarea = document.getElementById('gallery_images');
+                    const currentValue = textarea.value.trim();
+                    const newUrls = data.urls.join('\\n');
+
+                    if (currentValue) {
+                        textarea.value = currentValue + '\\n' + newUrls;
+                    } else {
+                        textarea.value = newUrls;
+                    }
+
+                    previewGallery();
+                    hideUploadStatus();
+                    alert(`${data.urls.length}개의 이미지가 성공적으로 업로드되었습니다!`);
+                } else {
+                    hideUploadStatus();
+                    alert('업로드 실패: ' + (data.error || '알 수 없는 오류'));
+                }
+            })
+            .catch(error => {
+                console.error('업로드 오류:', error);
+                hideUploadStatus();
+                alert('업로드 중 오류가 발생했습니다: ' + error.message);
+            });
+        }
+
+        // 업로드 상태 표시
+        function showUploadStatus(message, fileCount) {
+            // 기존 상태 표시 제거
+            hideUploadStatus();
+
+            const statusDiv = document.createElement('div');
+            statusDiv.id = 'uploadStatus';
+            statusDiv.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0,0,0,0.8);
+                color: white;
+                padding: 20px;
+                border-radius: 8px;
+                z-index: 10000;
+                text-align: center;
+            `;
+            statusDiv.innerHTML = `
+                <div>${message}</div>
+                <div style="margin-top: 10px;">${fileCount}개 파일 처리 중...</div>
+                <div style="margin-top: 10px;">잠시만 기다려주세요...</div>
+            `;
+
+            document.body.appendChild(statusDiv);
+        }
+
+        // 업로드 상태 숨기기
+        function hideUploadStatus() {
+            const statusDiv = document.getElementById('uploadStatus');
+            if (statusDiv) {
+                statusDiv.remove();
+            }
+        }
+
+
+        // 슬라이더 미리보기
+        function previewSlider() {
+            const textarea = document.getElementById('hero_media_list');
+            const previewDiv = document.getElementById('slider_preview');
+            const previewContainer = previewDiv.querySelector('.preview-container');
+
+            const urls = textarea.value.split('\\n').map(url => url.trim()).filter(url => url);
+
+            if (urls.length === 0) {
+                previewDiv.style.display = 'none';
+                return;
+            }
+
+            previewContainer.innerHTML = '';
+
+            urls.forEach((url, index) => {
+                const previewItem = document.createElement('div');
+                previewItem.className = 'preview-item';
+                previewItem.innerHTML = `
+                    <img src="${url}" alt="슬라이더 이미지 ${index + 1}" onerror="this.src='/assets/images/placeholder.jpg'">
+                    <p>슬라이드 ${index + 1}</p>
+                `;
+                previewContainer.appendChild(previewItem);
+            });
+
+            previewDiv.style.display = 'block';
+        }
+
+        // 슬라이더 이미지 전체 삭제
+        function clearSliderImages() {
+            if (confirm('모든 슬라이더 이미지를 삭제하시겠습니까?')) {
+                document.getElementById('hero_media_list').value = '';
+                document.getElementById('slider_preview').style.display = 'none';
+            }
+        }
+
+        // 갤러리 미리보기
+        function previewGallery() {
+            const textarea = document.getElementById('gallery_images');
+            const previewDiv = document.getElementById('gallery_preview');
+            const previewContainer = previewDiv.querySelector('.preview-container');
+
+            const urls = textarea.value.split('\\n').map(url => url.trim()).filter(url => url);
+
+            if (urls.length === 0) {
+                previewDiv.style.display = 'none';
+                return;
+            }
+
+            previewContainer.innerHTML = '';
+
+            urls.forEach((url, index) => {
+                const previewItem = document.createElement('div');
+                previewItem.className = 'preview-item';
+                previewItem.innerHTML = `
+                    <img src="${url}" alt="갤러리 이미지 ${index + 1}" onerror="this.src='/assets/images/placeholder.jpg'">
+                    <p>갤러리 ${index + 1}</p>
+                `;
+                previewContainer.appendChild(previewItem);
+            });
+
+            previewDiv.style.display = 'block';
+        }
+
+        // 갤러리 이미지 전체 삭제
+        function clearGalleryImages() {
+            if (confirm('모든 갤러리 이미지를 삭제하시겠습니까?')) {
+                document.getElementById('gallery_images').value = '';
+                document.getElementById('gallery_preview').style.display = 'none';
+            }
+        }
+
+        // URL 직접 입력 에디터 토글
+        function toggleTextEditor() {
+            const textSection = document.getElementById('text_editor_section');
+            const isVisible = textSection.style.display !== 'none';
+
+            if (isVisible) {
+                textSection.style.display = 'none';
+            } else {
+                textSection.style.display = 'block';
+            }
+        }
+
+        // 이미지 목록을 그리드에 표시
+        function updateImagesGrid() {
+            const textarea = document.getElementById('hero_media_list');
+            const imagesGrid = document.getElementById('images_grid');
+            const imageCount = document.getElementById('image_count');
+
+            const urls = textarea.value.split('\\n').map(url => url.trim()).filter(url => url);
+
+            imagesGrid.innerHTML = '';
+
+            urls.forEach((url, index) => {
+                const imageItem = document.createElement('div');
+                imageItem.className = 'image-item';
+                imageItem.innerHTML = `
+                    <div class="image-item-order">${index + 1}</div>
+                    <img src="${url}" alt="슬라이더 이미지 ${index + 1}" onerror="this.src='/assets/images/placeholder.jpg'">
+                    <div class="image-item-info">
+                        <div class="image-item-title">슬라이드 ${index + 1}</div>
+                        <div class="image-item-actions">
+                            <button type="button" class="image-item-btn" onclick="moveImageUp(${index})" ${index === 0 ? 'disabled' : ''}>↑</button>
+                            <button type="button" class="image-item-btn" onclick="moveImageDown(${index})" ${index === urls.length - 1 ? 'disabled' : ''}>↓</button>
+                            <button type="button" class="image-item-btn delete" onclick="removeImage(${index})">삭제</button>
+                        </div>
+                    </div>
+                `;
+                imagesGrid.appendChild(imageItem);
+            });
+
+            imageCount.textContent = urls.length;
+        }
+
+        // 이미지 위로 이동
+        function moveImageUp(index) {
+            const textarea = document.getElementById('hero_media_list');
+            const urls = textarea.value.split('\\n').map(url => url.trim()).filter(url => url);
+
+            if (index > 0) {
+                [urls[index - 1], urls[index]] = [urls[index], urls[index - 1]];
+                textarea.value = urls.join('\\n');
+                updateImagesGrid();
+            }
+        }
+
+        // 이미지 아래로 이동
+        function moveImageDown(index) {
+            const textarea = document.getElementById('hero_media_list');
+            const urls = textarea.value.split('\\n').map(url => url.trim()).filter(url => url);
+
+            if (index < urls.length - 1) {
+                [urls[index], urls[index + 1]] = [urls[index + 1], urls[index]];
+                textarea.value = urls.join('\\n');
+                updateImagesGrid();
+            }
+        }
+
+        // 개별 이미지 제거
+        function removeImage(index) {
+            if (confirm('이 이미지를 제거하시겠습니까?')) {
+                const textarea = document.getElementById('hero_media_list');
+                const urls = textarea.value.split('\\n').map(url => url.trim()).filter(url => url);
+
+                urls.splice(index, 1);
+                textarea.value = urls.join('\\n');
+                updateImagesGrid();
+            }
+        }
+
+        // 이미지 순서 변경 (드래그 앤 드롭)
+        function sortImages() {
+            alert('드래그 앤 드롭으로 순서를 변경하거나, 각 이미지의 ↑↓ 버튼을 사용하세요.');
+        }
+
+        // 이미지 그리드에 드래그 앤 드롭 추가
+        function enableGridDropZone() {
+            const imagesGrid = document.getElementById('images_grid');
+
+            imagesGrid.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.borderColor = '#4CAF50';
+                this.style.backgroundColor = '#f0fff0';
+            });
+
+            imagesGrid.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.borderColor = '#ddd';
+                this.style.backgroundColor = 'transparent';
+            });
+
+            imagesGrid.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.borderColor = '#ddd';
+                this.style.backgroundColor = 'transparent';
+
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    console.log('드래그 앤 드롭으로 파일 업로드:', files.length, '개');
+                    uploadSliderImages(files);
+                }
+            });
+        }
+
+        // 슬라이더 이미지 자동 저장
+        function autoSaveSliderImages() {
+            const textarea = document.getElementById('hero_media_list');
+            const formData = new FormData();
+            formData.append('hero_media_list', textarea.value);
+
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log('슬라이더 이미지가 자동 저장되었습니다.');
+            })
+            .catch(error => {
+                console.error('자동 저장 중 오류:', error);
+            });
+        }
+
+        // 페이지 로드시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            // 이미지 그리드 업데이트
+            updateImagesGrid();
+
+            // 드래그 앤 드롭 활성화
+            enableGridDropZone();
+
+            // 슬라이더 미리보기 초기화
+            const sliderTextarea = document.getElementById('hero_media_list');
+            if (sliderTextarea && sliderTextarea.value.trim()) {
+                previewSlider();
+            }
+
+            // 갤러리 미리보기 초기화
+            const galleryTextarea = document.getElementById('gallery_images');
+            if (galleryTextarea && galleryTextarea.value.trim()) {
+                previewGallery();
+            }
+
+            // 슬라이더 텍스트영역 변경시 자동 업데이트
+            sliderTextarea.addEventListener('input', function() {
+                updateImagesGrid();
+                if (this.value.trim()) {
+                    previewSlider();
+                } else {
+                    document.getElementById('slider_preview').style.display = 'none';
+                }
+            });
+
+            // 갤러리 텍스트영역 변경시 자동 미리보기
+            galleryTextarea.addEventListener('input', function() {
+                if (this.value.trim()) {
+                    previewGallery();
+                } else {
+                    document.getElementById('gallery_preview').style.display = 'none';
+                }
+            });
+        });
+    </script>
 </body>
 </html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TIMESTAMP 오류 브라우저 테스트</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ccc; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .error { color: red; font-weight: bold; }
+        .success { color: green; font-weight: bold; }
+        .info { color: blue; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🕐 TIMESTAMP 오류 브라우저 테스트</h1>
+
+    <div class="test-section">
+        <h2>현재 브라우저 환경</h2>
+        <p><strong>현재 시간:</strong> <span id="currentTime"></span></p>
+        <p><strong>타임존:</strong> <span id="timeZone"></span></p>
+        <p><strong>브라우저:</strong> <span id="browserInfo"></span></p>
+    </div>
+
+    <div class="test-section">
+        <h2>API 타임스탬프 테스트</h2>
+        <button onclick="testAPITimestamp()">API 타임스탬프 확인</button>
+        <div id="apiResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>장바구니 기능 타임스탬프 테스트</h2>
+        <button onclick="testCartWithTimestamp()">장바구니 추가 + 타임스탬프</button>
+        <div id="cartResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>오류 로그</h2>
+        <div id="errorLog"></div>
+    </div>
+
+    <script>
+        // 페이지 로드시 환경 정보 표시
+        window.onload = function() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleString();
+            document.getElementById('timeZone').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            document.getElementById('browserInfo').textContent = navigator.userAgent;
+        };
+
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const className = type;
+            const timestamp = new Date().toLocaleTimeString();
+            element.innerHTML += `<p class="${className}">[${timestamp}] ${message}</p>`;
+        }
+
+        function logError(message, error) {
+            const errorElement = document.getElementById('errorLog');
+            const timestamp = new Date().toLocaleTimeString();
+
+            let errorDetails = '';
+            if (error) {
+                errorDetails = `
+                    <br>오류 메시지: ${error.message}
+                    <br>오류 타입: ${error.name}
+                    <br>스택: ${error.stack}
+                `;
+            }
+
+            errorElement.innerHTML += `
+                <div style="border: 1px solid red; padding: 10px; margin: 5px 0; background: #ffe6e6;">
+                    <strong>[${timestamp}] ${message}</strong>
+                    ${errorDetails}
+                </div>
+            `;
+        }
+
+        async function testAPITimestamp() {
+            document.getElementById('apiResult').innerHTML = '';
+
+            try {
+                log('apiResult', 'API 타임스탬프 테스트 시작...', 'info');
+
+                const response = await fetch('/api/cart.php?action=count');
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                log('apiResult', `✅ API 응답 성공`, 'success');
+                log('apiResult', `타임스탬프: ${data.timestamp}`, 'info');
+                log('apiResult', `카운트: ${data.count}`, 'info');
+
+                // 타임스탬프 파싱 테스트
+                try {
+                    const parsedDate = new Date(data.timestamp);
+                    log('apiResult', `✅ 타임스탬프 파싱 성공: ${parsedDate.toLocaleString()}`, 'success');
+                } catch (parseError) {
+                    log('apiResult', `❌ 타임스탬프 파싱 실패: ${parseError.message}`, 'error');
+                    logError('타임스탬프 파싱 오류', parseError);
+                }
+
+            } catch (error) {
+                log('apiResult', `❌ API 테스트 실패: ${error.message}`, 'error');
+                logError('API 타임스탬프 테스트 오류', error);
+            }
+        }
+
+        async function testCartWithTimestamp() {
+            document.getElementById('cartResult').innerHTML = '';
+
+            try {
+                log('cartResult', '장바구니 타임스탬프 테스트 시작...', 'info');
+
+                // 1. 장바구니에 상품 추가
+                const addResponse = await fetch('/api/cart.php?action=add&product_id=1&quantity=1', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        product_id: 1,
+                        quantity: 1
+                    })
+                });
+
+                if (!addResponse.ok) {
+                    const errorText = await addResponse.text();
+                    throw new Error(`HTTP ${addResponse.status}: ${errorText}`);
+                }
+
+                const addData = await addResponse.json();
+
+                log('cartResult', `✅ 장바구니 추가 성공`, 'success');
+                log('cartResult', `추가 타임스탬프: ${addData.timestamp}`, 'info');
+
+                // 2. 장바구니 내용 조회
+                const itemsResponse = await fetch('/api/cart.php?action=items');
+                const itemsData = await itemsResponse.json();
+
+                log('cartResult', `✅ 장바구니 조회 성공`, 'success');
+                log('cartResult', `조회 타임스탬프: ${itemsData.timestamp}`, 'info');
+                log('cartResult', `상품 수: ${Object.keys(itemsData.data).length}개`, 'info');
+
+                // 타임스탬프 검증
+                const timestamps = [addData.timestamp, itemsData.timestamp];
+                timestamps.forEach((ts, index) => {
+                    try {
+                        const date = new Date(ts);
+                        if (isNaN(date.getTime())) {
+                            throw new Error('Invalid date');
+                        }
+                        log('cartResult', `✅ 타임스탬프 ${index + 1} 유효: ${date.toLocaleString()}`, 'success');
+                    } catch (parseError) {
+                        log('cartResult', `❌ 타임스탬프 ${index + 1} 무효: ${ts}`, 'error');
+                        logError(`타임스탬프 ${index + 1} 검증 오류`, parseError);
+                    }
+                });
+
+            } catch (error) {
+                log('cartResult', `❌ 장바구니 테스트 실패: ${error.message}`, 'error');
+                logError('장바구니 타임스탬프 테스트 오류', error);
+
+                // TIMESTAMP 관련 오류인지 확인
+                if (error.message.toLowerCase().includes('timestamp')) {
+                    log('cartResult', `🔍 TIMESTAMP 관련 오류 감지!`, 'error');
+                }
+            }
+        }
+
+        // 전역 오류 핸들러
+        window.onerror = function(message, source, lineno, colno, error) {
+            logError(`전역 JavaScript 오류: ${message} (${source}:${lineno})`, error);
+            return false;
+        };
+
+        // Promise 거부 핸들러
+        window.addEventListener('unhandledrejection', function(event) {
+            logError('처리되지 않은 Promise 거부', event.reason);
+        });
+    </script>
+</body>
+</html>

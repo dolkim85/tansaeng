@@ -39,14 +39,14 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         echo "📥 저장소 클론 중..."
         sudo rm -rf *
         sudo git clone https://github.com/dolkim85/tansaeng.git .
-        sudo git checkout main
+        sudo git checkout store_v2
     else
         echo "🔄 최신 변경사항 가져오는 중..."
-        sudo git fetch origin
+        sudo git fetch origin --tags
         sudo git reset --hard HEAD
         sudo git clean -fd
-        sudo git checkout main
-        sudo git reset --hard origin/main
+        sudo git checkout store_v2
+        sudo git reset --hard store_v2
     fi
 
     # 권한 설정
