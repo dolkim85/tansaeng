@@ -4,14 +4,31 @@
 function searchProducts() {
     const searchTerm = document.getElementById('productSearch').value.trim();
     if (searchTerm) {
-        alert(`"${searchTerm}" 검색 기능은 준비 중입니다.`);
-        // 실제 구현시 AJAX로 검색 결과 가져오기
+        // URL에 검색어 매개변수 추가하여 페이지 새로고침
+        const currentUrl = new URL(window.location);
+        currentUrl.searchParams.set('search', searchTerm);
+        // 검색 시 첫 페이지로 리셋
+        currentUrl.searchParams.delete('page');
+        window.location.href = currentUrl.toString();
+    } else {
+        // 검색어가 비어있으면 검색 매개변수 제거
+        const currentUrl = new URL(window.location);
+        currentUrl.searchParams.delete('search');
+        window.location.href = currentUrl.toString();
     }
 }
 
 function searchKeyword(keyword) {
     document.getElementById('productSearch').value = keyword;
     searchProducts();
+}
+
+function clearSearch() {
+    document.getElementById('productSearch').value = '';
+    const currentUrl = new URL(window.location);
+    currentUrl.searchParams.delete('search');
+    currentUrl.searchParams.delete('page');
+    window.location.href = currentUrl.toString();
 }
 
 // Product search on Enter key
@@ -101,14 +118,14 @@ function showProducts(type) {
 // Product actions
 function addToCart(productId) {
     console.log('Adding to cart:', productId);
-    
+
     // 간단한 시각적 피드백
     const button = event.target;
     const originalText = button.textContent;
-    
+
     button.textContent = '추가 중...';
     button.disabled = true;
-    
+
     // AJAX로 장바구니에 추가
     fetch('../../api/cart.php?action=add', {
         method: 'POST',
@@ -120,8 +137,14 @@ function addToCart(productId) {
             quantity: 1
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('HTTP 상태:', response.status);
+        console.log('응답 객체:', response);
+        // HTTP 400도 JSON으로 파싱 (로그인 필요 등의 경우)
+        return response.json();
+    })
     .then(data => {
+        console.log('파싱된 데이터:', data);
         console.log('장바구니 추가 응답:', data);
         console.log('Response details:', JSON.stringify(data, null, 2));
 
@@ -143,20 +166,38 @@ function addToCart(productId) {
         } else {
             button.textContent = originalText;
             button.disabled = false;
-            alert(data.message || '장바구니 추가에 실패했습니다');
+
+            // 로그인이 필요한 경우 팝업 표시
+            if (data.require_login) {
+                if (confirm(data.message + '\n로그인 페이지로 이동하시겠습니까?')) {
+                    // 현재 페이지를 기억하고 로그인 페이지로 이동
+                    window.location.href = '/pages/auth/login.php?redirect=' + encodeURIComponent(window.location.pathname);
+                }
+            } else {
+                alert(data.message || '장바구니 추가에 실패했습니다');
+            }
         }
     })
     .catch(error => {
         console.error('Error:', error);
         button.textContent = originalText;
         button.disabled = false;
-        alert('오류가 발생했습니다');
+
+        // 에러 메시지에서 로그인 필요 여부 확인
+        const errorStr = error.toString();
+        if (errorStr.includes('로그인') || errorStr.includes('require_login')) {
+            if (confirm('로그인이 필요한 기능입니다.\n로그인 페이지로 이동하시겠습니까?')) {
+                window.location.href = '/pages/auth/login.php?redirect=' + encodeURIComponent(window.location.pathname);
+            }
+        } else {
+            alert('오류가 발생했습니다');
+        }
     });
 }
 
 function buyNow(productId) {
     console.log('Buying now:', productId);
-    
+
     // 장바구니에 추가 후 장바구니 페이지로 이동
     fetch('../../api/cart.php?action=add', {
         method: 'POST',
@@ -168,7 +209,10 @@ function buyNow(productId) {
             quantity: 1
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        // HTTP 400도 JSON으로 파싱 (로그인 필요 등의 경우)
+        return response.json();
+    })
     .then(data => {
         console.log('바로구매 응답:', data);
         if (data.success) {
@@ -178,7 +222,15 @@ function buyNow(productId) {
             }
             location.href = './cart.php';
         } else {
-            alert(data.message || '구매 처리에 실패했습니다');
+            // 로그인이 필요한 경우 팝업 표시
+            if (data.require_login) {
+                if (confirm(data.message + '\n로그인 페이지로 이동하시겠습니까?')) {
+                    // 현재 페이지를 기억하고 로그인 페이지로 이동
+                    window.location.href = '/pages/auth/login.php?redirect=' + encodeURIComponent(window.location.pathname);
+                }
+            } else {
+                alert(data.message || '구매 처리에 실패했습니다');
+            }
         }
     })
     .catch(error => {

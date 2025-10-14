@@ -25,21 +25,21 @@ $pageDescription = "탄생 스마트팜 고객지원센터. FAQ, 기술지원, 1
     <meta name="description" content="<?= $pageDescription ?>">
     <link rel="stylesheet" href="/assets/css/main.css">
     <style>
-        .support-hero {
-            background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
-            color: white;
-            height: 170px;
+        .page-header {
             text-align: center;
-            display: none; /* 기본적으로 숨김 (모바일) */
-            align-items: center;
-            justify-content: center;
+            margin-bottom: 3rem;
+            padding: 3rem 0;
+            background: linear-gradient(135deg, #E8F5E8 0%, #C8E6C9 100%);
+            border-radius: 12px;
         }
-
-        /* PC에서만 표시 (768px 이상) */
-        @media (min-width: 769px) {
-            .support-hero {
-                display: flex;
-            }
+        .page-header h1 {
+            font-size: 2.5rem;
+            color: #2E7D32;
+            margin-bottom: 1rem;
+        }
+        .page-header p {
+            font-size: 1.1rem;
+            color: #555;
         }
         .support-grid {
             display: grid;
@@ -133,16 +133,14 @@ $pageDescription = "탄생 스마트팜 고객지원센터. FAQ, 기술지원, 1
             line-height: 1.6;
         }
         @media (max-width: 768px) {
-            .support-hero {
-                height: 100px !important;
-                padding: 0rem 0 !important;
-            }
-            .support-hero .container {
+            .page-header {
                 padding: 1.5rem 1rem !important;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                height: 100%;
+            }
+            .page-header h1 {
+                font-size: 1.5rem !important;
+            }
+            .page-header p {
+                font-size: 0.9rem !important;
             }
             .support-grid, .contact-grid {
                 grid-template-columns: 1fr;
@@ -153,13 +151,14 @@ $pageDescription = "탄생 스마트팜 고객지원센터. FAQ, 기술지원, 1
 <body>
     <?php include '../../includes/header.php'; ?>
 
-    <!-- Hero Section -->
-    <section class="support-hero">
+    <main>
         <div class="container">
-            <h1>💬 고객지원센터</h1>
-            <p>언제든지 도움이 필요하시면 연락주세요</p>
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1>고객지원</h1>
+                <p>언제든지 도움이 필요하시면 연락주세요</p>
+            </div>
         </div>
-    </section>
 
     <!-- Support Services -->
     <section class="support-grid">
@@ -283,6 +282,7 @@ $pageDescription = "탄생 스마트팜 고객지원센터. FAQ, 기술지원, 1
             </div>
         </div>
     </section>
+    </main>
 
     <?php include '../../includes/footer.php'; ?>
 

@@ -97,13 +97,41 @@ try {
             padding-bottom: 100px;
         }
 
+        .page-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 3rem 0;
+            background: linear-gradient(135deg, #E8F5E8 0%, #C8E6C9 100%);
+            border-radius: 12px;
+        }
+        .page-header h1 {
+            font-size: 2.5rem;
+            color: #2E7D32;
+            margin-bottom: 1rem;
+        }
+        .page-header p {
+            font-size: 1.1rem;
+            color: #555;
+        }
+
+        .board-actions-bar {
+            text-align: right;
+            margin-bottom: 20px;
+        }
+
         @media (max-width: 768px) {
             .board-container {
                 padding: 0 15px;
             }
 
-            .board-title {
-                font-size: 0.9rem;
+            .page-header {
+                padding: 1.5rem 1rem !important;
+            }
+            .page-header h1 {
+                font-size: 1.5rem !important;
+            }
+            .page-header p {
+                font-size: 0.9rem !important;
             }
 
             .btn {
@@ -116,41 +144,9 @@ try {
                 font-size: 0.8rem;
             }
 
-            .board-header {
-                padding: 15px;
-            }
-
             .search-section {
                 padding: 15px;
             }
-        }
-        
-        .board-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            background: white;
-            height: 170px;
-            padding: 0 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .board-title {
-            font-size: 2rem;
-            margin: 0;
-            color: #333;
-        }
-        
-        .board-stats {
-            color: #666;
-            font-size: 14px;
-        }
-        
-        .board-actions {
-            display: flex;
-            gap: 10px;
         }
         
         .search-section {
@@ -411,14 +407,13 @@ try {
     <?php include '../../includes/header.php'; ?>
     
     <main class="board-container">
-        <div class="board-header">
-            <div>
-                <h1 class="board-title">📝 게시판</h1>
-                <div class="board-stats">총 <?= number_format($total_posts) ?>개의 게시글</div>
-            </div>
-            <div class="board-actions">
-                <a href="write.php" class="btn btn-success">✏️ 글쓰기</a>
-            </div>
+        <div class="page-header">
+            <h1>게시판</h1>
+            <p>총 <?= number_format($total_posts) ?>개의 게시글이 있습니다</p>
+        </div>
+
+        <div class="board-actions-bar">
+            <a href="write.php" class="btn btn-success">글쓰기</a>
         </div>
         
         <div class="search-section">

@@ -71,7 +71,9 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
                 <a href="/pages/store/cart.php" class="cart-link" id="cartLink">
                     🛒 장바구니 <span class="cart-count" id="cartCount" style="display: none;">0</span>
                 </a>
-                <span class="user-name"><?= htmlspecialchars($currentUser['name'] ?? '') ?>님</span>
+                <a href="/pages/auth/profile.php" class="user-name-link" title="내 정보">
+                    <span class="user-name"><?= htmlspecialchars($currentUser['name'] ?? '') ?>님</span>
+                </a>
                 <?php if ($currentUser['role'] === 'admin'): ?>
                     <a href="/admin/" class="admin-link">관리자</a>
                 <?php endif; ?>
@@ -160,14 +162,77 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
     50% { transform: scale(1.3); }
 }
 
-.user-name {
+.user-name-link {
+    text-decoration: none;
     margin-right: 10px;
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.user-name-link:hover {
+    transform: translateY(-1px);
+}
+
+.user-name-link::after {
+    content: attr(title);
+    position: absolute;
+    bottom: -35px;
+    left: 50%;
+    transform: translateX(-50%) scale(0);
+    background: #333;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.user-name-link::before {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%) scale(0);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid #333;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.user-name-link:hover::after,
+.user-name-link:hover::before {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+}
+
+.user-name {
     color: #333;
     font-weight: 500;
     display: inline-flex;
     align-items: center;
     height: auto;
     font-size: 14px;
+    padding: 6px 12px;
+    border-radius: 15px;
+    background: #f0f7ff;
+    transition: all 0.3s ease;
+}
+
+.user-name-link:hover .user-name {
+    background: #d4e7ff;
+    color: #007bff;
 }
 
 /* nav-auth 컨테이너 정렬 */
@@ -461,13 +526,23 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
         order: 1;
     }
 
-    .user-name {
+    .user-name-link {
         margin-right: 0;
         margin-bottom: 10px;
         order: 2;
         width: 100%;
+    }
+
+    .user-name-link::after,
+    .user-name-link::before {
+        display: none;
+    }
+
+    .user-name {
+        width: 100%;
         text-align: center;
         font-size: 16px;
+        justify-content: center;
     }
 
     .admin-link, .logout-link, .login-link, .register-link {

@@ -103,11 +103,22 @@ function handleGet($cart, $action) {
     }
 }
 
-// POST 요청 처리 (상품 추가)
+// POST 요청 처리 (상품 추가, 주문 준비)
 function handlePost($cart, $action) {
-    if ($action !== 'add') {
-        sendError('잘못된 액션입니다.');
+    switch ($action) {
+        case 'add':
+            handleAddItem($cart);
+            break;
+        case 'prepare_order':
+            handlePrepareOrder();
+            break;
+        default:
+            sendError('잘못된 액션입니다.');
     }
+}
+
+// 상품 추가 처리
+function handleAddItem($cart) {
 
     // 입력 데이터 받기
     $input = json_decode(file_get_contents('php://input'), true);
@@ -136,7 +147,15 @@ function handlePost($cart, $action) {
             'final_total' => $summary['final_total']
         ], $result['message'], 200);
     } else {
-        sendError($result['message']);
+        // 로그인이 필요한 경우 require_login 플래그 추가
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'message' => $result['message'],
+            'require_login' => $result['require_login'] ?? false,
+            'timestamp' => date('Y-m-d H:i:s')
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
     }
 }
 
@@ -204,5 +223,20 @@ function handleDelete($cart, $action) {
         default:
             sendError('잘못된 액션입니다.');
     }
+}
+
+// 주문 준비 처리 (세션에 저장)
+function handlePrepareOrder() {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $items = $input['items'] ?? [];
+
+    if (empty($items)) {
+        sendError('주문할 상품이 없습니다.');
+    }
+
+    // 세션에 주문 상품 저장
+    $_SESSION['order_items'] = $items;
+
+    sendResponse(true, ['item_count' => count($items)], '주문 준비가 완료되었습니다.', 200);
 }
 ?>

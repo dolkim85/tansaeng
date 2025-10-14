@@ -16,11 +16,13 @@ if (!isset($siteSettings)) {
 }
 
 // Footer configuration with database values
-$company_name = $siteSettings['site_title'] ?? '탄생';
-$company_desc = $siteSettings['footer_company_desc'] ?? '스마트팜 배지 전문업체';
-$company_address = $siteSettings['footer_address'] ?? '서울특별시 강남구 테헤란로 123';
-$company_phone = $siteSettings['footer_phone'] ?? '1588-0000';
-$company_email = $siteSettings['footer_email'] ?? 'contact@tansaeng.com';
+$company_name = $siteSettings['site_title'] ?? $siteSettings['company_name'] ?? $siteSettings['site_name'] ?? '탄생';
+$company_desc = $siteSettings['footer_company_desc'] ?? $siteSettings['site_description'] ?? '스마트팜 배지 전문업체';
+$company_address = $siteSettings['footer_address'] ?? $siteSettings['company_address'] ?? '서울특별시 강남구 테헤란로 123';
+$company_phone = $siteSettings['footer_phone'] ?? $siteSettings['contact_phone'] ?? '1588-0000';
+$company_email = $siteSettings['footer_email'] ?? $siteSettings['contact_email'] ?? 'contact@tansaeng.com';
+$business_number = $siteSettings['business_number'] ?? $siteSettings['footer_business_number'] ?? '123-45-67890';
+$ceo_name = $siteSettings['ceo_name'] ?? $siteSettings['footer_ceo_name'] ?? '홍길동';
 $current_year = date('Y');
 
 // Parse JSON menu arrays
@@ -112,7 +114,7 @@ $companyMenu = parseMenuItems($siteSettings['footer_menu_company'] ?? '');
 
         <div class="footer-bottom">
             <p>&copy; <?= $current_year ?> <?= htmlspecialchars($company_name) ?>. All rights reserved.</p>
-            <p>사업자등록번호: 123-45-67890 | 대표: 홍길동</p>
+            <p>사업자등록번호: <?= htmlspecialchars($business_number) ?> | 대표: <?= htmlspecialchars($ceo_name) ?></p>
         </div>
     </div>
 </footer>

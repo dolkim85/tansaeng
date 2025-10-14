@@ -28,35 +28,100 @@ $message = '';
 $messageType = '';
 
 // 프로필 업데이트 처리
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && $dbConnected) {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'update_profile' && $dbConnected) {
     try {
-        $name = $_POST['name'] ?? '';
-        $phone = $_POST['phone'] ?? '';
-        $address = $_POST['address'] ?? '';
-        $bio = $_POST['bio'] ?? '';
-        
+        $name = trim($_POST['name'] ?? '');
+        $phone = trim($_POST['phone'] ?? '');
+        $address = trim($_POST['address'] ?? '');
+
         // 간단한 유효성 검사
         if (empty($name)) {
             throw new Exception('이름은 필수 항목입니다.');
         }
-        
+
         // 데이터베이스 업데이트
         $db->update('users', [
             'name' => $name,
             'phone' => $phone,
-            'address' => $address,
-            'bio' => $bio
-        ], $currentUser['id']);
-        
+            'address' => $address
+        ], 'id = :user_id', ['user_id' => $currentUser['id']]);
+
         // 세션 업데이트
         $currentUser = $auth->getCurrentUser(); // 새로운 정보로 다시 로드
-        
+
         $message = '프로필이 성공적으로 업데이트되었습니다.';
         $messageType = 'success';
-        
+
     } catch (Exception $e) {
         $message = $e->getMessage();
         $messageType = 'error';
+    }
+}
+
+// 비밀번호 변경 처리
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'change_password' && $dbConnected) {
+    try {
+        $currentPassword = $_POST['current_password'] ?? '';
+        $newPassword = $_POST['new_password'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
+
+        // 유효성 검사
+        if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
+            throw new Exception('모든 필드를 입력해주세요.');
+        }
+
+        if ($newPassword !== $confirmPassword) {
+            throw new Exception('새 비밀번호가 일치하지 않습니다.');
+        }
+
+        if (strlen($newPassword) < 8) {
+            throw new Exception('비밀번호는 8자 이상이어야 합니다.');
+        }
+
+        // 데이터베이스에서 현재 비밀번호 해시 가져오기
+        $pdo = $db->getConnection();
+        $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
+        $stmt->execute([$currentUser['id']]);
+        $userPassword = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$userPassword || !password_verify($currentPassword, $userPassword['password'])) {
+            throw new Exception('현재 비밀번호가 일치하지 않습니다.');
+        }
+
+        // 새 비밀번호 해시화 및 업데이트
+        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+        $db->update('users', [
+            'password' => $hashedPassword
+        ], 'id = :user_id', ['user_id' => $currentUser['id']]);
+
+        $message = '비밀번호가 성공적으로 변경되었습니다.';
+        $messageType = 'success';
+
+    } catch (Exception $e) {
+        $message = $e->getMessage();
+        $messageType = 'error';
+    }
+}
+
+// 주문 내역 가져오기
+$orders = [];
+if ($dbConnected) {
+    try {
+        $pdo = $db->getConnection();
+        $stmt = $pdo->prepare("
+            SELECT o.*,
+                   GROUP_CONCAT(CONCAT(oi.product_name, ' x ', oi.quantity) SEPARATOR ', ') as product_names
+            FROM orders o
+            LEFT JOIN order_items oi ON o.id = oi.order_id
+            WHERE o.user_id = :user_id
+            GROUP BY o.id
+            ORDER BY o.created_at DESC
+            LIMIT 10
+        ");
+        $stmt->execute(['user_id' => $currentUser['id']]);
+        $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("주문 내역 로드 실패: " . $e->getMessage());
     }
 }
 ?>
@@ -71,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $dbConnected) {
 <body>
     <?php include '../../includes/header.php'; ?>
 
-    <main >
+    <main style="padding-top: 80px; padding-bottom: 80px;">
         <div class="container">
             <div class="page-header">
                 <h1>👤 내 정보</h1>
@@ -129,6 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $dbConnected) {
                     <div id="profile-info" class="tab-content active">
                         <h2>기본 정보</h2>
                         <form method="POST" class="profile-form">
+                            <input type="hidden" name="action" value="update_profile">
                             <div class="form-grid">
                                 <div class="form-group">
                                     <label for="name">이름 *</label>
@@ -157,12 +223,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $dbConnected) {
                                 </div>
                             </div>
 
-                            <div class="form-group">
-                                <label for="bio">자기소개</label>
-                                <textarea id="bio" name="bio" rows="4" 
-                                          placeholder="간단한 자기소개를 작성해보세요..."><?= htmlspecialchars($currentUser['bio'] ?? '') ?></textarea>
-                            </div>
-
                             <div class="form-actions">
                                 <button type="submit" class="btn btn-primary">정보 업데이트</button>
                                 <button type="reset" class="btn btn-outline">취소</button>
@@ -175,19 +235,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $dbConnected) {
                         <h2>보안 설정</h2>
                         <div class="security-section">
                             <h3>비밀번호 변경</h3>
-                            <form class="security-form">
+                            <form method="POST" class="security-form">
+                                <input type="hidden" name="action" value="change_password">
                                 <div class="form-group">
                                     <label for="current_password">현재 비밀번호</label>
-                                    <input type="password" id="current_password" name="current_password">
+                                    <input type="password" id="current_password" name="current_password" required>
                                 </div>
                                 <div class="form-group">
                                     <label for="new_password">새 비밀번호</label>
-                                    <input type="password" id="new_password" name="new_password">
+                                    <input type="password" id="new_password" name="new_password" required>
                                     <small>8자 이상, 영문과 숫자 조합</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="confirm_password">새 비밀번호 확인</label>
-                                    <input type="password" id="confirm_password" name="confirm_password">
+                                    <input type="password" id="confirm_password" name="confirm_password" required>
                                 </div>
                                 <button type="submit" class="btn btn-primary">비밀번호 변경</button>
                             </form>
@@ -218,40 +279,65 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $dbConnected) {
                     <div id="orders" class="tab-content">
                         <h2>주문 내역</h2>
                         <div class="orders-list">
-                            <div class="order-item">
-                                <div class="order-header">
-                                    <span class="order-number">주문번호: #2024011501</span>
-                                    <span class="order-date">2024.01.15</span>
-                                    <span class="order-status completed">배송완료</span>
+                            <?php if (empty($orders)): ?>
+                                <div class="no-orders">
+                                    <div class="no-orders-icon">📦</div>
+                                    <h3>주문 내역이 없습니다</h3>
+                                    <p>첫 주문을 시작해보세요!</p>
+                                    <a href="/pages/store/" class="btn btn-primary">스토어 둘러보기</a>
                                 </div>
-                                <div class="order-products">
-                                    <div class="product-item">
-                                        <span>탄생 프리미엄 배지 x 2</span>
-                                        <span>50,000원</span>
+                            <?php else: ?>
+                                <?php foreach ($orders as $order):
+                                    $statusClass = '';
+                                    $statusText = '';
+                                    switch ($order['order_status']) {
+                                        case 'delivered':
+                                            $statusClass = 'completed';
+                                            $statusText = '배송완료';
+                                            break;
+                                        case 'shipped':
+                                            $statusClass = 'shipping';
+                                            $statusText = '배송중';
+                                            break;
+                                        case 'processing':
+                                            $statusClass = 'processing';
+                                            $statusText = '처리중';
+                                            break;
+                                        case 'confirmed':
+                                            $statusClass = 'confirmed';
+                                            $statusText = '주문확인';
+                                            break;
+                                        case 'pending':
+                                            $statusClass = 'pending';
+                                            $statusText = '대기중';
+                                            break;
+                                        case 'cancelled':
+                                            $statusClass = 'cancelled';
+                                            $statusText = '취소됨';
+                                            break;
+                                        default:
+                                            $statusClass = 'pending';
+                                            $statusText = $order['order_status'];
+                                    }
+                                ?>
+                                <div class="order-item">
+                                    <div class="order-header">
+                                        <span class="order-number">주문번호: <?= htmlspecialchars($order['order_number']) ?></span>
+                                        <span class="order-date"><?= date('Y.m.d', strtotime($order['created_at'])) ?></span>
+                                        <span class="order-status <?= $statusClass ?>"><?= $statusText ?></span>
+                                    </div>
+                                    <div class="order-products">
+                                        <div class="product-item">
+                                            <span><?= htmlspecialchars($order['product_names'] ?? '상품 정보 없음') ?></span>
+                                            <span><?= number_format($order['total_amount']) ?>원</span>
+                                        </div>
+                                    </div>
+                                    <div class="order-actions">
+                                        <a href="/pages/store/order_detail.php?id=<?= $order['id'] ?>" class="btn btn-outline btn-sm">상세보기</a>
                                     </div>
                                 </div>
-                                <div class="order-actions">
-                                    <button class="btn btn-outline btn-sm">상세보기</button>
-                                    <button class="btn btn-outline btn-sm">재주문</button>
-                                </div>
-                            </div>
-
-                            <div class="order-item">
-                                <div class="order-header">
-                                    <span class="order-number">주문번호: #2024011201</span>
-                                    <span class="order-date">2024.01.12</span>
-                                    <span class="order-status shipping">배송중</span>
-                                </div>
-                                <div class="order-products">
-                                    <div class="product-item">
-                                        <span>토마토 전용 양액 x 1</span>
-                                        <span>28,000원</span>
-                                    </div>
-                                </div>
-                                <div class="order-actions">
-                                    <button class="btn btn-outline btn-sm">배송조회</button>
-                                </div>
-                            </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </div>
                     </div>
 
@@ -330,26 +416,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $dbConnected) {
             element.classList.add('active');
         }
         
-        // 보안 폼 제출 처리
-        document.querySelector('.security-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const newPassword = document.getElementById('new_password').value;
-            const confirmPassword = document.getElementById('confirm_password').value;
-            
-            if (newPassword !== confirmPassword) {
-                alert('새 비밀번호가 일치하지 않습니다.');
-                return;
-            }
-            
-            if (newPassword.length < 8) {
-                alert('비밀번호는 8자 이상이어야 합니다.');
-                return;
-            }
-            
-            // 실제 구현시 AJAX로 비밀번호 변경
-            alert('비밀번호 변경 기능은 준비 중입니다.');
-        });
+        // 폼 제출 후 메시지가 있으면 스크롤
+        <?php if (!empty($message)): ?>
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        <?php endif; ?>
     </script>
 </body>
 </html>
@@ -647,6 +717,49 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $dbConnected) {
 .order-status.shipping {
     background: #E3F2FD;
     color: #1976D2;
+}
+
+.order-status.processing {
+    background: #FFF3E0;
+    color: #F57C00;
+}
+
+.order-status.confirmed {
+    background: #E8F5E9;
+    color: #388E3C;
+}
+
+.order-status.pending {
+    background: #F5F5F5;
+    color: #757575;
+}
+
+.order-status.cancelled {
+    background: #FFEBEE;
+    color: #C62828;
+}
+
+.no-orders {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.no-orders-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.no-orders h3 {
+    color: #2E7D32;
+    margin-bottom: 0.5rem;
+}
+
+.no-orders p {
+    color: #666;
+    margin-bottom: 2rem;
 }
 
 .product-item {

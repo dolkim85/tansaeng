@@ -4,7 +4,13 @@ class SocialLogin {
     private $pdo;
     
     public function __construct() {
-        $this->config = include dirname(__DIR__) . '/config/social_config.php';
+        $configFile = dirname(__DIR__) . '/config/oauth.php';
+        if (file_exists($configFile)) {
+            $this->config = include $configFile;
+        } else {
+            // Fallback to old config
+            $this->config = include dirname(__DIR__) . '/config/social_config.php';
+        }
         $this->pdo = Database::getInstance()->getConnection();
     }
     

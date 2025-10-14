@@ -7,6 +7,7 @@ $featuredProducts = [];
 $selectedCategory = $_GET['category'] ?? 'all';
 $sortBy = $_GET['sort'] ?? 'newest';
 $productType = $_GET['type'] ?? 'new';
+$searchTerm = $_GET['search'] ?? '';
 
 // 페이지네이션 설정
 $itemsPerPage = 32; // 4x8 = 32개
@@ -60,6 +61,16 @@ try {
     if ($selectedCategory !== 'all' && is_numeric($selectedCategory)) {
         $whereConditions[] = 'p.category_id = ?';
         $params[] = $selectedCategory;
+    }
+
+    // 검색어 필터링
+    if (!empty($searchTerm)) {
+        $whereConditions[] = '(p.name LIKE ? OR p.description LIKE ? OR p.features LIKE ? OR p.detailed_description LIKE ?)';
+        $searchParam = "%$searchTerm%";
+        $params[] = $searchParam;
+        $params[] = $searchParam;
+        $params[] = $searchParam;
+        $params[] = $searchParam;
     }
 
     // 제품 타입별 필터링
@@ -137,29 +148,29 @@ try {
 <body>
     <?php include '../../includes/header.php'; ?>
 
-    <main >
-        <!-- Hero Banner -->
-        <section class="store-hero">
-            <div class="container">
-                <div class="hero-content">
-                    <div class="hero-text">
-                        <h1>🛒 스토어
-                            <a href="cart.php" class="cart-link">
-                                <span class="cart-icon">🛒</span>
-                                <span class="cart-count" id="cartCount">0</span>
-                            </a>
-                        </h1>
-                        <p class="hero-subtitle">스마트팜 제품 전문</p>
-                    </div>
-                    <div class="hero-search">
-                        <div class="search-box">
-                            <input type="text" placeholder="제품 검색..." id="productSearch">
-                            <button type="button" onclick="searchProducts()">🔍</button>
-                        </div>
-                    </div>
-                </div>
+    <main>
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1>스토어</h1>
+                <p>스마트팜 제품 전문 쇼핑몰</p>
             </div>
-        </section>
+
+            <div class="search-bar-wrapper">
+                <div class="search-box">
+                    <input type="text" placeholder="제품 검색..." id="productSearch" value="<?= htmlspecialchars($searchTerm) ?>">
+                    <button type="button" onclick="searchProducts()">🔍 검색</button>
+                    <?php if (!empty($searchTerm)): ?>
+                    <button type="button" onclick="clearSearch()" class="btn-clear-search" style="margin-left: 10px;">✖ 초기화</button>
+                    <?php endif; ?>
+                </div>
+                <?php if (!empty($searchTerm)): ?>
+                <div class="search-info" style="margin-top: 10px; color: #666; font-size: 14px;">
+                    "<strong><?= htmlspecialchars($searchTerm) ?></strong>" 검색 결과: <?= number_format($totalProducts) ?>개 상품
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
 
         <div class="container">
             <!-- Filter & Sort -->
@@ -321,6 +332,7 @@ try {
                             if ($selectedCategory !== 'all') $baseParams['category'] = $selectedCategory;
                             if ($sortBy !== 'newest') $baseParams['sort'] = $sortBy;
                             if ($productType !== 'new') $baseParams['type'] = $productType;
+                            if (!empty($searchTerm)) $baseParams['search'] = $searchTerm;
 
                             // 이전 페이지
                             if ($currentPage > 1):
@@ -496,12 +508,7 @@ try {
                 })
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('API 오류 응답:', errorText);
-                throw new Error(`HTTP ${response.status}: ${errorText}`);
-            }
-
+            // HTTP 400도 JSON으로 파싱 (로그인 필요 등의 경우)
             const data = await response.json();
             console.log('응답 데이터:', data);
 
@@ -512,7 +519,15 @@ try {
                 // 장바구니 카운트 업데이트
                 updateCartCount();
             } else {
-                alert('오류: ' + data.message);
+                // 로그인이 필요한 경우 팝업 표시
+                if (data.require_login) {
+                    if (confirm(data.message + '\n로그인 페이지로 이동하시겠습니까?')) {
+                        // 현재 페이지를 기억하고 로그인 페이지로 이동
+                        window.location.href = '/pages/auth/login.php?redirect=' + encodeURIComponent(window.location.pathname);
+                    }
+                } else {
+                    alert('오류: ' + data.message);
+                }
             }
 
         } catch (error) {

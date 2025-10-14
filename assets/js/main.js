@@ -165,9 +165,7 @@ function initMobileMenu() {
 
             console.log('Mobile menu initialization COMPLETED');
         } else {
-            console.error('Mobile menu initialization FAILED - elements not found');
-            console.log('Available elements with .mobile-menu-toggle class:', document.querySelectorAll('.mobile-menu-toggle'));
-            console.log('Available elements with .nav-menu class:', document.querySelectorAll('.nav-menu'));
+            console.log('Mobile menu elements not found on this page - skipping initialization');
         }
     }, 200); // 200ms 지연
 }

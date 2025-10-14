@@ -3,15 +3,28 @@
     background: #f8f9fa;
 }
 
-/* Hero Banner */
-.store-hero {
-    background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
-    color: white;
-    height: 170px;
+/* Page Header - Standard Style */
+.page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 3rem 0;
+    background: linear-gradient(135deg, #E8F5E8 0%, #C8E6C9 100%);
+    border-radius: 12px;
+}
+
+.page-header h1 {
+    font-size: 2.5rem;
+    color: #2E7D32;
     margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+}
+
+.page-header p {
+    font-size: 1.1rem;
+    color: #555;
+}
+
+.search-bar-wrapper {
+    margin-bottom: 2rem;
 }
 
 .hero-content {
@@ -41,21 +54,21 @@
 
 /* Mobile Optimizations */
 @media (max-width: 768px) {
-    .store-hero {
-        height: 140px;
-        padding: 0rem 0;
-        margin-bottom: 2rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    .page-header {
+        padding: 1.5rem 1rem !important;
+        margin-bottom: 1.5rem !important;
     }
 
-    .hero-content {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        gap: 0.5rem;
+    .page-header h1 {
+        font-size: 1.5rem !important;
+    }
+
+    .page-header p {
+        font-size: 0.9rem !important;
+    }
+
+    .search-bar-wrapper {
+        margin-bottom: 1.5rem;
     }
 
     main {
@@ -64,22 +77,6 @@
 
     .container {
         margin-top: 20px;
-    }
-
-    .hero-text h1 {
-        font-size: 1.5rem;
-        margin-bottom: 0rem;
-    }
-
-    .hero-subtitle {
-        font-size: 0.9rem;
-    }
-
-    .hero-search {
-        width: 100%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
     }
 
     .search-box {

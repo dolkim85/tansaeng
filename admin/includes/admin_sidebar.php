@@ -71,6 +71,14 @@
                     </a>
                 </li>
                 
+                <li class="nav-section">콘텐츠 관리</li>
+                <li class="nav-item">
+                    <a href="/admin/pages/" class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/pages/') === 0 ? 'active' : '' ?>">
+                        <span class="nav-icon">📄</span>
+                        <span class="nav-text">페이지 관리</span>
+                    </a>
+                </li>
+
                 <li class="nav-section">시스템</li>
                 <li class="nav-item">
                     <a href="/admin/settings/" class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/settings/') === 0 && !strpos($_SERVER['REQUEST_URI'], '/admin/settings/company') && !strpos($_SERVER['REQUEST_URI'], '/admin/settings/media') ? 'active' : '' ?>">

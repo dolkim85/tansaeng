@@ -25,11 +25,21 @@ $pageDescription = "고품질 수경재배 배지 제품군을 소개합니다. 
     <meta name="description" content="<?= $pageDescription ?>">
     <link rel="stylesheet" href="/assets/css/main.css">
     <style>
-        .products-hero {
-            background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
-            color: white;
-            padding: 80px 0;
+        .page-header {
             text-align: center;
+            margin-bottom: 3rem;
+            padding: 3rem 0;
+            background: linear-gradient(135deg, #E8F5E8 0%, #C8E6C9 100%);
+            border-radius: 12px;
+        }
+        .page-header h1 {
+            font-size: 2.5rem;
+            color: #2E7D32;
+            margin-bottom: 1rem;
+        }
+        .page-header p {
+            font-size: 1.1rem;
+            color: #555;
         }
         .products-grid {
             display: grid;
@@ -129,16 +139,14 @@ $pageDescription = "고품질 수경재배 배지 제품군을 소개합니다. 
             background: #f5f5f5;
         }
         @media (max-width: 768px) {
-            .products-hero {
-                height: 100px !important;
-                padding: 0rem 0 !important;
-            }
-            .products-hero .container {
+            .page-header {
                 padding: 1.5rem 1rem !important;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                height: 100%;
+            }
+            .page-header h1 {
+                font-size: 1.5rem !important;
+            }
+            .page-header p {
+                font-size: 0.9rem !important;
             }
             .products-grid {
                 grid-template-columns: 1fr;
@@ -154,13 +162,13 @@ $pageDescription = "고품질 수경재배 배지 제품군을 소개합니다. 
     <?php include '../../includes/header.php'; ?>
 
     <main >
-    <!-- Hero Section -->
-    <section class="products-hero">
-        <div class="container">
-            <h1>🌱 스마트팜 배지 제품군</h1>
+    <div class="container">
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1>배지설명</h1>
             <p>수경재배의 성공을 위한 고품질 배지 솔루션</p>
         </div>
-    </section>
+    </div>
 
     <!-- Products Grid -->
     <section class="products-grid">

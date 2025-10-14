@@ -95,6 +95,9 @@ $finalPrice = $hasDiscount
 
 // Get stock quantity
 $stockQuantity = $product['stock_quantity'] ?? $product['stock'] ?? 0;
+
+// Get shipping cost
+$shippingCost = $product['shipping_cost'] ?? 0;
 ?>
 
 <!DOCTYPE html>
@@ -189,6 +192,18 @@ $stockQuantity = $product['stock_quantity'] ?? $product['stock'] ?? 0;
                             <div class="delivery-text"><?= htmlspecialchars($product['delivery_info']) ?></div>
                         </div>
                         <?php endif; ?>
+
+                        <!-- Shipping Cost -->
+                        <div class="shipping-cost-info">
+                            <h4>📦 배송비</h4>
+                            <div class="shipping-cost-amount">
+                                <?php if ($shippingCost > 0): ?>
+                                    <?= number_format($shippingCost) ?>원
+                                <?php else: ?>
+                                    <span class="free-shipping">무료배송</span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Product Description -->
@@ -416,7 +431,8 @@ $stockQuantity = $product['stock_quantity'] ?? $product['stock'] ?? 0;
         function updateTotalPrice() {
             const quantity = parseInt(document.getElementById('quantityInput').value);
             const unitPrice = <?= $finalPrice ?>;
-            const totalPrice = quantity * unitPrice;
+            const shippingCost = <?= $shippingCost ?>;
+            const totalPrice = (quantity * unitPrice) + shippingCost;
 
             document.getElementById('totalAmount').textContent = totalPrice.toLocaleString() + '원';
         }
@@ -472,12 +488,8 @@ $stockQuantity = $product['stock_quantity'] ?? $product['stock'] ?? 0;
             .then(response => {
                 console.log('응답 상태:', response.status);
                 console.log('응답 헤더:', response.headers);
-                if (!response.ok) {
-                    return response.text().then(text => {
-                        console.error('API 오류 응답:', text);
-                        throw new Error(`HTTP ${response.status}: ${text}`);
-                    });
-                }
+
+                // 400 에러도 JSON으로 파싱 (로그인 필요 등의 경우)
                 return response.json();
             })
             .then(data => {
@@ -520,7 +532,16 @@ $stockQuantity = $product['stock_quantity'] ?? $product['stock'] ?? 0;
                 } else {
                     button.textContent = originalText;
                     button.disabled = false;
-                    alert('오류: ' + (data.message || '장바구니 추가에 실패했습니다'));
+
+                    // 로그인이 필요한 경우 팝업 표시
+                    if (data.require_login) {
+                        if (confirm(data.message + '\n로그인 페이지로 이동하시겠습니까?')) {
+                            // 현재 페이지를 기억하고 로그인 페이지로 이동
+                            window.location.href = '/pages/auth/login.php?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+                        }
+                    } else {
+                        alert('오류: ' + (data.message || '장바구니 추가에 실패했습니다'));
+                    }
                 }
             })
             .catch(error => {

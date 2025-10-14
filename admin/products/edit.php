@@ -1344,6 +1344,26 @@ try {
                     console.log('❌ 에디터 대상 요소를 찾을 수 없습니다.');
                 }
             }, 1000);
+
+            // 상품 수정 확인 버튼 이벤트 리스너 추가
+            setTimeout(() => {
+                const confirmBtn = document.getElementById('confirmUpdateBtn');
+                console.log('confirmUpdateBtn 요소 찾기:', confirmBtn);
+
+                if (confirmBtn) {
+                    confirmBtn.addEventListener('click', function(e) {
+                        console.log('=== 상품 수정 확인 버튼 클릭됨 ===');
+                        showUpdateConfirmation();
+                    });
+                    console.log('✅ 상품 수정 확인 버튼 이벤트 리스너 등록 완료');
+                } else {
+                    console.error('❌ confirmUpdateBtn 요소를 찾을 수 없습니다!');
+                }
+
+                // 초기 폼 데이터 저장
+                saveOriginalFormData();
+                console.log('초기 폼 데이터 저장 완료');
+            }, 1500);
         });
 
         function toggleImageMethod(method) {
@@ -2088,21 +2108,6 @@ try {
             });
         }
 
-        // 페이지 로드 시 초기 데이터 저장
-        document.addEventListener('DOMContentLoaded', async function() {
-            // 에디터 완전 초기화 대기
-            await waitForEditorInitialization();
-
-            // 초기 데이터 저장
-            setTimeout(function() {
-                saveOriginalFormData();
-                console.log('초기 폼 데이터 저장 완료:', originalFormData);
-            }, 500);
-
-            // 확인 버튼 이벤트 리스너
-            document.getElementById('confirmUpdateBtn').addEventListener('click', showUpdateConfirmation);
-        });
-
         // 수정 버튼 아래 메시지 표시 함수들
         function showUpdateProgress(message) {
             const statusArea = getOrCreateStatusArea();
@@ -2126,10 +2131,10 @@ try {
                 </div>
             `;
 
-            // 3초 후 자동 닫기
+            // 2초 후 상품 관리 리스트로 리다이렉트
             setTimeout(() => {
-                hideStatusMessage();
-            }, 3000);
+                window.location.href = 'index.php';
+            }, 2000);
         }
 
         function showUpdateError(message) {

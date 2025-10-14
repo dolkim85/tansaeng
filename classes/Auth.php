@@ -254,5 +254,87 @@ class Auth {
             'remaining_time' => SESSION_TIMEOUT - (time() - ($_SESSION['last_activity'] ?? time()))
         ];
     }
+
+    /**
+     * 소셜 로그인 사용자 찾기 또는 생성
+     *
+     * @param array $oauthData 소셜 로그인 데이터
+     *   - oauth_provider: 'kakao', 'google', 'naver'
+     *   - oauth_id: 소셜 서비스 고유 ID
+     *   - email: 이메일 주소
+     *   - name: 사용자 이름
+     * @return array|null 사용자 정보
+     */
+    public function findOrCreateOAuthUser($oauthData) {
+        try {
+            $db = Database::getInstance();
+            $pdo = $db->getConnection();
+
+            // 1. 소셜 ID로 기존 사용자 찾기
+            $stmt = $pdo->prepare("
+                SELECT * FROM users
+                WHERE oauth_provider = ? AND oauth_id = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$oauthData['oauth_provider'], $oauthData['oauth_id']]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($user) {
+                // 기존 사용자 로그인
+                return $user;
+            }
+
+            // 2. 이메일로 기존 사용자 찾기 (이메일 연동)
+            $stmt = $pdo->prepare("
+                SELECT * FROM users
+                WHERE email = ? AND oauth_provider = 'email'
+                LIMIT 1
+            ");
+            $stmt->execute([$oauthData['email']]);
+            $existingUser = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($existingUser) {
+                // 기존 이메일 계정에 소셜 로그인 연동
+                $stmt = $pdo->prepare("
+                    UPDATE users
+                    SET oauth_provider = ?, oauth_id = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([
+                    $oauthData['oauth_provider'],
+                    $oauthData['oauth_id'],
+                    $existingUser['id']
+                ]);
+
+                return $existingUser;
+            }
+
+            // 3. 새 사용자 생성
+            $stmt = $pdo->prepare("
+                INSERT INTO users (
+                    email, name, oauth_provider, oauth_id,
+                    user_level, plant_analysis_permission, created_at
+                ) VALUES (?, ?, ?, ?, 1, 0, NOW())
+            ");
+
+            $stmt->execute([
+                $oauthData['email'],
+                $oauthData['name'],
+                $oauthData['oauth_provider'],
+                $oauthData['oauth_id']
+            ]);
+
+            $newUserId = $pdo->lastInsertId();
+
+            // 생성된 사용자 정보 반환
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+            $stmt->execute([$newUserId]);
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+
+        } catch (Exception $e) {
+            error_log('OAuth User Creation Error: ' . $e->getMessage());
+            return null;
+        }
+    }
 }
 ?>

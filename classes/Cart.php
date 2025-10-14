@@ -37,7 +37,7 @@ class Cart {
     private function syncFromDatabase() {
         try {
             $stmt = $this->db->prepare("
-                SELECT c.product_id, c.quantity, p.name, p.price, p.images, p.image_url, p.discount_percentage
+                SELECT c.product_id, c.quantity, p.name, p.price, p.images, p.image_url, p.discount_percentage, p.shipping_cost
                 FROM cart c
                 JOIN products p ON c.product_id = p.id
                 WHERE c.user_id = ? AND p.status = 'active'
@@ -75,6 +75,7 @@ class Cart {
                     'original_price' => $originalPrice,
                     'quantity' => $item['quantity'],
                     'image' => $imageUrl,
+                    'shipping_cost' => (float)($item['shipping_cost'] ?? 0),
                     'sku' => ''
                 ];
             }
@@ -128,6 +129,11 @@ class Cart {
      * 상품 추가
      */
     public function addItem($productId, $quantity = 1) {
+        // 로그인 체크
+        if (!$this->isLoggedIn) {
+            return ['success' => false, 'message' => '로그인이 필요한 기능입니다.', 'require_login' => true];
+        }
+
         try {
             // 상품 정보 확인
             $stmt = $this->db->prepare("SELECT * FROM products WHERE id = ? AND status = 'active'");
@@ -175,6 +181,7 @@ class Cart {
                     'original_price' => $originalPrice,
                     'quantity' => $quantity,
                     'image' => $imageUrl,
+                    'shipping_cost' => (float)($product['shipping_cost'] ?? 0),
                     'sku' => ''
                 ];
             }
@@ -322,15 +329,16 @@ class Cart {
         $items = $_SESSION['cart'] ?? [];
         $itemCount = 0;
         $subtotal = 0;
+        $totalShippingCost = 0;
 
         foreach ($items as $item) {
             $itemCount += $item['quantity'];
             $subtotal += $item['price'] * $item['quantity'];
+            // 개별 상품 배송비 합산
+            $totalShippingCost += (float)($item['shipping_cost'] ?? 0);
         }
 
-        // 배송비 계산 (5만원 이상 무료배송)
-        $shippingCost = $subtotal >= 50000 ? 0 : 3000;
-        $finalTotal = $subtotal + $shippingCost;
+        $finalTotal = $subtotal + $totalShippingCost;
 
         return [
             'items' => $items,
@@ -338,7 +346,7 @@ class Cart {
             'subtotal' => $subtotal,
             'discount' => 0,
             'total' => $subtotal,
-            'shipping_cost' => $shippingCost,
+            'shipping_cost' => $totalShippingCost,
             'final_total' => $finalTotal
         ];
     }

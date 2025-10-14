@@ -2,14 +2,17 @@
 // 소셜 로그인 콜백 처리
 $currentUser = null;
 $dbConnected = false;
+$socialLogin = null;
 
 try {
     require_once __DIR__ . '/../../classes/Auth.php';
+    require_once __DIR__ . '/../../classes/SocialLogin.php';
     $auth = Auth::getInstance();
     $currentUser = $auth->getCurrentUser();
     $db = Database::getInstance();
+    $socialLogin = new SocialLogin();
     $dbConnected = true;
-    
+
     // 이미 로그인된 경우 홈으로 리다이렉트
     if ($currentUser) {
         header('Location: /');
@@ -73,16 +76,28 @@ if (isset($_GET['provider']) && isset($_GET['code'])) {
                         <span class="social-icon">G</span>
                         <span>구글로 시작하기</span>
                     </button>
-                    
+
+                    <?php if ($dbConnected && $socialLogin): ?>
+                    <button type="button" onclick="handleKakaoRegister(event)" class="social-btn kakao">
+                        <span class="social-icon">K</span>
+                        <span>카카오톡으로 시작하기</span>
+                    </button>
+
+                    <button type="button" onclick="handleNaverRegister(event)" class="social-btn naver">
+                        <span class="social-icon">N</span>
+                        <span>네이버로 시작하기</span>
+                    </button>
+                    <?php else: ?>
                     <button onclick="socialLogin('kakao')" class="social-btn kakao">
                         <span class="social-icon">K</span>
                         <span>카카오톡으로 시작하기</span>
                     </button>
-                    
+
                     <button onclick="socialLogin('naver')" class="social-btn naver">
                         <span class="social-icon">N</span>
                         <span>네이버로 시작하기</span>
                     </button>
+                    <?php endif; ?>
                 </div>
                 
                 <div class="social-notice">
@@ -133,6 +148,43 @@ if (isset($_GET['provider']) && isset($_GET['code'])) {
     
     <script type="module" src="/assets/js/firebase-auth.js"></script>
     <script>
+        // 카카오 회원가입 URL
+        const kakaoRegisterUrl = '<?= $socialLogin ? $socialLogin->getKakaoLoginUrl() : "#" ?>';
+        const naverRegisterUrl = '<?= $socialLogin ? $socialLogin->getNaverLoginUrl() : "#" ?>';
+
+        // 카카오 회원가입 처리
+        function handleKakaoRegister(event) {
+            console.log('카카오 버튼 클릭됨');
+            event.preventDefault();
+            const agreeTerms = document.getElementById('agreeTerms');
+            console.log('약관 동의 상태:', agreeTerms.checked);
+            console.log('카카오 URL:', kakaoRegisterUrl);
+
+            if (!agreeTerms.checked) {
+                alert('이용약관 및 개인정보처리방침에 동의해주세요.');
+                return;
+            }
+
+            if (!kakaoRegisterUrl || kakaoRegisterUrl === '#') {
+                alert('카카오 로그인 설정이 완료되지 않았습니다.');
+                return;
+            }
+
+            console.log('카카오 페이지로 이동 중...');
+            window.location.href = kakaoRegisterUrl;
+        }
+
+        // 네이버 회원가입 처리
+        function handleNaverRegister(event) {
+            event.preventDefault();
+            const agreeTerms = document.getElementById('agreeTerms');
+            if (!agreeTerms.checked) {
+                alert('이용약관 및 개인정보처리방침에 동의해주세요.');
+                return;
+            }
+            window.location.href = naverRegisterUrl;
+        }
+
         // Firebase 구글 로그인 버튼에 약관 동의 체크 추가
         document.addEventListener('DOMContentLoaded', function() {
             const firebaseGoogleButton = document.querySelector('.firebase-google-login');

@@ -65,51 +65,72 @@ if ($dbConnected) {
     <title>식물분석 시스템 - 탄생</title>
     <link rel="stylesheet" href="/assets/css/main.css">
     <link rel="stylesheet" href="/assets/css/analysis.css">
+    <style>
+        .page-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 3rem 0;
+            background: linear-gradient(135deg, #E8F5E8 0%, #C8E6C9 100%);
+            border-radius: 12px;
+        }
+        .page-header h1 {
+            font-size: 2.5rem;
+            color: #2E7D32;
+            margin-bottom: 1rem;
+        }
+        .page-header p {
+            font-size: 1.1rem;
+            color: #555;
+        }
+        .welcome-message {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .welcome-message p {
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+        @media (max-width: 768px) {
+            .page-header {
+                padding: 1.5rem 1rem !important;
+            }
+            .page-header h1 {
+                font-size: 1.5rem !important;
+            }
+            .page-header p {
+                font-size: 0.9rem !important;
+            }
+        }
+    </style>
 </head>
 <body>
     <?php include '../../includes/header.php'; ?>
 
-    <main >
-        <!-- Hero Section -->
-        <section class="analysis-hero">
-            <div class="container">
-                <div class="hero-content">
-                    <div class="hero-text">
-                        <h1>🌱 AI 식물분석 시스템</h1>
-                        <p>첨단 인공지능과 IoT 기술로 스마트한 식물 관리</p>
-                        <p class="hero-description">
-                            <strong><?= htmlspecialchars($currentUser['name']) ?></strong>님, 
-                            라즈베리파이 카메라와 환경 센서를 활용한 통합 식물분석 시스템에 오신 것을 환영합니다!
-                        </p>
-                        <div class="hero-badges">
-                            <span class="badge">📹 실시간 모니터링</span>
-                            <span class="badge">🤖 AI 분석</span>
-                            <span class="badge">📊 데이터 분석</span>
-                            <span class="badge">🎛️ 환경 제어</span>
-                        </div>
-                    </div>
-                    
-                    <div class="hero-visual">
-                        <div class="system-overview">
-                            <div class="system-component">
-                                <div class="component-icon">📷</div>
-                                <h4>라즈베리파이<br>카메라</h4>
-                            </div>
-                            <div class="connection-line"></div>
-                            <div class="system-component">
-                                <div class="component-icon">🧠</div>
-                                <h4>AI 분석<br>엔진</h4>
-                            </div>
-                            <div class="connection-line"></div>
-                            <div class="system-component">
-                                <div class="component-icon">📱</div>
-                                <h4>모니터링<br>대시보드</h4>
-                            </div>
-                        </div>
-                    </div>
+    <main>
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1>식물분석</h1>
+                <p>첨단 인공지능과 IoT 기술로 스마트한 식물 관리</p>
+            </div>
+
+            <div class="welcome-message">
+                <p>
+                    <strong><?= htmlspecialchars($currentUser['name']) ?></strong>님,
+                    라즈베리파이 카메라와 환경 센서를 활용한 통합 식물분석 시스템에 오신 것을 환영합니다!
+                </p>
+                <div class="hero-badges">
+                    <span class="badge">📹 실시간 모니터링</span>
+                    <span class="badge">🤖 AI 분석</span>
+                    <span class="badge">📊 데이터 분석</span>
+                    <span class="badge">🎛️ 환경 제어</span>
                 </div>
             </div>
-        </section>
+        </div>
         
         <div class="container">
 

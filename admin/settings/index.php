@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $settings = [
             'site_name' => trim($_POST['site_name'] ?? ''),
+            'site_title' => trim($_POST['site_title'] ?? ''),
             'site_description' => trim($_POST['site_description'] ?? ''),
             'contact_email' => trim($_POST['contact_email'] ?? ''),
             'contact_phone' => trim($_POST['contact_phone'] ?? ''),
@@ -35,7 +36,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'maintenance_mode' => isset($_POST['maintenance_mode']) ? 1 : 0,
             'analytics_code' => trim($_POST['analytics_code'] ?? ''),
             'meta_keywords' => trim($_POST['meta_keywords'] ?? ''),
-            'meta_description' => trim($_POST['meta_description'] ?? '')
+            'meta_description' => trim($_POST['meta_description'] ?? ''),
+            // Footer settings
+            'footer_company_desc' => trim($_POST['footer_company_desc'] ?? ''),
+            'footer_address' => trim($_POST['footer_address'] ?? ''),
+            'footer_phone' => trim($_POST['footer_phone'] ?? ''),
+            'footer_email' => trim($_POST['footer_email'] ?? '')
         ];
 
         foreach ($settings as $key => $value) {
@@ -205,17 +211,65 @@ try {
                     </div>
 
                     <div class="form-section">
-                        <h3>SEO 설정</h3>
-
-                        <div class="form-group">
-                            <label for="meta_description">메타 설명</label>
-                            <textarea id="meta_description" name="meta_description" rows="3"><?= htmlspecialchars($currentSettings['meta_description'] ?? '고품질 수경재배 배지와 AI 식물분석 서비스를 제공하는 스마트팜 전문업체입니다.') ?></textarea>
+                        <div class="section-header">
+                            <span class="section-icon">📄</span>
+                            <h3>푸터 정보</h3>
                         </div>
+                        <div class="section-body">
+                            <div class="form-group">
+                                <label for="site_title">사이트 타이틀 (푸터 표시)</label>
+                                <input type="text" id="site_title" name="site_title" class="form-control"
+                                       value="<?= htmlspecialchars($currentSettings['site_title'] ?? '탄생') ?>"
+                                       placeholder="탄생">
+                            </div>
 
-                        <div class="form-group">
-                            <label for="meta_keywords">메타 키워드</label>
-                            <input type="text" id="meta_keywords" name="meta_keywords"
-                                   value="<?= htmlspecialchars($currentSettings['meta_keywords'] ?? '스마트팜, 배지, 수경재배, 코코피트, 펄라이트, 식물분석, AI') ?>">
+                            <div class="form-group">
+                                <label for="footer_company_desc">회사 설명</label>
+                                <input type="text" id="footer_company_desc" name="footer_company_desc" class="form-control"
+                                       value="<?= htmlspecialchars($currentSettings['footer_company_desc'] ?? '스마트팜 배지 전문업체') ?>"
+                                       placeholder="스마트팜 배지 전문업체">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="footer_address">푸터 주소</label>
+                                <input type="text" id="footer_address" name="footer_address" class="form-control"
+                                       value="<?= htmlspecialchars($currentSettings['footer_address'] ?? '서울특별시 강남구 테헤란로 123') ?>"
+                                       placeholder="서울특별시 강남구 테헤란로 123">
+                            </div>
+
+                            <div class="form-grid-2">
+                                <div class="form-group">
+                                    <label for="footer_phone">푸터 전화번호</label>
+                                    <input type="tel" id="footer_phone" name="footer_phone" class="form-control"
+                                           value="<?= htmlspecialchars($currentSettings['footer_phone'] ?? '1588-0000') ?>"
+                                           placeholder="1588-0000">
+                                </div>
+                                <div class="form-group">
+                                    <label for="footer_email">푸터 이메일</label>
+                                    <input type="email" id="footer_email" name="footer_email" class="form-control"
+                                           value="<?= htmlspecialchars($currentSettings['footer_email'] ?? 'contact@tansaeng.com') ?>"
+                                           placeholder="contact@tansaeng.com">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="section-header">
+                            <span class="section-icon">🔍</span>
+                            <h3>SEO 설정</h3>
+                        </div>
+                        <div class="section-body">
+                            <div class="form-group">
+                                <label for="meta_description">메타 설명</label>
+                                <textarea id="meta_description" name="meta_description" class="form-control" rows="3"><?= htmlspecialchars($currentSettings['meta_description'] ?? '고품질 수경재배 배지와 AI 식물분석 서비스를 제공하는 스마트팜 전문업체입니다.') ?></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="meta_keywords">메타 키워드</label>
+                                <input type="text" id="meta_keywords" name="meta_keywords" class="form-control"
+                                       value="<?= htmlspecialchars($currentSettings['meta_keywords'] ?? '스마트팜, 배지, 수경재배, 코코피트, 펄라이트, 식물분석, AI') ?>">
+                            </div>
                         </div>
                     </div>
 
