@@ -51,7 +51,10 @@ try {
                         </div>
                     </div>
                     <div class="overview-image">
-                        <img src="/assets/images/company/about-hero.jpg" alt="탄생 회사 전경" loading="lazy">
+                        <?php
+                        $aboutImage = $siteSettings['about_image'] ?? '/assets/images/company/about-hero.jpg';
+                        ?>
+                        <img src="<?= htmlspecialchars($aboutImage) ?>" alt="탄생 회사 전경" loading="lazy">
                     </div>
                 </div>
             </section>

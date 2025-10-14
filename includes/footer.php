@@ -48,17 +48,17 @@ $companyMenu = parseMenuItems($siteSettings['footer_menu_company'] ?? '');
                     <p>✉️ <?= htmlspecialchars($company_email) ?></p>
                 </div>
                 <div class="footer-social">
-                    <?php if (!empty($siteSettings['footer_social_youtube'])): ?>
-                        <a href="<?= htmlspecialchars($siteSettings['footer_social_youtube']) ?>" target="_blank" title="YouTube">📺</a>
+                    <?php if (!empty($siteSettings['social_youtube'])): ?>
+                        <a href="<?= htmlspecialchars($siteSettings['social_youtube']) ?>" target="_blank" title="YouTube">📺</a>
                     <?php endif; ?>
-                    <?php if (!empty($siteSettings['footer_social_instagram'])): ?>
-                        <a href="<?= htmlspecialchars($siteSettings['footer_social_instagram']) ?>" target="_blank" title="Instagram">📸</a>
+                    <?php if (!empty($siteSettings['social_instagram'])): ?>
+                        <a href="<?= htmlspecialchars($siteSettings['social_instagram']) ?>" target="_blank" title="Instagram">📸</a>
                     <?php endif; ?>
-                    <?php if (!empty($siteSettings['footer_social_facebook'])): ?>
-                        <a href="<?= htmlspecialchars($siteSettings['footer_social_facebook']) ?>" target="_blank" title="Facebook">👥</a>
+                    <?php if (!empty($siteSettings['social_facebook'])): ?>
+                        <a href="<?= htmlspecialchars($siteSettings['social_facebook']) ?>" target="_blank" title="Facebook">👥</a>
                     <?php endif; ?>
-                    <?php if (!empty($siteSettings['footer_social_blog'])): ?>
-                        <a href="<?= htmlspecialchars($siteSettings['footer_social_blog']) ?>" target="_blank" title="블로그">📝</a>
+                    <?php if (!empty($siteSettings['social_blog'])): ?>
+                        <a href="<?= htmlspecialchars($siteSettings['social_blog']) ?>" target="_blank" title="블로그">📝</a>
                     <?php endif; ?>
                 </div>
             </div>
