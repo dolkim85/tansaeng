@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# 탄생(Tansaeng) 클라우드 자동 배포 스크립트
+# 탄생(Tansaeng) 클라우드 자동 배포 스크립트 v1.0
 # 사용법: ./deploy_to_cloud.sh
 
-echo "🚀 탄생 웹사이트 클라우드 배포 시작..."
+echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: latest_v1)..."
 
 # 변수 설정
 CLOUD_SERVER="1.201.17.34"
@@ -11,18 +11,20 @@ CLOUD_USER="ubuntu"
 SSH_KEY="/home/spinmoll/.ssh/tansaeng.pem"
 CLOUD_PATH="/var/www/html"
 REPO_URL="https://github.com/dolkim85/tansaeng.git"
+DEPLOY_TAG="latest_v1"
+DOMAIN="www.tansaeng.com"
 
-# 1. 로컬 변경사항 커밋 및 푸시
-echo "📝 로컬 변경사항 커밋 중..."
-git add .
-read -p "커밋 메시지를 입력하세요: " commit_message
-if [ -z "$commit_message" ]; then
-    commit_message="Website update $(date '+%Y-%m-%d %H:%M:%S')"
+# Git 상태 확인
+echo "📊 Git 상태 확인 중..."
+if ! git diff-index --quiet HEAD --; then
+    echo "⚠️  커밋되지 않은 변경사항이 있습니다."
+    echo "먼저 변경사항을 커밋해주세요."
+    exit 1
 fi
-git commit -m "$commit_message"
 
-echo "📤 GitHub에 푸시 중..."
-git push origin main
+echo "✅ 모든 변경사항이 커밋되었습니다."
+echo "📤 최신 태그 푸시 확인 중..."
+git push origin main --tags 2>/dev/null || echo "이미 최신 상태입니다."
 
 # 2. 클라우드 서버에 배포
 echo "☁️ 클라우드 서버에 배포 중..."
@@ -39,15 +41,18 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         echo "📥 저장소 클론 중..."
         sudo rm -rf *
         sudo git clone https://github.com/dolkim85/tansaeng.git .
-        sudo git checkout store_v2
+        sudo git fetch --tags
+        sudo git checkout tags/latest_v1
     else
         echo "🔄 최신 변경사항 가져오는 중..."
         sudo git fetch origin --tags
         sudo git reset --hard HEAD
         sudo git clean -fd
-        sudo git checkout store_v2
-        sudo git reset --hard store_v2
+        sudo git checkout tags/latest_v1
+        sudo git pull origin main
     fi
+
+    echo "✅ Version latest_v1 체크아웃 완료"
 
     # 권한 설정
     echo "🔐 파일 권한 설정 중..."
@@ -103,6 +108,14 @@ EOF
 
 echo ""
 echo "🎉 배포가 완료되었습니다!"
-echo "🌐 웹사이트: http://$CLOUD_SERVER"
-echo "👨‍💼 관리자: http://$CLOUD_SERVER/admin"
+echo "🌐 웹사이트: https://$DOMAIN"
+echo "👨‍💼 관리자: https://$DOMAIN/admin"
+echo "📊 서버 IP: $CLOUD_SERVER"
+echo "🏷️  버전: $DEPLOY_TAG"
+echo ""
+echo "⚠️  배포 후 확인사항:"
+echo "1. 웹사이트 접속 확인"
+echo "2. 데이터베이스 연결 확인"
+echo "3. 관리자 페이지 접속 확인"
+echo "4. 주요 기능 동작 테스트"
 echo ""
