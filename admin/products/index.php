@@ -148,12 +148,7 @@ try {
                 (3, '양액/비료', '식물 성장에 필요한 영양액', 'active', 3),
                 (4, '씨앗/종자', '고품질 씨앗과 종자', 'active', 4)");
 
-    // 샘플 상품 데이터 삽입 (스토어와 매칭되는 실제 상품들)
-    $pdo->exec("INSERT IGNORE INTO products (id, name, description, price, category_id, stock_quantity, image_url, status, discount_percentage, rating_score, review_count, delivery_info, is_featured) VALUES
-                (1, '토마토 씨앗 (방울토마토)', '고품질 방울토마토 씨앗으로 높은 발아율을 자랑합니다', 5000, 4, 100, '/assets/images/products/placeholder.jpg', 'active', 20, 4.5, 1247, '무료배송', TRUE),
-                (2, '코코피트 배지 (10L)', '천연 코코넛 섬유로 만든 친환경 배지', 15000, 1, 50, '/assets/images/products/placeholder.jpg', 'active', 0, 4.3, 892, '무료배송', TRUE),
-                (3, '토마토 전용 양액 (1L)', '토마토 전용 맞춤형 양액으로 최적의 영양소 비율 제공', 35000, 3, 30, '/assets/images/products/placeholder.jpg', 'active', 15, 4.6, 534, '무료배송', TRUE),
-                (4, 'IoT 환경 센서 키트', '온습도, pH, EC 센서 통합 키트', 150000, 2, 10, '/assets/images/products/placeholder.jpg', 'active', 10, 4.8, 156, '무료배송', TRUE)");
+    // 샘플 상품 데이터는 삭제됨 - 실제 상품은 관리자가 직접 추가해야 함
     
     $where_conditions = [];
     $params = [];

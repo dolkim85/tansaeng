@@ -756,30 +756,60 @@ if (!empty($currentSettings['gallery_images'])) {
                         <!-- 로고/파비콘 탭 -->
                         <div id="tab-logo" class="tab-content">
                             <h4>🏷️ 사이트 로고</h4>
-                            <div class="upload-zone" onclick="uploadSingleImage('logo')">
+                            <div class="upload-zone" onclick="document.getElementById('logoFileInput').click()">
                                 <div class="icon">🖼️</div>
                                 <p>로고 이미지 업로드 (권장: 200x60px, PNG)</p>
                             </div>
-                            <input type="hidden" id="site_logo" name="site_logo" value="<?= htmlspecialchars($currentSettings['site_logo'] ?? '') ?>">
+                            <input type="file" id="logoFileInput" accept="image/*" style="display: none;">
+
+                            <!-- 선택된 로고 파일 리스트 -->
+                            <div class="selected-files-list" id="selectedLogoList" style="display: none; margin-top: 10px;">
+                                <h5>📋 선택된 파일</h5>
+                                <div id="selectedLogoContainer"></div>
+                            </div>
+
+                            <button type="button" class="btn btn-primary" id="uploadLogoBtn" onclick="uploadLogoImage()" style="display: none; margin-top: 10px;">⬆️ 로고 업로드</button>
+
                             <?php if (!empty($currentSettings['site_logo'])): ?>
-                                <div class="current-image">
-                                    <p>현재 로고:</p>
-                                    <img src="<?= htmlspecialchars($currentSettings['site_logo']) ?>" alt="현재 로고">
+                                <div class="current-image" id="logoPreview" style="margin-top: 15px;">
+                                    <p style="font-weight: bold; margin-bottom: 10px;">현재 로고:</p>
+                                    <img src="<?= htmlspecialchars($currentSettings['site_logo']) ?>" alt="현재 로고" style="margin-bottom: 10px; max-height: 80px;">
+                                    <div style="display: flex; gap: 10px; justify-content: center;">
+                                        <button type="button" class="btn btn-danger" onclick="removeLogo()" style="padding: 8px 15px; font-size: 13px;">
+                                            🗑️ 로고 삭제
+                                        </button>
+                                    </div>
                                 </div>
                             <?php endif; ?>
+                            <input type="hidden" id="site_logo" name="site_logo" value="<?= htmlspecialchars($currentSettings['site_logo'] ?? '') ?>">
 
                             <h4 style="margin-top: 30px;">🎯 파비콘</h4>
-                            <div class="upload-zone" onclick="uploadSingleImage('favicon')">
+                            <div class="upload-zone" onclick="document.getElementById('faviconFileInput').click()">
                                 <div class="icon">⭐</div>
                                 <p>파비콘 업로드 (권장: 32x32px, ICO/PNG)</p>
                             </div>
-                            <input type="hidden" id="site_favicon" name="site_favicon" value="<?= htmlspecialchars($currentSettings['site_favicon'] ?? '') ?>">
+                            <input type="file" id="faviconFileInput" accept="image/*" style="display: none;">
+
+                            <!-- 선택된 파비콘 파일 리스트 -->
+                            <div class="selected-files-list" id="selectedFaviconList" style="display: none; margin-top: 10px;">
+                                <h5>📋 선택된 파일</h5>
+                                <div id="selectedFaviconContainer"></div>
+                            </div>
+
+                            <button type="button" class="btn btn-primary" id="uploadFaviconBtn" onclick="uploadFaviconImage()" style="display: none; margin-top: 10px;">⬆️ 파비콘 업로드</button>
+
                             <?php if (!empty($currentSettings['site_favicon'])): ?>
-                                <div class="current-image">
-                                    <p>현재 파비콘:</p>
-                                    <img src="<?= htmlspecialchars($currentSettings['site_favicon']) ?>" alt="현재 파비콘">
+                                <div class="current-image" id="faviconPreview" style="margin-top: 15px;">
+                                    <p style="font-weight: bold; margin-bottom: 10px;">현재 파비콘:</p>
+                                    <img src="<?= htmlspecialchars($currentSettings['site_favicon']) ?>" alt="현재 파비콘" style="margin-bottom: 10px; max-height: 32px;">
+                                    <div style="display: flex; gap: 10px; justify-content: center;">
+                                        <button type="button" class="btn btn-danger" onclick="removeFavicon()" style="padding: 8px 15px; font-size: 13px;">
+                                            🗑️ 파비콘 삭제
+                                        </button>
+                                    </div>
                                 </div>
                             <?php endif; ?>
+                            <input type="hidden" id="site_favicon" name="site_favicon" value="<?= htmlspecialchars($currentSettings['site_favicon'] ?? '') ?>">
                         </div>
 
                         <!-- 기타 미디어 탭 -->
@@ -1080,6 +1110,8 @@ if (!empty($currentSettings['gallery_images'])) {
                 const file = e.target.files[0];
                 if (!file) return;
 
+                console.log('업로드 시작:', file.name, 'Type:', type);
+
                 const formData = new FormData();
                 formData.append('slider_images[]', file);
 
@@ -1089,36 +1121,72 @@ if (!empty($currentSettings['gallery_images'])) {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
+                .then(response => {
+                    console.log('응답 상태:', response.status);
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     hideUploadProgress();
+                    console.log('업로드 응답:', data);
 
-                    if (data.success && data.urls.length > 0) {
+                    if (data.success && data.urls && data.urls.length > 0) {
                         const url = data.urls[0];
 
                         // hidden input에 URL 저장
                         let fieldId = '';
+                        let fieldName = '';
                         switch(type) {
-                            case 'logo': fieldId = 'site_logo'; break;
-                            case 'favicon': fieldId = 'site_favicon'; break;
-                            case 'hero_bg': fieldId = 'hero_background'; break;
-                            case 'about': fieldId = 'about_image'; break;
+                            case 'logo':
+                                fieldId = 'site_logo';
+                                fieldName = '로고';
+                                break;
+                            case 'favicon':
+                                fieldId = 'site_favicon';
+                                fieldName = '파비콘';
+                                break;
+                            case 'hero_bg':
+                                fieldId = 'hero_background';
+                                fieldName = '히어로 배경';
+                                break;
+                            case 'about':
+                                fieldId = 'about_image';
+                                fieldName = '회사 소개 이미지';
+                                break;
                         }
 
                         if (fieldId) {
                             document.getElementById(fieldId).value = url;
-                            showAlert('이미지가 업로드되었습니다! "모두 저장" 버튼을 눌러주세요.', 'success');
+                            console.log(fieldName + ' URL 저장됨:', url);
+                            showAlert(fieldName + '이 업로드되었습니다! "모두 저장" 버튼을 눌러주세요.', 'success');
 
-                            // 페이지 새로고침하여 현재 이미지 표시
-                            setTimeout(() => location.reload(), 1500);
+                            // 현재 탭 정보를 URL 해시로 저장
+                            let currentTab = 'logo'; // 기본값
+                            if (type === 'hero_bg') currentTab = 'hero';
+                            else if (type === 'about') currentTab = 'other';
+                            else if (type === 'logo' || type === 'favicon') currentTab = 'logo';
+
+                            // 페이지 새로고침하여 현재 이미지 표시 (탭 유지)
+                            setTimeout(() => {
+                                window.location.hash = currentTab;
+                                location.reload();
+                            }, 1500);
                         }
                     } else {
-                        showAlert(data.error || '업로드 실패', 'error');
+                        let errorMsg = data.error || '업로드 실패';
+                        if (data.details && data.details.length > 0) {
+                            errorMsg += '\n상세: ' + data.details.join(', ');
+                        }
+                        console.error('업로드 실패:', errorMsg);
+                        showAlert(errorMsg, 'error');
                     }
                 })
                 .catch(error => {
                     hideUploadProgress();
-                    showAlert('업로드 중 오류: ' + error.message, 'error');
+                    console.error('업로드 오류:', error);
+                    showAlert('업로드 중 오류가 발생했습니다: ' + error.message + '\n\n브라우저 개발자 도구(F12)의 Console 탭에서 자세한 오류를 확인하세요.', 'error');
                 });
             };
 
@@ -1133,6 +1201,24 @@ if (!empty($currentSettings['gallery_images'])) {
 
                 // 즉시 저장
                 showAlert('배경 이미지를 삭제 중입니다...', 'success');
+                saveAllMedia();
+            }
+        }
+
+        // 로고 삭제
+        function removeLogo() {
+            if (confirm('사이트 로고를 삭제하시겠습니까?')) {
+                document.getElementById('site_logo').value = '';
+                showAlert('로고를 삭제 중입니다...', 'success');
+                saveAllMedia();
+            }
+        }
+
+        // 파비콘 삭제
+        function removeFavicon() {
+            if (confirm('파비콘을 삭제하시겠습니까?')) {
+                document.getElementById('site_favicon').value = '';
+                showAlert('파비콘을 삭제 중입니다...', 'success');
                 saveAllMedia();
             }
         }
@@ -1223,6 +1309,136 @@ if (!empty($currentSettings['gallery_images'])) {
             });
         }
 
+        // 로고 파일 선택 이벤트
+        document.getElementById('logoFileInput').addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                displayLogoFile(file);
+                document.getElementById('selectedLogoList').style.display = 'block';
+                document.getElementById('uploadLogoBtn').style.display = 'inline-block';
+            }
+        });
+
+        // 파비콘 파일 선택 이벤트
+        document.getElementById('faviconFileInput').addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                displayFaviconFile(file);
+                document.getElementById('selectedFaviconList').style.display = 'block';
+                document.getElementById('uploadFaviconBtn').style.display = 'inline-block';
+            }
+        });
+
+        // 로고 파일 표시
+        function displayLogoFile(file) {
+            const container = document.getElementById('selectedLogoContainer');
+            const fileSize = formatFileSize(file.size);
+            container.innerHTML = `
+                <div class="file-item">
+                    <div class="file-item-info">
+                        <span class="file-item-icon">🖼️</span>
+                        <span class="file-item-name">${escapeHtml(file.name)}</span>
+                        <span class="file-item-size">${fileSize}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 파비콘 파일 표시
+        function displayFaviconFile(file) {
+            const container = document.getElementById('selectedFaviconContainer');
+            const fileSize = formatFileSize(file.size);
+            container.innerHTML = `
+                <div class="file-item">
+                    <div class="file-item-info">
+                        <span class="file-item-icon">⭐</span>
+                        <span class="file-item-name">${escapeHtml(file.name)}</span>
+                        <span class="file-item-size">${fileSize}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 로고 이미지 업로드
+        function uploadLogoImage() {
+            const fileInput = document.getElementById('logoFileInput');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                showAlert('업로드할 파일을 선택해주세요', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('slider_images[]', file);
+
+            showUploadProgress();
+
+            fetch('/admin/includes/upload_slider_images.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.urls && data.urls.length > 0) {
+                    const url = data.urls[0];
+                    document.getElementById('site_logo').value = url;
+                    console.log('로고 URL 설정됨:', url);
+
+                    // 즉시 저장
+                    showAlert('로고를 업로드하고 저장 중입니다...', 'success');
+                    saveAllMedia();
+                } else {
+                    hideUploadProgress();
+                    showAlert(data.error || '업로드 실패', 'error');
+                }
+            })
+            .catch(error => {
+                hideUploadProgress();
+                showAlert('업로드 중 오류가 발생했습니다: ' + error.message, 'error');
+            });
+        }
+
+        // 파비콘 이미지 업로드
+        function uploadFaviconImage() {
+            const fileInput = document.getElementById('faviconFileInput');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                showAlert('업로드할 파일을 선택해주세요', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('slider_images[]', file);
+
+            showUploadProgress();
+
+            fetch('/admin/includes/upload_slider_images.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.urls && data.urls.length > 0) {
+                    const url = data.urls[0];
+                    document.getElementById('site_favicon').value = url;
+                    console.log('파비콘 URL 설정됨:', url);
+
+                    // 즉시 저장
+                    showAlert('파비콘을 업로드하고 저장 중입니다...', 'success');
+                    saveAllMedia();
+                } else {
+                    hideUploadProgress();
+                    showAlert(data.error || '업로드 실패', 'error');
+                }
+            })
+            .catch(error => {
+                hideUploadProgress();
+                showAlert('업로드 중 오류가 발생했습니다: ' + error.message, 'error');
+            });
+        }
+
         // 페이지 로드 시 기존 이미지 카드에 드래그 앤 드롭 설정
         document.addEventListener('DOMContentLoaded', function() {
             const existingCards = document.querySelectorAll('#sliderImagesGrid .image-card');
@@ -1237,6 +1453,25 @@ if (!empty($currentSettings['gallery_images'])) {
                     });
                 }
             });
+
+            // URL 해시에서 탭 복원
+            const hash = window.location.hash.substring(1);
+            if (hash) {
+                console.log('해시에서 탭 복원:', hash);
+                const tabButton = document.querySelector(`.tab[onclick*="'${hash}'"]`);
+                if (tabButton) {
+                    // 모든 탭 비활성화
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+
+                    // 해당 탭 활성화
+                    tabButton.classList.add('active');
+                    document.getElementById('tab-' + hash).classList.add('active');
+
+                    // 해시 제거
+                    history.replaceState(null, null, ' ');
+                }
+            }
         });
 
         // 슬라이더 이미지 삭제

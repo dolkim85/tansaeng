@@ -27,6 +27,9 @@ try {
     $uploadedUrls = [];
     $errors = [];
 
+    // 디버깅 로그
+    error_log('FILES 데이터: ' . print_r($_FILES, true));
+
     if (isset($_FILES['slider_images']) && is_array($_FILES['slider_images']['name'])) {
         $fileCount = count($_FILES['slider_images']['name']);
 
@@ -65,8 +68,9 @@ try {
                 continue;
             }
 
-            // 새 파일명 생성
-            $newFileName = 'slider_' . time() . '_' . $i . '.' . $extension;
+            // 새 파일명 생성 (타임스탬프와 랜덤 숫자 추가로 중복 방지)
+            $uniqueId = time() . '_' . mt_rand(1000, 9999) . '_' . $i;
+            $newFileName = 'media_' . $uniqueId . '.' . $extension;
             $uploadPath = $uploadDir . $newFileName;
 
             // 파일 이동
