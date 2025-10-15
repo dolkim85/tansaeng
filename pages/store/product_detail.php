@@ -115,15 +115,16 @@ try {
                         <?php
                         $basePrice = $product['price'];
                         $shippingCost = $product['shipping_cost'] ?? 0;
+                        $shippingUnitCount = $product['shipping_unit_count'] ?? 1;
                         $totalPrice = $basePrice + $shippingCost;
                         ?>
 
-                        <span class="current-price"><?= number_format($basePrice) ?>원</span>
+                        <span class="current-price" id="displayPrice"><?= number_format($basePrice) ?>원</span>
 
                         <?php if ($shippingCost > 0): ?>
-                            <div class="shipping-details">
-                                <span class="shipping-cost-label">배송비: +<?= number_format($shippingCost) ?>원</span>
-                                <span class="total-price-label">총 결제금액: <?= number_format($totalPrice) ?>원</span>
+                            <div class="shipping-details" id="shippingDetails">
+                                <span class="shipping-cost-label" id="shippingCostLabel">배송비: +<?= number_format($shippingCost) ?>원 (<?= $shippingUnitCount ?>개당)</span>
+                                <span class="total-price-label" id="totalPriceLabel">총 결제금액: <?= number_format($totalPrice) ?>원</span>
                             </div>
                         <?php else: ?>
                             <div class="shipping-details">
@@ -520,13 +521,68 @@ try {
     <?php include '../../includes/footer.php'; ?>
     <script src="/assets/js/main.js"></script>
     <script>
+        // 상품 정보 (JavaScript에서 사용)
+        const productData = {
+            basePrice: <?= $basePrice ?>,
+            shippingCost: <?= $shippingCost ?>,
+            shippingUnitCount: <?= $shippingUnitCount ?>,
+            maxStock: <?= $product['stock'] ?>
+        };
+
+        // 가격 포맷 함수
+        function formatPrice(price) {
+            return new Intl.NumberFormat('ko-KR').format(price);
+        }
+
+        // 가격 업데이트 함수
+        function updatePrice() {
+            const quantity = parseInt(document.getElementById('quantity').value) || 1;
+            const basePrice = productData.basePrice;
+            const shippingCost = productData.shippingCost;
+            const shippingUnitCount = productData.shippingUnitCount;
+
+            // 상품 가격 계산
+            const productTotal = basePrice * quantity;
+
+            // 배송비 계산 (shipping_unit_count 기준)
+            let calculatedShippingCost = 0;
+            if (shippingCost > 0 && shippingUnitCount > 0) {
+                const shippingTimes = Math.ceil(quantity / shippingUnitCount);
+                calculatedShippingCost = shippingCost * shippingTimes;
+            }
+
+            // 총 금액
+            const totalPrice = productTotal + calculatedShippingCost;
+
+            // 화면 업데이트
+            document.getElementById('displayPrice').textContent = formatPrice(productTotal) + '원';
+
+            if (shippingCost > 0) {
+                const shippingTimes = Math.ceil(quantity / shippingUnitCount);
+                document.getElementById('shippingCostLabel').textContent =
+                    `배송비: ${formatPrice(shippingCost)}원 (${shippingUnitCount}개당) x ${shippingTimes}회 = ${formatPrice(calculatedShippingCost)}원`;
+                document.getElementById('totalPriceLabel').textContent =
+                    `총 결제금액: ${formatPrice(totalPrice)}원`;
+            }
+        }
+
         // 수량 조절
         function changeQuantity(delta) {
             const quantityInput = document.getElementById('quantity');
             const currentValue = parseInt(quantityInput.value) || 1;
-            const newValue = Math.max(1, Math.min(<?= $product['stock'] ?>, currentValue + delta));
+            const newValue = Math.max(1, Math.min(productData.maxStock, currentValue + delta));
             quantityInput.value = newValue;
+            updatePrice();
         }
+
+        // 수량 입력 필드 변경 시에도 가격 업데이트
+        document.addEventListener('DOMContentLoaded', function() {
+            const quantityInput = document.getElementById('quantity');
+            if (quantityInput) {
+                quantityInput.addEventListener('change', updatePrice);
+                quantityInput.addEventListener('input', updatePrice);
+            }
+        });
         
         // 장바구니 추가
         function addToCart(productId) {

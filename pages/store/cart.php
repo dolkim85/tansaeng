@@ -445,8 +445,19 @@ try {
             Object.values(items).forEach(item => {
                 itemCount += item.quantity;
                 total += item.price * item.quantity;
-                // 개별 상품 배송비 합산
-                totalShippingCost += (item.shipping_cost || 0);
+
+                // 배송비 계산 (shipping_unit_count 기준으로 계산)
+                const shippingCost = item.shipping_cost || 0;
+                const quantity = item.quantity;
+                const shippingUnitCount = item.shipping_unit_count || 1;
+
+                // shipping_unit_count 개수마다 배송비 1회 부과
+                // 예: shipping_unit_count=10이면 10개마다 배송비 1회
+                // 수량 15개 = ceil(15/10) = 2회 배송비
+                if (shippingUnitCount > 0 && shippingCost > 0) {
+                    const shippingTimes = Math.ceil(quantity / shippingUnitCount);
+                    totalShippingCost += shippingCost * shippingTimes;
+                }
             });
 
             const finalTotal = total + totalShippingCost;
@@ -488,6 +499,17 @@ try {
             Object.values(items).forEach(item => {
                 const subtotal = item.price * item.quantity;
                 const shippingCost = item.shipping_cost || 0;
+                const shippingUnitCount = item.shipping_unit_count || 1;
+                const quantity = item.quantity;
+
+                // 배송비 계산 및 표시 문구 생성
+                let shippingText = '무료배송';
+                if (shippingCost > 0 && shippingUnitCount > 0) {
+                    const shippingTimes = Math.ceil(quantity / shippingUnitCount);
+                    const totalShippingForItem = shippingCost * shippingTimes;
+                    shippingText = `${formatPrice(shippingCost)}원 (${shippingUnitCount}개당) x ${shippingTimes}회 = ${formatPrice(totalShippingForItem)}원`;
+                }
+
                 html += `
                     <div class="cart-item" data-product-id="${item.product_id}">
                         <div class="item-checkbox">
@@ -501,7 +523,7 @@ try {
                             <div class="item-name">${item.name}</div>
                             <div class="item-price">${formatPrice(item.price)}원</div>
                             <div class="item-shipping" style="color: #666; font-size: 0.9rem; margin-top: 5px;">
-                                배송비: ${shippingCost > 0 ? formatPrice(shippingCost) + '원' : '무료배송'}
+                                배송비: ${shippingText}
                             </div>
                         </div>
                         <div class="item-controls">
@@ -560,8 +582,17 @@ try {
                         selectedProductCount++;
                         selectedCount += item.quantity;
                         selectedTotal += item.price * item.quantity;
-                        // 선택된 상품의 배송비 합산
-                        selectedShippingCost += (item.shipping_cost || 0);
+
+                        // 배송비 계산 (shipping_unit_count 기준으로 계산)
+                        const shippingCost = item.shipping_cost || 0;
+                        const quantity = item.quantity;
+                        const shippingUnitCount = item.shipping_unit_count || 1;
+
+                        // shipping_unit_count 개수마다 배송비 1회 부과
+                        if (shippingUnitCount > 0 && shippingCost > 0) {
+                            const shippingTimes = Math.ceil(quantity / shippingUnitCount);
+                            selectedShippingCost += shippingCost * shippingTimes;
+                        }
                     }
                 }
             });

@@ -608,24 +608,31 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 장바구니 아이템 수 업데이트
+    let previousCartCount = -1; // 이전 카운트 저장
+
     function updateCartCount() {
         const cartCount = document.getElementById('cartCount');
         if (!cartCount) return;
 
         fetch('/api/cart.php?action=count', {
-            method: 'GET'
+            method: 'GET',
+            cache: 'no-cache' // 캐시 방지
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 const count = data.data?.count || data.count || 0;
-                cartCount.textContent = count;
 
-                // 카운트가 변경되었을 때 애니메이션 효과
-                cartCount.classList.add('updated');
-                setTimeout(() => {
-                    cartCount.classList.remove('updated');
-                }, 500);
+                // 카운트가 실제로 변경되었을 때만 애니메이션
+                if (previousCartCount !== -1 && previousCartCount !== count) {
+                    cartCount.classList.add('updated');
+                    setTimeout(() => {
+                        cartCount.classList.remove('updated');
+                    }, 500);
+                }
+
+                previousCartCount = count;
+                cartCount.textContent = count;
 
                 // 카운트가 0이면 숨기기, 0이 아니면 보이기
                 if (count > 0) {
@@ -642,6 +649,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 페이지 로드시 장바구니 카운트 업데이트
     updateCartCount();
+
+    // 5초마다 자동으로 장바구니 카운트 업데이트 (실시간 반영)
+    setInterval(updateCartCount, 5000);
+
+    // 페이지가 다시 포커스될 때도 업데이트
+    window.addEventListener('focus', updateCartCount);
 
     // 전역 함수로 등록 (다른 페이지에서 호출할 수 있도록)
     window.updateCartCount = updateCartCount;

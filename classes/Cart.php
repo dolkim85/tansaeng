@@ -37,7 +37,7 @@ class Cart {
     private function syncFromDatabase() {
         try {
             $stmt = $this->db->prepare("
-                SELECT c.product_id, c.quantity, p.name, p.price, p.images, p.image_url, p.discount_percentage, p.shipping_cost
+                SELECT c.product_id, c.quantity, p.name, p.price, p.images, p.image_url, p.discount_percentage, p.shipping_cost, p.shipping_unit_count
                 FROM cart c
                 JOIN products p ON c.product_id = p.id
                 WHERE c.user_id = ? AND p.status = 'active'
@@ -76,6 +76,7 @@ class Cart {
                     'quantity' => $item['quantity'],
                     'image' => $imageUrl,
                     'shipping_cost' => (float)($item['shipping_cost'] ?? 0),
+                    'shipping_unit_count' => (int)($item['shipping_unit_count'] ?? 1),
                     'sku' => ''
                 ];
             }
@@ -182,6 +183,7 @@ class Cart {
                     'quantity' => $quantity,
                     'image' => $imageUrl,
                     'shipping_cost' => (float)($product['shipping_cost'] ?? 0),
+                    'shipping_unit_count' => (int)($product['shipping_unit_count'] ?? 1),
                     'sku' => ''
                 ];
             }
@@ -334,8 +336,19 @@ class Cart {
         foreach ($items as $item) {
             $itemCount += $item['quantity'];
             $subtotal += $item['price'] * $item['quantity'];
-            // 개별 상품 배송비 합산
-            $totalShippingCost += (float)($item['shipping_cost'] ?? 0);
+
+            // 배송비 계산 (shipping_unit_count 기준으로 계산)
+            $shippingCost = (float)($item['shipping_cost'] ?? 0);
+            $quantity = $item['quantity'];
+            $shippingUnitCount = (int)($item['shipping_unit_count'] ?? 1);
+
+            // shipping_unit_count 개수마다 배송비 1회 부과
+            // 예: shipping_unit_count=10이면 10개마다 배송비 1회
+            // 수량 15개 = ceil(15/10) = 2회 배송비
+            if ($shippingUnitCount > 0 && $shippingCost > 0) {
+                $shippingTimes = ceil($quantity / $shippingUnitCount);
+                $totalShippingCost += $shippingCost * $shippingTimes;
+            }
         }
 
         $finalTotal = $subtotal + $totalShippingCost;

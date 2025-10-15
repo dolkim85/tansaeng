@@ -187,23 +187,11 @@ $shippingCost = $product['shipping_cost'] ?? 0;
                         </div>
 
                         <?php if (!empty($product['delivery_info'])): ?>
-                        <div class="delivery-info">
+                        <div class="delivery-info" style="display: none;">
                             <h4>🚚 배송정보</h4>
                             <div class="delivery-text"><?= htmlspecialchars($product['delivery_info']) ?></div>
                         </div>
                         <?php endif; ?>
-
-                        <!-- Shipping Cost -->
-                        <div class="shipping-cost-info">
-                            <h4>📦 배송비</h4>
-                            <div class="shipping-cost-amount">
-                                <?php if ($shippingCost > 0): ?>
-                                    <?= number_format($shippingCost) ?>원
-                                <?php else: ?>
-                                    <span class="free-shipping">무료배송</span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Product Description -->
@@ -237,20 +225,53 @@ $shippingCost = $product['shipping_cost'] ?? 0;
                     <!-- JavaScript로 동적 업데이트 -->
                 </div>
 
-                <!-- Quantity Selection -->
-                <div class="quantity-section">
-                    <label class="quantity-label">수량</label>
-                    <div class="quantity-controls">
-                        <button class="quantity-btn" onclick="changeQuantity(-1)" id="decreaseBtn">-</button>
-                        <input type="number" class="quantity-input" id="quantityInput" value="1" min="1" max="<?= $stockQuantity ?>">
-                        <button class="quantity-btn" onclick="changeQuantity(1)" id="increaseBtn">+</button>
+                <!-- Quantity and Shipping Section -->
+                <div class="quantity-shipping-wrapper">
+                    <div class="quantity-section">
+                        <label class="quantity-label">수량</label>
+                        <div class="quantity-controls">
+                            <button class="quantity-btn" onclick="changeQuantity(-1)" id="decreaseBtn">-</button>
+                            <input type="number" class="quantity-input" id="quantityInput" value="1" min="1" max="<?= $stockQuantity ?>">
+                            <button class="quantity-btn" onclick="changeQuantity(1)" id="increaseBtn">+</button>
+                        </div>
+                    </div>
+
+                    <div class="shipping-cost-info">
+                        <label class="shipping-label">📦 배송비</label>
+                        <div class="shipping-cost-amount">
+                            <?php if ($shippingCost > 0): ?>
+                                <?= number_format($shippingCost) ?>원
+                            <?php else: ?>
+                                <span class="free-shipping">무료배송</span>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Total Price -->
                 <div class="total-price">
                     <div class="total-label">총 금액</div>
-                    <div class="total-amount" id="totalAmount"><?= number_format($finalPrice) ?>원</div>
+                    <div class="price-breakdown">
+                        <div class="breakdown-item">
+                            <span>상품금액</span>
+                            <span id="productAmount"><?= number_format($finalPrice) ?>원</span>
+                        </div>
+                        <div class="breakdown-item">
+                            <span>배송비</span>
+                            <span id="shippingAmount">
+                                <?php if ($shippingCost > 0): ?>
+                                    <?= number_format($shippingCost) ?>원
+                                <?php else: ?>
+                                    무료
+                                <?php endif; ?>
+                            </span>
+                        </div>
+                        <div class="breakdown-divider"></div>
+                        <div class="breakdown-total">
+                            <span>결제금액</span>
+                            <span id="totalAmount"><?= number_format($finalPrice + $shippingCost) ?>원</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Action Buttons -->
@@ -401,6 +422,198 @@ $shippingCost = $product['shipping_cost'] ?? 0;
     <?php include '../../includes/footer.php'; ?>
 
     <script src="/assets/js/main.js"></script>
+    <style>
+        /* 컴팩트 디자인 - 상품 정보 섹션 */
+        .product-info {
+            max-width: 500px;
+        }
+
+        .product-header {
+            margin-bottom: 8px;
+        }
+
+        .product-title {
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+
+        .product-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .price-section {
+            margin-bottom: 8px;
+        }
+
+        .price-wrapper {
+            margin-bottom: 10px;
+        }
+
+        .current-price {
+            font-size: 24px;
+        }
+
+        .quantity-shipping-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 8px;
+        }
+
+        .shipping-cost-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .shipping-label {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .shipping-cost-amount {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .product-description {
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 8px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .specifications {
+            margin-bottom: 0;
+        }
+
+        .specifications h4 {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .stock-status {
+            font-size: 13px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .quantity-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .quantity-label {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .quantity-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .quantity-btn {
+            width: 32px;
+            height: 32px;
+            font-size: 16px;
+        }
+
+        .quantity-input {
+            width: 60px;
+            height: 32px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        /* 가격 분할 표시 스타일 */
+        .total-price {
+            margin-bottom: 8px;
+        }
+
+        .price-breakdown {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 8px;
+        }
+
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .breakdown-item span:first-child {
+            font-weight: 500;
+        }
+
+        .breakdown-item span:last-child {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .breakdown-divider {
+            border-top: 1px solid #dee2e6;
+            margin: 8px 0;
+        }
+
+        .breakdown-total {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0 0 0;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .breakdown-total span:first-child {
+            color: #333;
+        }
+
+        .breakdown-total span:last-child {
+            color: #007bff;
+            font-size: 18px;
+        }
+
+        .total-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-buttons .btn {
+            flex: 1;
+            padding: 12px;
+            font-size: 14px;
+        }
+    </style>
     <script>
         // Image gallery functionality
         function changeMainImage(imageSrc, thumbnailElement) {
@@ -431,8 +644,32 @@ $shippingCost = $product['shipping_cost'] ?? 0;
         function updateTotalPrice() {
             const quantity = parseInt(document.getElementById('quantityInput').value);
             const unitPrice = <?= $finalPrice ?>;
-            const shippingCost = <?= $shippingCost ?>;
-            const totalPrice = (quantity * unitPrice) + shippingCost;
+            const baseShippingCost = <?= $shippingCost ?>;
+            const shippingUnitCount = <?= $product['shipping_unit_count'] ?? 1 ?>;
+
+            // 상품 금액 계산
+            const productTotal = quantity * unitPrice;
+
+            // 배송비 계산 (shipping_unit_count 기준)
+            let calculatedShippingCost = 0;
+            if (baseShippingCost > 0 && shippingUnitCount > 0) {
+                const shippingTimes = Math.ceil(quantity / shippingUnitCount);
+                calculatedShippingCost = baseShippingCost * shippingTimes;
+            }
+
+            // 총 금액
+            const totalPrice = productTotal + calculatedShippingCost;
+
+            // 화면 업데이트
+            document.getElementById('productAmount').textContent = productTotal.toLocaleString() + '원';
+
+            if (baseShippingCost > 0) {
+                const shippingTimes = Math.ceil(quantity / shippingUnitCount);
+                document.getElementById('shippingAmount').textContent =
+                    calculatedShippingCost.toLocaleString() + '원 (' + shippingTimes + '회)';
+            } else {
+                document.getElementById('shippingAmount').textContent = '무료';
+            }
 
             document.getElementById('totalAmount').textContent = totalPrice.toLocaleString() + '원';
         }

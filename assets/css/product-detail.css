@@ -365,14 +365,44 @@
     border: 1px solid #f5c6cb;
 }
 
-.quantity-section {
+/* Quantity and Shipping Wrapper */
+.quantity-shipping-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
     margin-bottom: 25px;
 }
 
+.quantity-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 .quantity-label {
-    display: block;
-    margin-bottom: 10px;
     font-weight: 500;
+    color: #333;
+    margin: 0;
+}
+
+/* Shipping Cost Section */
+.shipping-cost-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.shipping-label {
+    font-weight: 500;
+    color: #333;
+    font-size: 1rem;
+    margin: 0;
+}
+
+.shipping-cost-amount {
+    font-weight: 500;
+    font-size: 1rem;
     color: #333;
 }
 
