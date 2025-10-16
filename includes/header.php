@@ -51,7 +51,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
         <ul class="nav-menu" id="nav-menu">
             <li><a href="/">홈</a></li>
             <li class="dropdown">
-                <a href="/pages/company/about.php" class="dropbtn">기업소개</a>
+                <span class="dropbtn">기업소개</span>
                 <ul class="dropdown-content">
                     <li><a href="/pages/company/about.php">회사소개</a></li>
                     <li><a href="/pages/company/history.php">연혁</a></li>
@@ -384,6 +384,9 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 .dropbtn {
     cursor: pointer;
     position: relative;
+    color: inherit;
+    text-decoration: none;
+    display: inline-block;
 }
 
 /* 데스크톱에서 호버 시 화살표 표시 */
@@ -860,50 +863,24 @@ console.log('Mobile menu functions loaded:', {
 
 document.addEventListener('DOMContentLoaded', function() {
 
-    // 드롭다운 메뉴 처리만 유지 (모바일 메뉴는 main.js에서 처리)
+    // 드롭다운 메뉴 처리
     const dropdowns = document.querySelectorAll('.dropdown');
     dropdowns.forEach(dropdown => {
         const dropbtn = dropdown.querySelector('.dropbtn');
         if (dropbtn) {
             dropbtn.addEventListener('click', function(e) {
-                // 모바일에서 처리
-                if (window.innerWidth <= 768) {
-                    // 드롭다운이 이미 열려있으면 링크 이동 허용
-                    if (dropdown.classList.contains('active')) {
-                        // 기본 동작 허용 (페이지 이동)
-                        return true;
+                e.preventDefault();
+                e.stopPropagation();
+
+                // 다른 드롭다운 닫기
+                dropdowns.forEach(otherDropdown => {
+                    if (otherDropdown !== dropdown) {
+                        otherDropdown.classList.remove('active');
                     }
+                });
 
-                    // 드롭다운이 닫혀있으면 열기만 함
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    // 다른 드롭다운 닫기
-                    dropdowns.forEach(otherDropdown => {
-                        if (otherDropdown !== dropdown) {
-                            otherDropdown.classList.remove('active');
-                        }
-                    });
-
-                    // 현재 드롭다운 열기
-                    dropdown.classList.add('active');
-                } else {
-                    // 데스크톱: 드롭다운이 닫혀있으면 기본 동작 방지하고 열기만
-                    if (!dropdown.classList.contains('active')) {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        // 다른 드롭다운 닫기
-                        dropdowns.forEach(otherDropdown => {
-                            if (otherDropdown !== dropdown) {
-                                otherDropdown.classList.remove('active');
-                            }
-                        });
-
-                        dropdown.classList.add('active');
-                    }
-                    // 이미 열려있으면 링크 이동 허용 (기본 동작)
-                }
+                // 현재 드롭다운 토글
+                dropdown.classList.toggle('active');
             });
         }
     });
