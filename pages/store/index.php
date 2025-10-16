@@ -159,9 +159,9 @@ try {
             <div class="search-bar-wrapper">
                 <div class="search-box">
                     <input type="text" placeholder="제품 검색..." id="productSearch" value="<?= htmlspecialchars($searchTerm) ?>">
-                    <button type="button" onclick="searchProducts()">🔍 검색</button>
+                    <button type="button" onclick="searchProducts()" class="search-btn-icon" title="검색">🔍</button>
                     <?php if (!empty($searchTerm)): ?>
-                    <button type="button" onclick="clearSearch()" class="btn-clear-search" style="margin-left: 10px;">✖ 초기화</button>
+                    <button type="button" onclick="clearSearch()" class="btn-clear-search" title="초기화">✖</button>
                     <?php endif; ?>
                 </div>
                 <?php if (!empty($searchTerm)): ?>

@@ -92,7 +92,89 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
     </nav>
 </header>
 
+<!-- 모바일 메뉴 오버레이 -->
+<div class="nav-menu-overlay" id="nav-menu-overlay" onclick="closeMobileMenu()"></div>
+
+<!-- 모바일 하단 네비게이션 바 -->
+<div class="mobile-bottom-nav">
+    <button class="mobile-nav-item" id="mobile-nav-menu" onclick="toggleMobileMenu(event)">
+        <div class="mobile-nav-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </div>
+        <div class="mobile-nav-label">메뉴</div>
+    </button>
+
+    <a href="/pages/store/" class="mobile-nav-item">
+        <div class="mobile-nav-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+            </svg>
+        </div>
+        <div class="mobile-nav-label">검색</div>
+    </a>
+
+    <a href="/" class="mobile-nav-item <?= $currentPage === 'index' ? 'active' : '' ?>">
+        <div class="mobile-nav-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+        </div>
+        <div class="mobile-nav-label">홈</div>
+    </a>
+
+    <?php if ($currentUser): ?>
+        <a href="/pages/auth/profile.php" class="mobile-nav-item">
+            <div class="mobile-nav-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span class="mobile-nav-badge logged-in"></span>
+            </div>
+            <div class="mobile-nav-label">내정보</div>
+        </a>
+    <?php else: ?>
+        <a href="/pages/auth/login.php" class="mobile-nav-item">
+            <div class="mobile-nav-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+            </div>
+            <div class="mobile-nav-label">로그인</div>
+        </a>
+    <?php endif; ?>
+
+    <a href="/pages/store/cart.php" class="mobile-nav-item" id="mobile-nav-cart">
+        <div class="mobile-nav-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="8" cy="21" r="1"></circle>
+                <circle cx="19" cy="21" r="1"></circle>
+                <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path>
+            </svg>
+            <span class="mobile-nav-badge" id="mobileCartCount" style="display: none;">0</span>
+        </div>
+        <div class="mobile-nav-label">장바구니</div>
+    </a>
+</div>
+
 <style>
+/* 하단 네비게이션 - 기본 숨김 */
+.mobile-bottom-nav {
+    display: none;
+}
+
+/* 메뉴 오버레이 - 기본 숨김 */
+.nav-menu-overlay {
+    display: none;
+}
+
 /* 로고 스타일 */
 .logo {
     display: flex;
@@ -317,19 +399,21 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
     opacity: 1;
 }
 
-/* 모바일 헤더 고정 */
+/* 모바일 헤더 - 완전히 새로운 디자인 */
 @media (max-width: 768px) {
+    /* 상단 헤더 (로고 영역) */
     .header {
         position: fixed !important;
         top: 0;
         left: 0;
         width: 100%;
-        height: 60px;
+        height: 50px;
         z-index: 1000;
         background-color: white !important;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
         display: flex !important;
         align-items: center;
+        justify-content: center;
     }
 
     .navbar {
@@ -337,82 +421,222 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
         height: 100%;
         display: flex !important;
         align-items: center;
-        justify-content: space-between;
-        padding: 0 15px;
+        justify-content: center;
+        padding: 0;
     }
 
+    /* 로고 중앙 배치 */
+    .logo {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        justify-content: center;
+    }
+
+    .logo-image {
+        height: 28px;
+    }
+
+    .logo-text {
+        font-size: 18px;
+        font-weight: 600;
+        line-height: 1;
+    }
+
+    /* 기존 햄버거 메뉴 숨김 */
     .mobile-menu-toggle {
+        display: none !important;
+    }
+
+    /* 하단 고정 네비게이션 바 */
+    .mobile-bottom-nav {
+        position: fixed !important;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 60px;
+        background: #FFFFFF;
+        box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
         display: flex !important;
-        background: none !important;
-        border: none !important;
-        cursor: pointer !important;
-        position: relative !important;
-        width: 30px !important;
-        height: 30px !important;
-        flex-direction: column !important;
-        justify-content: space-around !important;
-        align-items: center !important;
-        padding: 5px !important;
-        z-index: 10000 !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        left: auto !important;
-        right: auto !important;
-        top: auto !important;
-        bottom: auto !important;
-        transform: none !important;
-        margin: 0 !important;
+        justify-content: space-around;
+        align-items: center;
+        z-index: 1000;
+        padding: 0 4px;
+        border-top: 1px solid rgba(0,0,0,0.06);
     }
 
-    .mobile-menu-toggle span {
-        display: block !important;
-        width: 20px !important;
-        height: 2px !important;
-        background-color: #2E7D32 !important;
-        border-radius: 1px !important;
-        transition: all 0.3s ease !important;
-        visibility: visible !important;
-        opacity: 1 !important;
+    .mobile-nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        color: #757575;
+        font-size: 11px;
+        padding: 8px 10px;
+        min-width: 64px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        border-radius: 12px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
     }
 
-    .mobile-menu-toggle.active span:nth-child(1) {
-        transform: rotate(45deg) translate(5px, 5px);
+    .mobile-nav-item.active {
+        color: #2E7D32;
+        background: rgba(46, 125, 50, 0.12);
     }
 
-    .mobile-menu-toggle.active span:nth-child(2) {
+    .mobile-nav-item:active {
+        transform: scale(0.92);
+        background: rgba(0, 0, 0, 0.08);
+    }
+
+    .mobile-nav-item:hover {
+        background: rgba(0, 0, 0, 0.04);
+    }
+
+    /* 햄버거 메뉴 버튼 활성화 상태 */
+    #mobile-nav-menu.active {
+        color: #2E7D32;
+        background: rgba(46, 125, 50, 0.12);
+    }
+
+    #mobile-nav-menu.active .mobile-nav-icon svg line:nth-child(1) {
+        transform: rotate(45deg) translateY(8px) translateX(6px);
+        transition: transform 0.3s ease;
+    }
+
+    #mobile-nav-menu.active .mobile-nav-icon svg line:nth-child(2) {
         opacity: 0;
+        transition: opacity 0.2s ease;
     }
 
-    .mobile-menu-toggle.active span:nth-child(3) {
-        transform: rotate(-45deg) translate(7px, -6px);
+    #mobile-nav-menu.active .mobile-nav-icon svg line:nth-child(3) {
+        transform: rotate(-45deg) translateY(-8px) translateX(6px);
+        transition: transform 0.3s ease;
     }
 
+    #mobile-nav-menu .mobile-nav-icon svg line {
+        transition: all 0.3s ease;
+        transform-origin: center;
+    }
+
+    /* SVG 아이콘 스타일 */
+    .mobile-nav-icon {
+        width: 24px;
+        height: 24px;
+        margin-bottom: 4px;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .mobile-nav-icon svg {
+        width: 24px;
+        height: 24px;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .mobile-nav-item.active .mobile-nav-icon svg {
+        stroke: #2E7D32;
+        stroke-width: 2.5;
+    }
+
+    .mobile-nav-label {
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        margin-top: 2px;
+    }
+
+    /* 배지 (장바구니 개수, 로그인 상태) */
+    .mobile-nav-badge {
+        position: absolute;
+        top: 4px;
+        right: 6px;
+        background: #FF3B30;
+        color: white;
+        border-radius: 10px;
+        min-width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 0 5px;
+        border: 2px solid white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .mobile-nav-badge.logged-in {
+        background: #34C759;
+        width: 8px;
+        height: 8px;
+        min-width: 8px;
+        padding: 0;
+        top: 6px;
+        right: 8px;
+        border: 2px solid white;
+    }
+
+    /* 메뉴 오버레이 배경 */
+    .nav-menu-overlay {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 998;
+        display: block !important;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+        pointer-events: none;
+    }
+
+    .nav-menu-overlay.active {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: all;
+    }
+
+    /* 햄버거 메뉴 패널 */
     .nav-menu {
         position: fixed !important;
-        top: 60px !important;
+        top: 50px !important;
         left: 0 !important;
-        width: 100% !important;
-        height: calc(100vh - 60px) !important;
+        width: 80% !important;
+        max-width: 320px !important;
+        height: calc(100vh - 110px) !important; /* 상단(50px) + 하단(60px) */
         background-color: #ffffff !important;
         flex-direction: column !important;
         align-items: flex-start !important;
         justify-content: flex-start !important;
-        display: none !important;
+        display: flex !important;
         padding: 20px !important;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
-        z-index: 9999 !important;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.15) !important;
+        z-index: 999 !important;
         overflow-y: auto !important;
         visibility: hidden !important;
         opacity: 0 !important;
         transform: translateX(-100%) !important;
-        transition: all 0.3s ease !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        pointer-events: none !important;
     }
 
     .nav-menu.active {
-        display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         transform: translateX(0) !important;
+        pointer-events: all !important;
     }
 
     .nav-menu li {
@@ -503,65 +727,137 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
         }
     }
 
-    /* 모바일에서 nav-auth 스타일 재정의 */
+    /* 모바일에서 nav-auth 완전히 숨김 (하단 네비게이션 사용) */
     .nav-auth {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        order: -1;
-        margin-bottom: 20px;
-        padding-bottom: 20px;
-        border-bottom: 1px solid #eee;
-        width: 100%;
-        justify-content: flex-start;
+        display: none !important;
     }
 
-    .cart-link {
+    /* 하단 네비게이션 표시 */
+    .mobile-bottom-nav {
+        display: flex !important;
+    }
+
+    .nav-menu .cart-link {
         background: #E8F5E8;
-        padding: 10px 15px;
-        border-radius: 25px;
-        margin-right: 0;
-        margin-bottom: 10px;
-        order: 1;
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin: 0;
+        text-align: center;
+        font-size: 0.9rem;
     }
 
-    .user-name-link {
-        margin-right: 0;
-        margin-bottom: 10px;
-        order: 2;
+    .nav-menu .user-name-link {
+        margin: 0;
         width: 100%;
     }
 
-    .user-name-link::after,
-    .user-name-link::before {
+    .nav-menu .user-name-link::after,
+    .nav-menu .user-name-link::before {
         display: none;
     }
 
-    .user-name {
+    .nav-menu .user-name {
         width: 100%;
         text-align: center;
-        font-size: 16px;
+        font-size: 0.9rem;
         justify-content: center;
+        padding: 10px 14px;
     }
 
-    .admin-link, .logout-link, .login-link, .register-link {
-        padding: 10px 15px;
-        margin-bottom: 5px;
+    .nav-menu .admin-link,
+    .nav-menu .logout-link,
+    .nav-menu .login-link,
+    .nav-menu .register-link {
+        padding: 12px 16px;
+        margin: 0;
         background: #f8f9fa;
-        border-radius: 20px;
+        border-radius: 8px;
         text-decoration: none;
         color: #333;
         transition: background-color 0.3s ease;
+        text-align: center;
+        font-size: 0.9rem;
     }
 
-    .admin-link:hover, .logout-link:hover, .login-link:hover, .register-link:hover {
+    .nav-menu .admin-link:hover,
+    .nav-menu .logout-link:hover,
+    .nav-menu .login-link:hover,
+    .nav-menu .register-link:hover {
         background: #e9ecef;
     }
 }
 </style>
 
 <script>
+// 모바일 메뉴 토글 함수 - 즉시 정의하여 모든 페이지에서 사용 가능
+window.toggleMobileMenu = function(e) {
+    console.log('=== toggleMobileMenu CALLED ===');
+
+    // 이벤트 객체가 있으면 기본 동작 방지
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    const navMenu = document.querySelector('.nav-menu');
+    const menuButton = document.getElementById('mobile-nav-menu');
+    const overlay = document.getElementById('nav-menu-overlay');
+
+    console.log('Mobile menu elements:', {
+        navMenu: !!navMenu,
+        menuButton: !!menuButton,
+        overlay: !!overlay,
+        currentlyActive: navMenu ? navMenu.classList.contains('active') : false
+    });
+
+    if (navMenu) {
+        const isActive = navMenu.classList.contains('active');
+
+        if (isActive) {
+            // 메뉴 닫기
+            console.log('Closing mobile menu');
+            navMenu.classList.remove('active');
+            if (menuButton) menuButton.classList.remove('active');
+            if (overlay) overlay.classList.remove('active');
+            document.body.style.overflow = '';
+        } else {
+            // 메뉴 열기
+            console.log('Opening mobile menu');
+            navMenu.classList.add('active');
+            if (menuButton) menuButton.classList.add('active');
+            if (overlay) overlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        console.log('Menu state after toggle:', navMenu.classList.contains('active') ? 'OPEN' : 'CLOSED');
+    } else {
+        console.error('nav-menu element not found!');
+    }
+};
+
+// 모바일 메뉴 닫기 함수 - 즉시 정의
+window.closeMobileMenu = function() {
+    console.log('=== closeMobileMenu CALLED ===');
+
+    const navMenu = document.querySelector('.nav-menu');
+    const menuButton = document.getElementById('mobile-nav-menu');
+    const overlay = document.getElementById('nav-menu-overlay');
+
+    if (navMenu) {
+        navMenu.classList.remove('active');
+        if (menuButton) menuButton.classList.remove('active');
+        if (overlay) overlay.classList.remove('active');
+        document.body.style.overflow = '';
+        console.log('Mobile menu closed');
+    }
+};
+
+// 페이지 로드 후 즉시 확인
+console.log('Mobile menu functions loaded:', {
+    toggleMobileMenu: typeof window.toggleMobileMenu,
+    closeMobileMenu: typeof window.closeMobileMenu
+});
+
 document.addEventListener('DOMContentLoaded', function() {
 
     // 드롭다운 메뉴 처리만 유지 (모바일 메뉴는 main.js에서 처리)
@@ -570,10 +866,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const dropbtn = dropdown.querySelector('.dropbtn');
         if (dropbtn) {
             dropbtn.addEventListener('click', function(e) {
-                // 모바일과 데스크톱에서 모두 토글 가능
+                // 모바일에서는 항상 기본 동작 방지
                 if (window.innerWidth <= 768) {
                     e.preventDefault();
                     e.stopPropagation();
+                } else {
+                    // 데스크톱: 드롭다운이 닫혀있으면 기본 동작 방지하고 열기만
+                    if (!dropdown.classList.contains('active')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    // 이미 열려있으면 링크 이동 허용 (기본 동작)
                 }
 
                 // 다른 드롭다운 닫기
@@ -583,8 +886,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
 
-                // 현재 드롭다운 토글
-                dropdown.classList.toggle('active');
+                // 현재 드롭다운 토글 (데스크톱에서 닫혀있을 때만)
+                if (window.innerWidth <= 768 || !dropdown.classList.contains('active')) {
+                    dropdown.classList.toggle('active');
+                }
             });
         }
     });
@@ -612,7 +917,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateCartCount() {
         const cartCount = document.getElementById('cartCount');
-        if (!cartCount) return;
+        const mobileCartCount = document.getElementById('mobileCartCount');
 
         fetch('/api/cart.php?action=count', {
             method: 'GET',
@@ -623,23 +928,37 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 const count = data.data?.count || data.count || 0;
 
-                // 카운트가 실제로 변경되었을 때만 애니메이션
-                if (previousCartCount !== -1 && previousCartCount !== count) {
-                    cartCount.classList.add('updated');
-                    setTimeout(() => {
-                        cartCount.classList.remove('updated');
-                    }, 500);
+                // 데스크톱 장바구니 카운트 업데이트
+                if (cartCount) {
+                    // 카운트가 실제로 변경되었을 때만 애니메이션
+                    if (previousCartCount !== -1 && previousCartCount !== count) {
+                        cartCount.classList.add('updated');
+                        setTimeout(() => {
+                            cartCount.classList.remove('updated');
+                        }, 500);
+                    }
+
+                    cartCount.textContent = count;
+
+                    // 카운트가 0이면 숨기기, 0이 아니면 보이기
+                    if (count > 0) {
+                        cartCount.style.display = 'flex';
+                    } else {
+                        cartCount.style.display = 'none';
+                    }
+                }
+
+                // 모바일 하단 네비게이션 장바구니 배지 업데이트
+                if (mobileCartCount) {
+                    mobileCartCount.textContent = count;
+                    if (count > 0) {
+                        mobileCartCount.style.display = 'flex';
+                    } else {
+                        mobileCartCount.style.display = 'none';
+                    }
                 }
 
                 previousCartCount = count;
-                cartCount.textContent = count;
-
-                // 카운트가 0이면 숨기기, 0이 아니면 보이기
-                if (count > 0) {
-                    cartCount.style.display = 'flex';
-                } else {
-                    cartCount.style.display = 'none';
-                }
             }
         })
         .catch(error => {

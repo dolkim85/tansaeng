@@ -613,6 +613,117 @@ $shippingCost = $product['shipping_cost'] ?? 0;
             padding: 12px;
             font-size: 14px;
         }
+
+        /* 모바일 최적화 */
+        @media (max-width: 768px) {
+            /* Product Main - 세로 배치 */
+            .product-main {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 20px !important;
+            }
+
+            .product-gallery {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+
+            .product-info {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+
+            /* Product Tabs - 마진 추가 */
+            .product-tabs {
+                margin-top: 30px !important;
+                clear: both !important;
+                position: relative !important;
+                z-index: 1 !important;
+                background: white !important;
+            }
+
+            /* Breadcrumb 모바일 스타일 */
+            .breadcrumb {
+                padding: 12px 0 !important;
+                margin-bottom: 20px !important;
+                margin-top: 50px !important;
+                background: #f8f9fa !important;
+                border-bottom: 1px solid #e9ecef !important;
+            }
+
+            .breadcrumb .container {
+                font-size: 0.75rem !important;
+                padding: 0 15px !important;
+                line-height: 1.5 !important;
+            }
+
+            .breadcrumb .separator {
+                margin: 0 6px !important;
+            }
+
+            .breadcrumb .current {
+                color: #4CAF50 !important;
+                font-weight: 600 !important;
+            }
+
+            /* 재고 상태 */
+            .stock-status {
+                padding: 10px 12px !important;
+                margin-bottom: 12px !important;
+                font-size: 0.85rem !important;
+                font-weight: 600 !important;
+                text-align: center !important;
+            }
+
+            /* 총 금액 레이블 */
+            .total-label {
+                font-size: 0.95rem !important;
+                font-weight: 700 !important;
+                margin-bottom: 8px !important;
+                text-align: center !important;
+            }
+
+            /* 가격 분할 표시 */
+            .price-breakdown {
+                padding: 15px !important;
+                margin-top: 10px !important;
+            }
+
+            .breakdown-item {
+                padding: 8px 0 !important;
+                font-size: 0.85rem !important;
+            }
+
+            .breakdown-total {
+                padding: 10px 0 0 0 !important;
+                font-size: 1rem !important;
+            }
+
+            .breakdown-total span:last-child {
+                font-size: 1.2rem !important;
+            }
+
+            /* 상세 설명 콘텐츠 */
+            .product-description-content {
+                padding: 15px !important;
+                max-height: 600px !important;
+                overflow-y: auto !important;
+                border: 1px solid #e9ecef !important;
+                border-radius: 8px !important;
+            }
+
+            .product-description-content img {
+                max-width: 100% !important;
+                height: auto !important;
+                margin: 10px 0 !important;
+            }
+
+            .text-align-center {
+                text-align: center !important;
+                margin: 15px 0 !important;
+                padding: 10px !important;
+            }
+        }
     </style>
     <script>
         // Image gallery functionality

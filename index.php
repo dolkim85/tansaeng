@@ -30,13 +30,15 @@ try {
 
     // Get featured products first (priority to featured products)
     $stmt = $pdo->query(
-        "SELECT p.*, c.name as category_name
+        "SELECT p.id, p.name, p.price, p.image_url, p.discount_percentage,
+                p.rating_score, p.review_count, p.delivery_info, p.updated_at,
+                c.name as category_name
          FROM products p
          LEFT JOIN categories c ON p.category_id = c.id
          WHERE p.is_featured = 1 AND p.status = 'active'
          ORDER BY p.created_at DESC LIMIT 6"
     );
-    $featuredProducts = $stmt->fetchAll();
+    $featuredProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // If we have less than 6 featured products, fill with recent active products
     $featuredCount = count($featuredProducts);
@@ -48,13 +50,15 @@ try {
         $excludeClause = !empty($excludeIds) ? 'AND p.id NOT IN (' . implode(',', $excludeIds) . ')' : '';
 
         $stmt = $pdo->query(
-            "SELECT p.*, c.name as category_name
+            "SELECT p.id, p.name, p.price, p.image_url, p.discount_percentage,
+                    p.rating_score, p.review_count, p.delivery_info, p.updated_at,
+                    c.name as category_name
              FROM products p
              LEFT JOIN categories c ON p.category_id = c.id
              WHERE p.status = 'active' $excludeClause
              ORDER BY p.created_at DESC LIMIT $remainingSlots"
         );
-        $additionalProducts = $stmt->fetchAll();
+        $additionalProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Merge the arrays
         $featuredProducts = array_merge($featuredProducts, $additionalProducts);
@@ -210,45 +214,56 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
             </div>
 
             <div class="product-carousel-container">
+                <!-- 캐러셀 컨트롤 버튼 -->
+                <div class="product-carousel-controls">
+                    <button class="carousel-btn carousel-prev" onclick="productCarousel.prev()" aria-label="이전 상품">‹</button>
+                    <button class="carousel-btn carousel-next" onclick="productCarousel.next()" aria-label="다음 상품">›</button>
+                </div>
+
                 <div class="product-carousel-wrapper">
                     <div class="product-carousel-scroller" id="productCarousel">
                         <?php if (!empty($featuredProducts)): ?>
                             <?php foreach ($featuredProducts as $product): ?>
-                                <a href="/pages/store/product.php?id=<?= $product['id'] ?>" class="product-card">
+                                <?php
+                                // 기본값 설정
+                                $productId = $product['id'] ?? 0;
+                                $productName = $product['name'] ?? '상품명 없음';
+                                $productPrice = $product['price'] ?? 0;
+                                $discountPercent = $product['discount_percentage'] ?? 0;
+                                $ratingScore = $product['rating_score'] ?? 4.5;
+                                $reviewCount = $product['review_count'] ?? 0;
+                                $deliveryInfo = $product['delivery_info'] ?? '무료배송';
+                                $imageUrl = $product['image_url'] ?? '/assets/images/products/default.jpg';
+                                $updatedAt = $product['updated_at'] ?? date('Y-m-d H:i:s');
+
+                                // 할인가 계산
+                                $discountedPrice = $discountPercent > 0
+                                    ? $productPrice * (100 - $discountPercent) / 100
+                                    : $productPrice;
+                                ?>
+                                <a href="/pages/store/product.php?id=<?= $productId ?>" class="product-card">
                                     <div class="product-image-wrap">
-                                        <?php
-                                        $imageSrc = !empty($product['image_url'])
-                                            ? $product['image_url'] . '?v=' . strtotime($product['updated_at'])
-                                            : '/assets/images/products/default.jpg';
-                                        ?>
-                                        <img src="<?= htmlspecialchars($imageSrc) ?>"
-                                             alt="<?= htmlspecialchars($product['name']) ?>"
+                                        <img src="<?= htmlspecialchars($imageUrl) ?>?v=<?= strtotime($updatedAt) ?>"
+                                             alt="<?= htmlspecialchars($productName) ?>"
                                              loading="lazy" class="product-image">
                                         <span class="product-quick-view">미리보기</span>
                                     </div>
                                     <div class="product-info">
-                                        <h3><?= htmlspecialchars($product['name']) ?></h3>
+                                        <h3><?= htmlspecialchars($productName) ?></h3>
                                         <div class="product-price-wrap">
-                                            <?php if ($product['discount_percentage'] > 0): ?>
-                                                <span class="product-price-original"><?= number_format($product['price']) ?>원</span>
-                                                <span class="product-price"><?= number_format($product['price'] * (100 - $product['discount_percentage']) / 100) ?>원</span>
-                                                <span class="product-discount"><?= $product['discount_percentage'] ?>% OFF</span>
+                                            <?php if ($discountPercent > 0): ?>
+                                                <span class="product-price-original"><?= number_format($productPrice) ?>원</span>
+                                                <span class="product-price"><?= number_format($discountedPrice) ?>원</span>
+                                                <span class="product-discount"><?= $discountPercent ?>% OFF</span>
                                             <?php else: ?>
-                                                <span class="product-price"><?= number_format($product['price']) ?>원</span>
+                                                <span class="product-price"><?= number_format($productPrice) ?>원</span>
                                             <?php endif; ?>
                                         </div>
                                         <div class="product-review">
-                                            <?php
-                                            $rating = $product['rating_score'] ?? 4.5;
-                                            $reviewCount = $product['review_count'] ?? 0;
-                                            $stars = str_repeat('⭐', (int)round($rating));
-                                            ?>
-                                            <span class="review-stars"><?= $stars ?></span>
-                                            <span class="review-count">(<?= $reviewCount ?>)</span>
+                                            <span class="review-stars"><?= str_repeat('⭐', (int)round($ratingScore)) ?></span>
+                                            <span class="review-count">(<?= number_format($reviewCount) ?>)</span>
                                         </div>
-                                        <?php if (!empty($product['delivery_info'])): ?>
-                                            <div class="product-delivery"><?= htmlspecialchars($product['delivery_info']) ?></div>
-                                        <?php endif; ?>
+                                        <div class="product-delivery"><?= htmlspecialchars($deliveryInfo) ?></div>
                                     </div>
                                 </a>
                             <?php endforeach; ?>
@@ -423,11 +438,104 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
         }
     };
 
+    // Product Carousel functionality
+    const productCarousel = {
+        currentPosition: 0,
+        cardWidth: 0,
+        gap: 20,
+        visibleCards: 0,
+        totalCards: 0,
+        scroller: null,
+        prevBtn: null,
+        nextBtn: null,
+
+        init() {
+            this.scroller = document.getElementById('productCarousel');
+            this.prevBtn = document.querySelector('.carousel-prev');
+            this.nextBtn = document.querySelector('.carousel-next');
+
+            if (!this.scroller) return;
+
+            const cards = this.scroller.querySelectorAll('.product-card');
+            this.totalCards = cards.length;
+
+            if (this.totalCards === 0) return;
+
+            // Calculate card width and visible cards
+            this.updateDimensions();
+            this.updateButtons();
+
+            // Update on window resize
+            window.addEventListener('resize', () => {
+                this.updateDimensions();
+                this.updateButtons();
+            });
+
+            console.log('Product carousel initialized:', this.totalCards, 'cards');
+        },
+
+        updateDimensions() {
+            const cards = this.scroller.querySelectorAll('.product-card');
+            if (cards.length === 0) return;
+
+            // Get card width from first card
+            const firstCard = cards[0];
+            this.cardWidth = firstCard.offsetWidth;
+
+            // Calculate how many cards are visible
+            const containerWidth = this.scroller.parentElement.offsetWidth;
+            this.visibleCards = Math.floor(containerWidth / (this.cardWidth + this.gap));
+        },
+
+        prev() {
+            if (this.currentPosition > 0) {
+                this.currentPosition--;
+                this.slide();
+            }
+        },
+
+        next() {
+            const maxPosition = Math.max(0, this.totalCards - this.visibleCards);
+            if (this.currentPosition < maxPosition) {
+                this.currentPosition++;
+                this.slide();
+            }
+        },
+
+        slide() {
+            const translateX = -(this.currentPosition * (this.cardWidth + this.gap));
+            this.scroller.style.transform = `translateX(${translateX}px)`;
+            this.updateButtons();
+        },
+
+        updateButtons() {
+            if (!this.prevBtn || !this.nextBtn) return;
+
+            // Disable prev button at start
+            if (this.currentPosition === 0) {
+                this.prevBtn.disabled = true;
+            } else {
+                this.prevBtn.disabled = false;
+            }
+
+            // Disable next button at end
+            const maxPosition = Math.max(0, this.totalCards - this.visibleCards);
+            if (this.currentPosition >= maxPosition) {
+                this.nextBtn.disabled = true;
+            } else {
+                this.nextBtn.disabled = false;
+            }
+        }
+    };
+
     document.addEventListener('DOMContentLoaded', function() {
         console.log('페이지 로드 완료, 슬라이더 초기화 시작');
 
         // Initialize hero slider
         heroSlider.init();
+
+        // Initialize product carousel
+        productCarousel.init();
 
         // Initialize page functionality
         console.log('Tansaeng Smart Farm Website Loaded');
