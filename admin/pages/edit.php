@@ -199,7 +199,7 @@ $currentContent = file_get_contents($filePath);
 
                         <div class="editor-panel">
                             <h3>👁️ 실시간 미리보기</h3>
-                            <iframe id="previewFrame" class="preview-frame" src="<?= htmlspecialchars($pageInfo['file']) ?>"></iframe>
+                            <iframe id="previewFrame" class="preview-frame" src="about:blank"></iframe>
                         </div>
                     </div>
                 </form>
@@ -219,6 +219,7 @@ $currentContent = file_get_contents($filePath);
 
     <script>
         const originalContent = document.getElementById('codeEditor').value;
+        let updateTimeout = null;
 
         function refreshPreview() {
             document.getElementById('previewFrame').src = document.getElementById('previewFrame').src;
@@ -227,8 +228,35 @@ $currentContent = file_get_contents($filePath);
         function resetContent() {
             if (confirm('수정한 내용을 모두 되돌리시겠습니까?')) {
                 document.getElementById('codeEditor').value = originalContent;
+                updateLivePreview();
             }
         }
+
+        // 실시간 미리보기 업데이트
+        function updateLivePreview() {
+            clearTimeout(updateTimeout);
+
+            updateTimeout = setTimeout(() => {
+                const content = document.getElementById('codeEditor').value;
+                const iframe = document.getElementById('previewFrame');
+
+                // iframe의 contentDocument에 직접 HTML 적용
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    iframeDoc.open();
+                    iframeDoc.write(content);
+                    iframeDoc.close();
+                } catch (error) {
+                    console.error('미리보기 업데이트 오류:', error);
+                }
+            }, 500); // 0.5초 디바운스
+        }
+
+        // 코드 편집기 입력 시 실시간 업데이트
+        document.getElementById('codeEditor').addEventListener('input', function() {
+            hasChanges = true;
+            updateLivePreview();
+        });
 
         // 자동 저장 (Ctrl+S)
         document.addEventListener('keydown', function(e) {
@@ -240,9 +268,6 @@ $currentContent = file_get_contents($filePath);
 
         // 변경사항 감지
         let hasChanges = false;
-        document.getElementById('codeEditor').addEventListener('input', function() {
-            hasChanges = true;
-        });
 
         // 페이지 떠날 때 경고
         window.addEventListener('beforeunload', function(e) {
@@ -256,6 +281,11 @@ $currentContent = file_get_contents($filePath);
         // 폼 제출 시 변경사항 플래그 해제
         document.getElementById('editForm').addEventListener('submit', function() {
             hasChanges = false;
+        });
+
+        // 페이지 로드 시 초기 미리보기 표시
+        window.addEventListener('load', function() {
+            updateLivePreview();
         });
     </script>
 </body>
