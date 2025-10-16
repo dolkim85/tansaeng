@@ -345,15 +345,7 @@ try {
             }
 
             .header {
-                margin-bottom: 15px;
-            }
-
-            .header h1 {
-                font-size: 1.3rem;
-            }
-
-            .header p {
-                font-size: 0.85rem;
+                display: none !important;
             }
 
             /* 카트 아이템 - 더 컴팩트하게 */
