@@ -866,29 +866,43 @@ document.addEventListener('DOMContentLoaded', function() {
         const dropbtn = dropdown.querySelector('.dropbtn');
         if (dropbtn) {
             dropbtn.addEventListener('click', function(e) {
-                // 모바일에서는 항상 기본 동작 방지
+                // 모바일에서 처리
                 if (window.innerWidth <= 768) {
+                    // 드롭다운이 이미 열려있으면 링크 이동 허용
+                    if (dropdown.classList.contains('active')) {
+                        // 기본 동작 허용 (페이지 이동)
+                        return true;
+                    }
+
+                    // 드롭다운이 닫혀있으면 열기만 함
                     e.preventDefault();
                     e.stopPropagation();
+
+                    // 다른 드롭다운 닫기
+                    dropdowns.forEach(otherDropdown => {
+                        if (otherDropdown !== dropdown) {
+                            otherDropdown.classList.remove('active');
+                        }
+                    });
+
+                    // 현재 드롭다운 열기
+                    dropdown.classList.add('active');
                 } else {
                     // 데스크톱: 드롭다운이 닫혀있으면 기본 동작 방지하고 열기만
                     if (!dropdown.classList.contains('active')) {
                         e.preventDefault();
                         e.stopPropagation();
+
+                        // 다른 드롭다운 닫기
+                        dropdowns.forEach(otherDropdown => {
+                            if (otherDropdown !== dropdown) {
+                                otherDropdown.classList.remove('active');
+                            }
+                        });
+
+                        dropdown.classList.add('active');
                     }
                     // 이미 열려있으면 링크 이동 허용 (기본 동작)
-                }
-
-                // 다른 드롭다운 닫기
-                dropdowns.forEach(otherDropdown => {
-                    if (otherDropdown !== dropdown) {
-                        otherDropdown.classList.remove('active');
-                    }
-                });
-
-                // 현재 드롭다운 토글 (데스크톱에서 닫혀있을 때만)
-                if (window.innerWidth <= 768 || !dropdown.classList.contains('active')) {
-                    dropdown.classList.toggle('active');
                 }
             });
         }
