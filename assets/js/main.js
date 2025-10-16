@@ -634,7 +634,7 @@ window.TangsaengApp = {
     validateField
 };
 
-// Product Carousel Function
+// Product Carousel Function - Auto-rotating infinite carousel
 function initProductCarousel() {
     const carousel = document.getElementById('productCarousel');
 
@@ -643,153 +643,88 @@ function initProductCarousel() {
         return;
     }
 
-    const cardWidth = 220; // Card width + gap
-    let currentPosition = 0;
-    const maxScroll = (carousel.children.length - getVisibleCards()) * cardWidth;
-
-    function getVisibleCards() {
-        const containerWidth = carousel.parentElement.offsetWidth;
-        if (window.innerWidth <= 768) {
-            return Math.floor(containerWidth / 140); // Mobile card width
-        }
-        return Math.floor(containerWidth / cardWidth); // Desktop card width
+    // Hide controls
+    const controls = document.querySelector('.product-carousel-controls');
+    if (controls) {
+        controls.style.display = 'none';
     }
 
-    function updateCarousel() {
-        carousel.style.transform = `translateX(-${currentPosition}px)`;
+    const cards = Array.from(carousel.children);
+    if (cards.length === 0) return;
+
+    // Clone cards for infinite effect
+    cards.forEach(card => {
+        const clone = card.cloneNode(true);
+        carousel.appendChild(clone);
+    });
+
+    const cardWidth = window.innerWidth <= 768 ? 260 : 340; // 카드 너비 + gap
+    const totalCards = cards.length;
+    let currentIndex = 0;
+    let autoplayInterval;
+
+    // CSS transition 추가
+    carousel.style.transition = 'transform 0.5s ease-in-out';
+
+    function updateCarousel(instant = false) {
+        if (instant) {
+            carousel.style.transition = 'none';
+        } else {
+            carousel.style.transition = 'transform 0.5s ease-in-out';
+        }
+        carousel.style.transform = `translateX(-${currentIndex * cardWidth}px)`;
     }
 
     function slideNext() {
-        const scrollAmount = window.innerWidth <= 768 ? 140 : cardWidth;
-        if (currentPosition < maxScroll) {
-            currentPosition = Math.min(currentPosition + scrollAmount, maxScroll);
-            updateCarousel();
+        currentIndex++;
+        updateCarousel();
+
+        // 끝에 도달하면 즉시 처음으로 리셋 (무한 루프 효과)
+        if (currentIndex >= totalCards) {
+            setTimeout(() => {
+                currentIndex = 0;
+                updateCarousel(true); // 즉시 이동 (transition 없이)
+            }, 500); // transition 끝난 후
         }
     }
 
-    function slidePrev() {
-        const scrollAmount = window.innerWidth <= 768 ? 140 : cardWidth;
-        if (currentPosition > 0) {
-            currentPosition = Math.max(currentPosition - scrollAmount, 0);
-            updateCarousel();
-        }
+    // 자동 재생 시작
+    function startAutoplay() {
+        autoplayInterval = setInterval(slideNext, 3000); // 3초마다 슬라이드
+    }
+
+    // 자동 재생 중지
+    function stopAutoplay() {
+        clearInterval(autoplayInterval);
     }
 
     // Initialize carousel
-    updateCarousel();
+    updateCarousel(true);
 
-    // Touch/swipe support - applied to carousel wrapper, not individual cards
-    let startX = 0;
-    let startY = 0;
-    let isDragging = false;
-    let hasMoved = false;
-    const carouselWrapper = carousel.parentElement;
+    // 마우스 호버 시 자동재생 멈춤
+    const carouselContainer = carousel.closest('.product-carousel-container');
+    if (carouselContainer) {
+        carouselContainer.addEventListener('mouseenter', stopAutoplay);
+        carouselContainer.addEventListener('mouseleave', startAutoplay);
+    }
 
-    carouselWrapper.addEventListener('touchstart', (e) => {
-        // Only start drag if touching the wrapper, not a product card
-        if (e.target.closest('.product-card')) {
-            return;
-        }
-
-        startX = e.touches[0].clientX;
-        startY = e.touches[0].clientY;
-        isDragging = true;
-        hasMoved = false;
+    // 터치 시작 시 자동재생 멈춤
+    carousel.addEventListener('touchstart', stopAutoplay);
+    carousel.addEventListener('touchend', () => {
+        setTimeout(startAutoplay, 3000); // 3초 후 재시작
     });
 
-    carouselWrapper.addEventListener('touchmove', (e) => {
-        if (!isDragging) return;
-
-        const currentX = e.touches[0].clientX;
-        const currentY = e.touches[0].clientY;
-        const deltaX = Math.abs(currentX - startX);
-        const deltaY = Math.abs(currentY - startY);
-
-        // Only prevent default if horizontal swipe is detected
-        if (deltaX > deltaY && deltaX > 10) {
-            e.preventDefault();
-            hasMoved = true;
-        }
-    });
-
-    carouselWrapper.addEventListener('touchend', (e) => {
-        if (!isDragging) return;
-
-        // Only handle swipe if there was significant movement
-        if (hasMoved) {
-            const endX = e.changedTouches[0].clientX;
-            const diff = startX - endX;
-
-            if (Math.abs(diff) > 50) { // Minimum swipe distance
-                if (diff > 0) {
-                    slideNext();
-                } else {
-                    slidePrev();
-                }
-            }
-        }
-
-        isDragging = false;
-        hasMoved = false;
-    });
-
-    // Add click event delegation for product cards
-    carousel.addEventListener('click', (e) => {
-        const productCard = e.target.closest('.product-card');
-        if (productCard && !hasMoved) {
-            // Allow normal link behavior
-            return true;
-        }
-    });
-
-    // Mouse drag support for desktop
-    let mouseStartX = 0;
-    let isMouseDragging = false;
-
-    carousel.addEventListener('mousedown', (e) => {
-        mouseStartX = e.clientX;
-        isMouseDragging = true;
-        carousel.style.cursor = 'grabbing';
-    });
-
-    carousel.addEventListener('mousemove', (e) => {
-        if (!isMouseDragging) return;
-        e.preventDefault();
-    });
-
-    carousel.addEventListener('mouseup', (e) => {
-        if (!isMouseDragging) return;
-
-        const endX = e.clientX;
-        const diff = mouseStartX - endX;
-
-        if (Math.abs(diff) > 50) {
-            if (diff > 0) {
-                slideNext();
-            } else {
-                slidePrev();
-            }
-        }
-
-        isMouseDragging = false;
-        carousel.style.cursor = 'grab';
-    });
-
-    carousel.addEventListener('mouseleave', () => {
-        if (isMouseDragging) {
-            isMouseDragging = false;
-            carousel.style.cursor = 'grab';
-        }
-    });
-
-    // Initialize
-    updateCarousel();
+    // 자동 재생 시작
+    startAutoplay();
 
     // Update on window resize
-    window.addEventListener('resize', () => {
-        currentPosition = 0;
-        updateCarousel();
-    });
+    window.addEventListener('resize', debounce(() => {
+        stopAutoplay();
+        const newCardWidth = window.innerWidth <= 768 ? 260 : 340;
+        // 현재 인덱스 유지하면서 너비만 업데이트
+        updateCarousel(true);
+        startAutoplay();
+    }, 250));
 
-    console.log('Product carousel initialized');
+    console.log('Product carousel initialized - Auto-rotating mode');
 }
