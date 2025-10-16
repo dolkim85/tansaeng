@@ -25,11 +25,24 @@ $business_number = $siteSettings['business_number'] ?? $siteSettings['footer_bus
 $ceo_name = $siteSettings['ceo_name'] ?? $siteSettings['footer_ceo_name'] ?? '홍길동';
 $current_year = date('Y');
 
-// Parse JSON menu arrays
+// Parse JSON menu arrays - 새 형식: [{"name": "메뉴명", "url": "/path"}] 또는 구 형식: ["메뉴명"]
 function parseMenuItems($jsonString) {
     if (empty($jsonString)) return [];
     $items = json_decode($jsonString, true);
-    return is_array($items) ? $items : [];
+    if (!is_array($items)) return [];
+
+    // 새 형식인지 확인 (associative array)
+    $newFormat = [];
+    foreach ($items as $item) {
+        if (is_array($item) && isset($item['name'])) {
+            // 새 형식: {"name": "메뉴명", "url": "/path"}
+            $newFormat[] = $item;
+        } else if (is_string($item)) {
+            // 구 형식: "메뉴명" -> {"name": "메뉴명", "url": "#"}로 변환
+            $newFormat[] = ['name' => $item, 'url' => '#'];
+        }
+    }
+    return $newFormat;
 }
 
 $productMenu = parseMenuItems($siteSettings['footer_menu_products'] ?? '');
@@ -41,7 +54,7 @@ $companyMenu = parseMenuItems($siteSettings['footer_menu_company'] ?? '');
         <div class="footer-content">
             <div class="footer-section">
                 <h3><?= htmlspecialchars($company_name) ?></h3>
-                <p><?= htmlspecialchars($company_desc) ?></p>
+                <p class="footer-company-desc"><?= htmlspecialchars($company_desc) ?></p>
                 <div class="footer-contact">
                     <p>📍 <?= htmlspecialchars($company_address) ?></p>
                     <p>📞 <?= htmlspecialchars($company_phone) ?></p>
@@ -68,7 +81,7 @@ $companyMenu = parseMenuItems($siteSettings['footer_menu_company'] ?? '');
                 <ul>
                     <?php if (!empty($productMenu)): ?>
                         <?php foreach ($productMenu as $item): ?>
-                            <li><a href="#"><?= htmlspecialchars($item) ?></a></li>
+                            <li><a href="<?= htmlspecialchars($item['url'] ?? '#') ?>"><?= htmlspecialchars($item['name'] ?? '') ?></a></li>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <li><a href="/pages/products/coco.php">코코피트 배지</a></li>
@@ -84,10 +97,10 @@ $companyMenu = parseMenuItems($siteSettings['footer_menu_company'] ?? '');
                 <ul>
                     <?php if (!empty($serviceMenu)): ?>
                         <?php foreach ($serviceMenu as $item): ?>
-                            <li><a href="#"><?= htmlspecialchars($item) ?></a></li>
+                            <li><a href="<?= htmlspecialchars($item['url'] ?? '#') ?>"><?= htmlspecialchars($item['name'] ?? '') ?></a></li>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <li><a href="/pages/plant-analysis/">AI 식물분석</a></li>
+                        <li><a href="/pages/plant_analysis/">AI 식물분석</a></li>
                         <li><a href="/pages/support/faq.php">FAQ</a></li>
                         <li><a href="/pages/support/technical.php">기술지원</a></li>
                         <li><a href="/pages/support/inquiry.php">1:1 문의</a></li>
@@ -100,7 +113,7 @@ $companyMenu = parseMenuItems($siteSettings['footer_menu_company'] ?? '');
                 <ul>
                     <?php if (!empty($companyMenu)): ?>
                         <?php foreach ($companyMenu as $item): ?>
-                            <li><a href="#"><?= htmlspecialchars($item) ?></a></li>
+                            <li><a href="<?= htmlspecialchars($item['url'] ?? '#') ?>"><?= htmlspecialchars($item['name'] ?? '') ?></a></li>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <li><a href="/pages/company/about.php">회사소개</a></li>
@@ -118,3 +131,12 @@ $companyMenu = parseMenuItems($siteSettings['footer_menu_company'] ?? '');
         </div>
     </div>
 </footer>
+
+<style>
+/* 모바일에서 푸터 회사 설명 숨김 */
+@media (max-width: 768px) {
+    .footer-company-desc {
+        display: none !important;
+    }
+}
+</style>

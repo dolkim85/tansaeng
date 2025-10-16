@@ -17,6 +17,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $pdo = DatabaseConfig::getConnection();
 
+        // 메뉴 데이터를 JSON 형식으로 변환 (name|url 형식)
+        function parseMenuInput($input) {
+            $lines = array_filter(array_map('trim', explode("\n", $input)));
+            $menu = [];
+            foreach ($lines as $line) {
+                $parts = explode('|', $line, 2);
+                $menu[] = [
+                    'name' => trim($parts[0]),
+                    'url' => isset($parts[1]) ? trim($parts[1]) : '#'
+                ];
+            }
+            return json_encode($menu);
+        }
+
         $settings = [
             'footer_company_desc' => trim($_POST['footer_company_desc'] ?? ''),
             'footer_address' => trim($_POST['footer_address'] ?? ''),
@@ -31,10 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'footer_social_instagram' => trim($_POST['footer_social_instagram'] ?? ''),
             'footer_social_youtube' => trim($_POST['footer_social_youtube'] ?? ''),
             'footer_social_blog' => trim($_POST['footer_social_blog'] ?? ''),
-            'footer_menu_products' => json_encode(array_filter(array_map('trim', explode("\n", $_POST['footer_menu_products'] ?? '')))),
-            'footer_menu_services' => json_encode(array_filter(array_map('trim', explode("\n", $_POST['footer_menu_services'] ?? '')))),
-            'footer_menu_company' => json_encode(array_filter(array_map('trim', explode("\n", $_POST['footer_menu_company'] ?? '')))),
-            'footer_menu_legal' => json_encode(array_filter(array_map('trim', explode("\n", $_POST['footer_menu_legal'] ?? ''))))
+            'footer_menu_products' => parseMenuInput($_POST['footer_menu_products'] ?? ''),
+            'footer_menu_services' => parseMenuInput($_POST['footer_menu_services'] ?? ''),
+            'footer_menu_company' => parseMenuInput($_POST['footer_menu_company'] ?? ''),
+            'footer_menu_legal' => parseMenuInput($_POST['footer_menu_legal'] ?? '')
         ];
 
         foreach ($settings as $key => $value) {
@@ -62,11 +76,23 @@ try {
     $error = '데이터 불러오기 중 오류가 발생했습니다.';
 }
 
-// JSON 배열을 텍스트로 변환하는 함수
+// JSON 배열을 텍스트로 변환하는 함수 (새 형식: name|url)
 function jsonToText($jsonString) {
     if (empty($jsonString)) return '';
     $array = json_decode($jsonString, true);
-    return is_array($array) ? implode("\n", $array) : '';
+    if (!is_array($array)) return '';
+
+    $lines = [];
+    foreach ($array as $item) {
+        if (is_array($item) && isset($item['name'])) {
+            // 새 형식: {"name": "메뉴명", "url": "/path"}
+            $lines[] = $item['name'] . '|' . ($item['url'] ?? '#');
+        } else if (is_string($item)) {
+            // 구 형식: "메뉴명"
+            $lines[] = $item . '|#';
+        }
+    }
+    return implode("\n", $lines);
 }
 ?>
 <!DOCTYPE html>
@@ -195,28 +221,28 @@ function jsonToText($jsonString) {
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="footer_menu_products">제품 메뉴</label>
-                                <textarea id="footer_menu_products" name="footer_menu_products" class="form-control" rows="6" placeholder="한 줄에 하나씩 메뉴명을 입력하세요"><?= htmlspecialchars(jsonToText($currentSettings['footer_menu_products'] ?? '') ?: "배지소개\n코코피트 배지\n펄라이트 배지\n양액\n농업용품") ?></textarea>
-                                <small>각 메뉴 항목을 새 줄에 입력하세요</small>
+                                <textarea id="footer_menu_products" name="footer_menu_products" class="form-control" rows="6" placeholder="메뉴명|URL 형식으로 입력하세요&#10;예: 코코피트 배지|/pages/products/coco.php"><?= htmlspecialchars(jsonToText($currentSettings['footer_menu_products'] ?? '') ?: "코코피트 배지|/pages/products/coco.php\n펄라이트 배지|/pages/products/perlite.php\n혼합 배지|/pages/products/mixed.php\n제품 비교|/pages/products/compare.php") ?></textarea>
+                                <small>형식: <code>메뉴명|URL</code> (한 줄에 하나씩, URL 없으면 # 처리됨)</small>
                             </div>
 
                             <div class="form-group">
                                 <label for="footer_menu_services">서비스 메뉴</label>
-                                <textarea id="footer_menu_services" name="footer_menu_services" class="form-control" rows="6" placeholder="한 줄에 하나씩 메뉴명을 입력하세요"><?= htmlspecialchars(jsonToText($currentSettings['footer_menu_services'] ?? '') ?: "식물분석\n기술정보\nFAQ\n기술지원\n공지사항") ?></textarea>
-                                <small>각 메뉴 항목을 새 줄에 입력하세요</small>
+                                <textarea id="footer_menu_services" name="footer_menu_services" class="form-control" rows="6" placeholder="메뉴명|URL 형식으로 입력하세요&#10;예: AI 식물분석|/pages/plant_analysis/"><?= htmlspecialchars(jsonToText($currentSettings['footer_menu_services'] ?? '') ?: "AI 식물분석|/pages/plant_analysis/\nFAQ|/pages/support/faq.php\n기술지원|/pages/support/technical.php\n1:1 문의|/pages/support/inquiry.php") ?></textarea>
+                                <small>형식: <code>메뉴명|URL</code> (한 줄에 하나씩, URL 없으면 # 처리됨)</small>
                             </div>
                         </div>
 
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="footer_menu_company">회사 메뉴</label>
-                                <textarea id="footer_menu_company" name="footer_menu_company" class="form-control" rows="4" placeholder="한 줄에 하나씩 메뉴명을 입력하세요"><?= htmlspecialchars(jsonToText($currentSettings['footer_menu_company'] ?? '') ?: "회사소개\n연혁\n팀소개") ?></textarea>
-                                <small>각 메뉴 항목을 새 줄에 입력하세요</small>
+                                <textarea id="footer_menu_company" name="footer_menu_company" class="form-control" rows="4" placeholder="메뉴명|URL 형식으로 입력하세요&#10;예: 회사소개|/pages/company/about.php"><?= htmlspecialchars(jsonToText($currentSettings['footer_menu_company'] ?? '') ?: "회사소개|/pages/company/about.php\n연혁|/pages/company/history.php\n오시는길|/pages/company/location.php\n공지사항|/pages/board/") ?></textarea>
+                                <small>형식: <code>메뉴명|URL</code> (한 줄에 하나씩, URL 없으면 # 처리됨)</small>
                             </div>
 
                             <div class="form-group">
                                 <label for="footer_menu_legal">법적 정보</label>
-                                <textarea id="footer_menu_legal" name="footer_menu_legal" class="form-control" rows="4" placeholder="한 줄에 하나씩 메뉴명을 입력하세요"><?= htmlspecialchars(jsonToText($currentSettings['footer_menu_legal'] ?? '') ?: "개인정보처리방침\n이용약관\n사이트맵") ?></textarea>
-                                <small>각 메뉴 항목을 새 줄에 입력하세요</small>
+                                <textarea id="footer_menu_legal" name="footer_menu_legal" class="form-control" rows="4" placeholder="메뉴명|URL 형식으로 입력하세요&#10;예: 개인정보처리방침|/pages/legal/privacy.php"><?= htmlspecialchars(jsonToText($currentSettings['footer_menu_legal'] ?? '') ?: "개인정보처리방침|/pages/legal/privacy.php\n이용약관|/pages/legal/terms.php\n사이트맵|/sitemap.php") ?></textarea>
+                                <small>형식: <code>메뉴명|URL</code> (한 줄에 하나씩, URL 없으면 # 처리됨)</small>
                             </div>
                         </div>
                     </div>
@@ -243,13 +269,17 @@ function jsonToText($jsonString) {
                     <div class="info-box">
                         <h4>푸터 관리 가이드:</h4>
                         <ul>
-                            <li><strong>회사 설명:</strong> 간결하고 명확한 회사 소개 문구</li>
+                            <li><strong>회사 설명:</strong> 간결하고 명확한 회사 소개 문구 (모바일에서는 자동 숨김)</li>
                             <li><strong>연락처 정보:</strong> 정확한 주소, 전화번호, 이메일</li>
                             <li><strong>운영 시간:</strong> 고객이 연락 가능한 시간 명시</li>
                             <li><strong>소셜 미디어:</strong> 활성화된 소셜 미디어 계정만 입력</li>
-                            <li><strong>메뉴 구성:</strong> 각 카테고리별로 관련 링크 정리</li>
+                            <li><strong>메뉴 구성:</strong> <code>메뉴명|URL</code> 형식으로 입력 (예: AI 식물분석|/pages/plant_analysis/)</li>
                             <li><strong>저작권:</strong> 연도와 회사명을 정확히 기입</li>
                         </ul>
+                        <h4>메뉴 URL 입력 예시:</h4>
+                        <pre>코코피트 배지|/pages/products/coco.php
+AI 식물분석|/pages/plant_analysis/
+회사소개|/pages/company/about.php</pre>
                     </div>
                 </div>
             </div>
