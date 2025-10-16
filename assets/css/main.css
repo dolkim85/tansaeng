@@ -267,7 +267,8 @@ p {
 
     /* Body padding to prevent content overlap */
     body {
-        padding-top: 70px !important;
+        padding-top: 50px !important;
+        padding-bottom: 60px !important;
     }
 
     .navbar {
@@ -1257,7 +1258,8 @@ p {
 
     /* Body padding to prevent content overlap */
     body {
-        padding-top: 70px !important;
+        padding-top: 50px !important;
+        padding-bottom: 60px !important;
     }
 
     .navbar {

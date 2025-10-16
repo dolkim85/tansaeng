@@ -170,6 +170,9 @@ function initMobileMenu() {
     }, 200); // 200ms 지연
 }
 
+// toggleMobileMenu 함수는 header.php에서 정의됨
+// 중복 방지를 위해 주석 처리
+/*
 function toggleMobileMenu(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -180,7 +183,7 @@ function toggleMobileMenu(e) {
     if (navigation && toggle) {
         navigation.classList.toggle('active');
         toggle.classList.toggle('active');
-        
+
         // Animate hamburger icon
         const spans = toggle.querySelectorAll('span');
         spans.forEach((span, index) => {
@@ -195,6 +198,7 @@ function toggleMobileMenu(e) {
         });
     }
 }
+*/
 
 // Scroll to Top
 function initScrollToTop() {
