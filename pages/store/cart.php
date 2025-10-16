@@ -344,8 +344,13 @@ try {
                 margin-top: 70px !important;
             }
 
-            .header {
+            .container > .header {
                 display: none !important;
+                visibility: hidden !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
             }
 
             /* 카트 아이템 - 더 컴팩트하게 */
