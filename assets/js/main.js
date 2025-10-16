@@ -429,12 +429,20 @@ function hideTooltip(e) {
 // Smooth Scroll
 function initSmoothScroll() {
     const smoothScrollLinks = document.querySelectorAll('a[href^="#"]');
-    
+
     smoothScrollLinks.forEach(link => {
         link.addEventListener('click', function(e) {
+            const href = this.getAttribute('href');
+
+            // # 하나만 있는 링크는 무시 (푸터 메뉴 등)
+            if (href === '#') {
+                e.preventDefault();
+                return;
+            }
+
             e.preventDefault();
-            
-            const target = document.querySelector(this.getAttribute('href'));
+
+            const target = document.querySelector(href);
             if (target) {
                 target.scrollIntoView({
                     behavior: 'smooth',
