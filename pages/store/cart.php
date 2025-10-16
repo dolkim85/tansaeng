@@ -19,10 +19,9 @@ try {
     <title>장바구니 - 탄생</title>
     <link rel="stylesheet" href="../../assets/css/main.css?v=<?= date('YmdHis') ?>">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Noto Sans KR', sans-serif; background: #f8f9fa; }
+        body { background: #f8f9fa; }
 
-        .container { max-width: 1200px; margin: 80px auto 0 auto; padding: 15px; }
+        .cart-page-container { max-width: 1200px; margin: 80px auto 0 auto; padding: 15px; }
 
         .cart-layout {
             display: flex;
@@ -339,12 +338,12 @@ try {
 
         @media (max-width: 768px) {
             /* 모바일 레이아웃 */
-            .container {
+            .cart-page-container {
                 padding: 10px;
                 margin-top: 70px !important;
             }
 
-            .container > .header {
+            .cart-page-container > .header {
                 display: none !important;
                 visibility: hidden !important;
                 height: 0 !important;
@@ -566,7 +565,7 @@ try {
 <body>
     <?php include '../../includes/header.php'; ?>
 
-    <div class="container">
+    <div class="cart-page-container">
         <div class="header">
             <h1>🛒 장바구니</h1>
             <p>선택하신 상품을 확인하고 주문을 진행하세요</p>
