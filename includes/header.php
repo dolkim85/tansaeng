@@ -51,7 +51,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
         <ul class="nav-menu" id="nav-menu">
             <li><a href="/">홈</a></li>
             <li class="dropdown">
-                <span class="dropbtn">기업소개</span>
+                <a href="#" class="dropbtn">기업소개</a>
                 <ul class="dropdown-content">
                     <li><a href="/pages/company/about.php">회사소개</a></li>
                     <li><a href="/pages/company/history.php">연혁</a></li>
