@@ -74,12 +74,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $sql = "INSERT INTO boards (category_id, user_id, title, content, summary, attached_files)
-                    VALUES (?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO boards (category_id, user_id, author_name, title, content, summary, attached_files)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 $category_id,
                 $currentUser['id'],
+                $currentUser['name'],
                 $title,
                 $content,
                 $summary ?: substr(strip_tags($content), 0, 200),
