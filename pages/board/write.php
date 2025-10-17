@@ -58,12 +58,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $file_path = $upload_dir . $new_filename;
 
                         if (move_uploaded_file($_FILES['attachments']['tmp_name'][$key], $file_path)) {
+                            // Set file permissions
+                            chmod($file_path, 0644);
+
                             $attached_files[] = [
                                 'name' => $original_filename,
                                 'path' => '/uploads/board/' . $new_filename,
                                 'size' => $_FILES['attachments']['size'][$key],
                                 'type' => $_FILES['attachments']['type'][$key]
                             ];
+                        } else {
+                            error_log("Failed to upload file: $original_filename");
                         }
                     }
                 }
@@ -91,7 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
         } catch (Exception $e) {
             $pdo->rollback();
-            $error = '게시글 등록에 실패했습니다.';
+            $error = '게시글 등록에 실패했습니다: ' . $e->getMessage();
+            error_log('Board write error: ' . $e->getMessage());
         }
     }
 }
