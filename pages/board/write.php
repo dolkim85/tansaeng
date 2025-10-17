@@ -104,10 +104,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>게시글 작성 - 탄생</title>
     <link rel="stylesheet" href="/assets/css/main.css">
     <style>
+        body {
+            overflow-y: auto;
+            height: auto;
+            min-height: 100vh;
+        }
+
         .write-container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             padding: 20px;
+            background: #f9f9f9;
+            min-height: calc(100vh - 200px);
+            padding-bottom: 100px;
         }
 
         @media (max-width: 768px) {
@@ -338,8 +347,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
     <?php include '../../includes/header.php'; ?>
-    
-    <main >
+
+    <main class="write-container">
         <div class="write-header">
             <h1 class="write-title">게시글 작성</h1>
         </div>
