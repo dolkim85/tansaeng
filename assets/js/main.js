@@ -634,7 +634,7 @@ window.TangsaengApp = {
     validateField
 };
 
-// Product Carousel Function - Auto-rotating infinite carousel
+// Product Carousel Function - Fade in/out carousel like hero slider
 function initProductCarousel() {
     const carousel = document.getElementById('productCarousel');
 
@@ -652,40 +652,45 @@ function initProductCarousel() {
     const cards = Array.from(carousel.children);
     if (cards.length === 0) return;
 
-    // Clone cards for infinite effect
-    cards.forEach(card => {
-        const clone = card.cloneNode(true);
-        carousel.appendChild(clone);
-    });
-
-    const cardWidth = window.innerWidth <= 768 ? 260 : 340; // 카드 너비 + gap
-    const totalCards = cards.length;
     let currentIndex = 0;
     let autoplayInterval;
 
-    // CSS transition 추가
-    carousel.style.transition = 'transform 0.5s ease-in-out';
+    // Setup: 모든 카드를 절대 위치로 변경하고 숨김
+    carousel.style.position = 'relative';
+    carousel.style.minHeight = '200px'; // 최소 높이 설정
 
-    function updateCarousel(instant = false) {
-        if (instant) {
-            carousel.style.transition = 'none';
-        } else {
-            carousel.style.transition = 'transform 0.5s ease-in-out';
+    cards.forEach((card, index) => {
+        card.style.position = 'absolute';
+        card.style.top = '0';
+        card.style.left = '50%';
+        card.style.transform = 'translateX(-50%)';
+        card.style.opacity = '0';
+        card.style.transition = 'opacity 0.8s ease-in-out';
+        card.style.zIndex = '1';
+        card.style.width = window.innerWidth <= 768 ? '260px' : '340px';
+
+        // 첫 번째 카드만 표시
+        if (index === 0) {
+            card.style.opacity = '1';
+            card.style.zIndex = '2';
         }
-        carousel.style.transform = `translateX(-${currentIndex * cardWidth}px)`;
+    });
+
+    function showCard(index) {
+        cards.forEach((card, i) => {
+            if (i === index) {
+                card.style.opacity = '1';
+                card.style.zIndex = '2';
+            } else {
+                card.style.opacity = '0';
+                card.style.zIndex = '1';
+            }
+        });
     }
 
     function slideNext() {
-        currentIndex++;
-        updateCarousel();
-
-        // 끝에 도달하면 즉시 처음으로 리셋 (무한 루프 효과)
-        if (currentIndex >= totalCards) {
-            setTimeout(() => {
-                currentIndex = 0;
-                updateCarousel(true); // 즉시 이동 (transition 없이)
-            }, 500); // transition 끝난 후
-        }
+        currentIndex = (currentIndex + 1) % cards.length;
+        showCard(currentIndex);
     }
 
     // 자동 재생 시작
@@ -697,9 +702,6 @@ function initProductCarousel() {
     function stopAutoplay() {
         clearInterval(autoplayInterval);
     }
-
-    // Initialize carousel
-    updateCarousel(true);
 
     // 마우스 호버 시 자동재생 멈춤
     const carouselContainer = carousel.closest('.product-carousel-container');
@@ -720,11 +722,11 @@ function initProductCarousel() {
     // Update on window resize
     window.addEventListener('resize', debounce(() => {
         stopAutoplay();
-        const newCardWidth = window.innerWidth <= 768 ? 260 : 340;
-        // 현재 인덱스 유지하면서 너비만 업데이트
-        updateCarousel(true);
+        cards.forEach(card => {
+            card.style.width = window.innerWidth <= 768 ? '260px' : '340px';
+        });
         startAutoplay();
     }, 250));
 
-    console.log('Product carousel initialized - Auto-rotating mode');
+    console.log('Product carousel initialized - Fade mode');
 }
