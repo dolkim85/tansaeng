@@ -606,13 +606,23 @@ try {
             cursor: pointer;
             transition: all 0.3s ease;
         }
-        
+
+        .btn-edit {
+            color: #007bff;
+            border-color: #007bff;
+        }
+
         .btn-edit:hover {
             background: #007bff;
             color: white;
             border-color: #007bff;
         }
-        
+
+        .btn-delete {
+            color: #dc3545;
+            border-color: #dc3545;
+        }
+
         .btn-delete:hover {
             background: #dc3545;
             color: white;
