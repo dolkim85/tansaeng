@@ -235,6 +235,49 @@ AI 식물질병 진단 시스템 연구') ?></textarea>
                         </div>
                     </div>
 
+                    <div class="form-section">
+                        <div class="section-header">
+                            <span class="section-icon">📞</span>
+                            <h3>회사 연락처 정보</h3>
+                        </div>
+                        <div class="section-body">
+                            <div class="form-group">
+                                <label for="company_address">주소</label>
+                                <input type="text" id="company_address" name="company_address" class="form-control"
+                                       value="<?= htmlspecialchars($currentSettings['company_address'] ?? '서울특별시 강남구 테헤란로 123') ?>"
+                                       placeholder="예: 서울특별시 강남구 테헤란로 123">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="company_phone">전화번호</label>
+                                <input type="text" id="company_phone" name="company_phone" class="form-control"
+                                       value="<?= htmlspecialchars($currentSettings['company_phone'] ?? '02-0000-0000') ?>"
+                                       placeholder="예: 02-0000-0000">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="company_fax">팩스번호</label>
+                                <input type="text" id="company_fax" name="company_fax" class="form-control"
+                                       value="<?= htmlspecialchars($currentSettings['company_fax'] ?? '02-0000-0001') ?>"
+                                       placeholder="예: 02-0000-0001">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="company_email">이메일</label>
+                                <input type="email" id="company_email" name="company_email" class="form-control"
+                                       value="<?= htmlspecialchars($currentSettings['company_email'] ?? 'tansaeng@naver.com') ?>"
+                                       placeholder="예: info@tansaeng.com">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="company_business_hours">영업시간</label>
+                                <textarea id="company_business_hours" name="company_business_hours" class="form-control" rows="3"><?= htmlspecialchars($currentSettings['company_business_hours'] ?? '평일: 09:00 - 18:00
+토요일: 09:00 - 13:00
+일요일 및 공휴일: 휴무') ?></textarea>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">저장</button>
                         <button type="reset" class="btn btn-secondary">취소</button>

@@ -155,19 +155,22 @@ try {
                     <div class="contact-details">
                         <h3>회사 정보</h3>
                         <div class="detail-item">
-                            <strong>주소:</strong> 서울특별시 강남구 테헤란로 123
+                            <strong>주소:</strong> <?= htmlspecialchars($siteSettings['company_address'] ?? '서울특별시 강남구 테헤란로 123') ?>
                         </div>
                         <div class="detail-item">
-                            <strong>전화:</strong> 02-0000-0000
+                            <strong>전화:</strong> <?= htmlspecialchars($siteSettings['company_phone'] ?? '02-0000-0000') ?>
                         </div>
                         <div class="detail-item">
-                            <strong>팩스:</strong> 02-0000-0001
+                            <strong>팩스:</strong> <?= htmlspecialchars($siteSettings['company_fax'] ?? '02-0000-0001') ?>
                         </div>
                         <div class="detail-item">
-                            <strong>이메일:</strong> info@tangsaeng.com
+                            <strong>이메일:</strong> <?= htmlspecialchars($siteSettings['company_email'] ?? 'tansaeng@naver.com') ?>
                         </div>
                         <div class="detail-item">
-                            <strong>영업시간:</strong> 평일 09:00 - 18:00 (주말 및 공휴일 휴무)
+                            <strong>영업시간:</strong><br>
+                            <?= nl2br(htmlspecialchars($siteSettings['company_business_hours'] ?? '평일: 09:00 - 18:00
+토요일: 09:00 - 13:00
+일요일 및 공휴일: 휴무')) ?>
                         </div>
                     </div>
                     <div class="map-placeholder">
