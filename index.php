@@ -316,18 +316,24 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
 
             <div class="news-grid">
                 <div class="news-card">
-                    <div class="news-category">공지사항</div>
-                    <h3 class="news-title">신제품 코코피트 배지 출시 안내</h3>
+                    <div>
+                        <div class="news-category">공지사항</div>
+                        <h3 class="news-title">신제품 코코피트 배지 출시 안내</h3>
+                    </div>
                     <div class="news-date">2024.12.15</div>
                 </div>
                 <div class="news-card">
-                    <div class="news-category">기술지원</div>
-                    <h3 class="news-title">AI 식물분석 서비스 업그레이드 완료</h3>
+                    <div>
+                        <div class="news-category">기술지원</div>
+                        <h3 class="news-title">AI 식물분석 서비스 업그레이드 완료</h3>
+                    </div>
                     <div class="news-date">2024.12.10</div>
                 </div>
                 <div class="news-card">
-                    <div class="news-category">공지사항</div>
-                    <h3 class="news-title">연말연시 배송 일정 안내</h3>
+                    <div>
+                        <div class="news-category">공지사항</div>
+                        <h3 class="news-title">연말연시 배송 일정 안내</h3>
+                    </div>
                     <div class="news-date">2024.12.05</div>
                 </div>
             </div>
