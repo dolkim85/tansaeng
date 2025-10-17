@@ -32,7 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'company_partners' => trim($_POST['company_partners'] ?? ''),
             'company_awards' => trim($_POST['company_awards'] ?? ''),
             'company_research' => trim($_POST['company_research'] ?? ''),
-            'company_future_plans' => trim($_POST['company_future_plans'] ?? '')
+            'company_future_plans' => trim($_POST['company_future_plans'] ?? ''),
+            // 회사 연락처 정보
+            'company_address' => trim($_POST['company_address'] ?? ''),
+            'company_phone' => trim($_POST['company_phone'] ?? ''),
+            'company_fax' => trim($_POST['company_fax'] ?? ''),
+            'company_email' => trim($_POST['company_email'] ?? ''),
+            'company_business_hours' => trim($_POST['company_business_hours'] ?? '')
         ];
 
         foreach ($settings as $key => $value) {

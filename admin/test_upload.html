@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>업로드 테스트</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .upload-box { border: 2px dashed #ccc; padding: 40px; text-align: center; margin: 20px 0; }
+        .result { margin-top: 20px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>이미지 업로드 테스트</h1>
+
+    <div class="upload-box" onclick="document.getElementById('fileInput').click()">
+        <p>클릭하여 이미지 선택</p>
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+    </div>
+
+    <div id="fileInfo" style="margin: 10px 0;"></div>
+
+    <div id="preview" style="margin: 10px 0; display: none;">
+        <strong>미리보기:</strong><br>
+        <img id="previewImg" style="max-width: 300px; max-height: 300px; border: 1px solid #ddd; margin-top: 10px;">
+    </div>
+
+    <button id="uploadBtn" disabled>업로드</button>
+
+    <div id="result" class="result" style="display: none;"></div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const result = document.getElementById('result');
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                fileInfo.innerHTML = `
+                    <strong>선택된 파일:</strong><br>
+                    이름: ${file.name}<br>
+                    크기: ${(file.size / 1024).toFixed(2)} KB<br>
+                    타입: ${file.type}
+                `;
+                uploadBtn.disabled = false;
+
+                // 미리보기 표시
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const previewImg = document.getElementById('previewImg');
+                    previewImg.src = e.target.result;
+                    document.getElementById('preview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        uploadBtn.addEventListener('click', function() {
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('파일을 선택하세요');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('slider_images[]', file);
+
+            console.log('업로드 시작:', file.name);
+            result.style.display = 'block';
+            result.innerHTML = '업로드 중...';
+            result.className = 'result';
+
+            fetch('/admin/includes/upload_slider_images.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('응답 상태:', response.status);
+                console.log('응답 헤더:', response.headers);
+                return response.text();
+            })
+            .then(text => {
+                console.log('응답 텍스트:', text);
+                try {
+                    const data = JSON.parse(text);
+                    console.log('파싱된 데이터:', data);
+
+                    if (data.success) {
+                        result.className = 'result success';
+                        result.innerHTML = `
+                            <strong>업로드 성공!</strong><br>
+                            메시지: ${data.message}<br>
+                            URL: ${data.urls.join('<br>')}
+                        `;
+                    } else {
+                        result.className = 'result error';
+                        result.innerHTML = `
+                            <strong>업로드 실패</strong><br>
+                            오류: ${data.error}<br>
+                            ${data.details ? '상세: ' + data.details.join('<br>') : ''}
+                        `;
+                    }
+                } catch (e) {
+                    result.className = 'result error';
+                    result.innerHTML = `
+                        <strong>JSON 파싱 오류</strong><br>
+                        응답 텍스트: <pre>${text}</pre><br>
+                        오류: ${e.message}
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('업로드 오류:', error);
+                result.className = 'result error';
+                result.innerHTML = `<strong>업로드 오류:</strong> ${error.message}`;
+            });
+        });
+    </script>
+</body>
+</html>
