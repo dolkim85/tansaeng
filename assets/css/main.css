@@ -321,8 +321,9 @@ p {
 
     /* Mobile Sections */
     .hero-section {
-        padding: 120px 0 80px 0;
-        margin-bottom: 40px;
+        padding: 0px 0 40px 0 !important;
+        margin-bottom: 20px !important;
+        margin-top: 0px !important;
     }
 
     .hero-container {
@@ -1322,11 +1323,7 @@ p {
         cursor: pointer !important;
     }
 
-    /* Mobile Sections */
-    .hero-section {
-        padding: 80px 0 60px 0;
-        margin-bottom: 30px;
-    }
+    /* This duplicate section is removed - see line 323 for mobile hero-section styles */
 
     .hero-container {
         grid-template-columns: 1fr;
