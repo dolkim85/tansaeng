@@ -7,8 +7,18 @@
  * - 운영: https://www.tansaeng.com
  */
 
-// .env 파일 로드
-require_once __DIR__ . '/env.php';
+// .env 파일 로드 (있을 경우에만)
+$envFile = __DIR__ . '/env.php';
+if (file_exists($envFile)) {
+    require_once $envFile;
+}
+
+// env() 함수가 정의되지 않은 경우 정의
+if (!function_exists('env')) {
+    function env($key, $default = null) {
+        return $_ENV[$key] ?? getenv($key) ?: $default;
+    }
+}
 
 // 환경 자동 감지
 $isLocal = (
