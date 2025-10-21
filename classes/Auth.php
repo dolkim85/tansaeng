@@ -108,7 +108,28 @@ class Auth {
     }
 
     public function hasPlantAnalysisPermission() {
-        return $this->isLoggedIn() && $_SESSION['plant_analysis_permission'] == 1;
+        if (!$this->isLoggedIn()) {
+            return false;
+        }
+
+        // 먼저 세션에서 확인
+        if (isset($_SESSION['plant_analysis_permission']) && $_SESSION['plant_analysis_permission'] == 1) {
+            return true;
+        }
+
+        // 세션에 없으면 데이터베이스에서 확인
+        try {
+            $user = $this->getCurrentUser();
+            if ($user && isset($user['plant_analysis_permission']) && $user['plant_analysis_permission'] == 1) {
+                // 세션에도 저장
+                $_SESSION['plant_analysis_permission'] = 1;
+                return true;
+            }
+        } catch (Exception $e) {
+            // 데이터베이스 오류시 false 반환
+        }
+
+        return false;
     }
 
     public function isAdmin() {
