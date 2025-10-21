@@ -374,29 +374,124 @@ try {
             color: #721c24;
         }
         
+        /* 모바일 카드 스타일 */
+        .board-list-mobile {
+            display: none;
+        }
+
         @media (max-width: 768px) {
             .board-header {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 15px;
             }
-            
+
             .search-form {
                 flex-direction: column;
                 width: 100%;
             }
-            
+
             .search-input {
                 max-width: none;
             }
-            
-            .board-table th:nth-child(4),
-            .board-table td:nth-child(4),
-            .board-table th:nth-child(5),
-            .board-table td:nth-child(5) {
+
+            /* 테이블 숨기고 카드 보이기 */
+            .board-table {
                 display: none;
             }
-            
+
+            .board-list-mobile {
+                display: block;
+            }
+
+            .board-card {
+                background: white;
+                border-radius: 8px;
+                padding: 16px;
+                margin-bottom: 12px;
+                border-left: 4px solid #2E7D32;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                transition: all 0.3s ease;
+            }
+
+            .board-card:active {
+                transform: scale(0.98);
+                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            }
+
+            .board-card-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                margin-bottom: 10px;
+                gap: 8px;
+            }
+
+            .board-card-title {
+                flex: 1;
+                color: #333;
+                text-decoration: none;
+                font-weight: 600;
+                font-size: 15px;
+                line-height: 1.4;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+
+            .board-card-number {
+                color: #999;
+                font-size: 12px;
+                font-weight: 500;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+
+            .board-card-meta {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+                font-size: 12px;
+                color: #666;
+                margin-top: 8px;
+            }
+
+            .board-card-category {
+                background: #E8F5E8;
+                color: #2E7D32;
+                padding: 3px 8px;
+                border-radius: 4px;
+                font-weight: 600;
+                font-size: 11px;
+            }
+
+            .board-card-author {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+
+            .board-card-date {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+
+            .board-card-views {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                margin-left: auto;
+            }
+
+            .board-card-badges {
+                display: flex;
+                gap: 4px;
+                margin-bottom: 8px;
+            }
+
             .pagination {
                 flex-wrap: wrap;
             }
@@ -465,6 +560,54 @@ try {
                     <?php endif; ?>
                 </div>
             <?php else: ?>
+                <!-- 모바일 카드 리스트 -->
+                <div class="board-list-mobile">
+                    <?php foreach ($posts as $index => $post): ?>
+                        <div class="board-card">
+                            <?php if ($post['is_notice'] || $post['is_featured']): ?>
+                                <div class="board-card-badges">
+                                    <?php if ($post['is_notice']): ?>
+                                        <span class="notice-badge">공지</span>
+                                    <?php endif; ?>
+                                    <?php if ($post['is_featured']): ?>
+                                        <span class="review-badge">추천</span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="board-card-header">
+                                <a href="view.php?id=<?= $post['id'] ?>" class="board-card-title">
+                                    <?= htmlspecialchars($post['title']) ?>
+                                </a>
+                                <span class="board-card-number">#<?= $total_posts - ($page - 1) * $per_page - $index ?></span>
+                            </div>
+
+                            <div class="board-card-meta">
+                                <span class="board-card-category"><?= htmlspecialchars($post['category_name']) ?></span>
+                                <span class="board-card-author">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                                    </svg>
+                                    <?= htmlspecialchars(mb_substr($post['author_name'] ?: '익명', 0, 6)) ?>
+                                </span>
+                                <span class="board-card-date">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                                    </svg>
+                                    <?= date('m/d', strtotime($post['created_at'])) ?>
+                                </span>
+                                <span class="board-card-views">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                                    </svg>
+                                    <?= $post['views'] > 999 ? round($post['views']/1000, 1).'k' : $post['views'] ?>
+                                </span>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <!-- 데스크톱 테이블 -->
                 <table class="board-table">
                     <thead>
                         <tr>
