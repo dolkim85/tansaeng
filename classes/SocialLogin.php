@@ -303,33 +303,42 @@ class SocialLogin {
      * 사용자 등록 또는 로그인 처리
      */
     private function processUser($provider, $socialId, $userData) {
+        $logFile = __DIR__ . '/../kakao_debug.log';
+
         try {
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] processUser called with provider=$provider, socialId=$socialId, userData=" . json_encode($userData) . "\n", FILE_APPEND);
+
             // 기존 소셜 계정 확인
             $stmt = $this->pdo->prepare("SELECT * FROM users WHERE oauth_provider = ? AND oauth_id = ?");
             $stmt->execute([$provider, $socialId]);
             $user = $stmt->fetch();
-            
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Existing social user: " . json_encode($user) . "\n", FILE_APPEND);
+
             if ($user) {
                 // 기존 사용자 - 정보 업데이트
+                file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Updating existing social user...\n", FILE_APPEND);
                 $stmt = $this->pdo->prepare("
-                    UPDATE users SET 
+                    UPDATE users SET
                         username = COALESCE(NULLIF(?, ''), username),
                         avatar_url = COALESCE(NULLIF(?, ''), avatar_url),
                         last_login = CURRENT_TIMESTAMP
                     WHERE id = ?
                 ");
                 $stmt->execute([$userData['username'], $userData['avatar_url'], $user['id']]);
-                
+
                 return $user;
             } else {
                 // 이메일로 기존 계정 확인
                 if (!empty($userData['email'])) {
+                    file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Checking existing user by email: " . $userData['email'] . "\n", FILE_APPEND);
                     $stmt = $this->pdo->prepare("SELECT * FROM users WHERE email = ?");
                     $stmt->execute([$userData['email']]);
                     $existingUser = $stmt->fetch();
-                    
+                    file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Existing user by email: " . json_encode($existingUser) . "\n", FILE_APPEND);
+
                     if ($existingUser) {
                         // 기존 계정에 소셜 로그인 연결
+                        file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Linking social login to existing user...\n", FILE_APPEND);
                         $stmt = $this->pdo->prepare("
                             UPDATE users SET
                                 oauth_provider = ?,
@@ -339,12 +348,13 @@ class SocialLogin {
                             WHERE id = ?
                         ");
                         $stmt->execute([$provider, $socialId, $userData['avatar_url'], $existingUser['id']]);
-                        
+
                         return $existingUser;
                     }
                 }
-                
+
                 // 새 사용자 생성
+                file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Creating new user...\n", FILE_APPEND);
                 $stmt = $this->pdo->prepare("
                     INSERT INTO users (username, email, oauth_provider, oauth_id, avatar_url, created_at)
                     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -356,16 +366,19 @@ class SocialLogin {
                     $socialId,
                     $userData['avatar_url']
                 ]);
-                
+
                 $userId = $this->pdo->lastInsertId();
-                
+                file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] New user created with ID: $userId\n", FILE_APPEND);
+
                 // 새로 생성된 사용자 정보 반환
                 $stmt = $this->pdo->prepare("SELECT * FROM users WHERE id = ?");
                 $stmt->execute([$userId]);
-                
+
                 return $stmt->fetch();
             }
         } catch (Exception $e) {
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] !!! EXCEPTION in processUser: " . $e->getMessage() . "\n", FILE_APPEND);
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Stack trace: " . $e->getTraceAsString() . "\n", FILE_APPEND);
             error_log('Process user error: ' . $e->getMessage());
             return false;
         }
