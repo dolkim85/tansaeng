@@ -94,10 +94,23 @@ try {
 
     // Board posts statistics
     try {
-        $stmt = $pdo->query("SELECT COUNT(*) FROM board_posts");
+        $stmt = $pdo->query("SELECT COUNT(*) FROM board_posts WHERE status != 'deleted'");
         $stats['total_posts'] = $stmt->fetchColumn();
     } catch (Exception $e) {
         error_log("Dashboard board statistics error: " . $e->getMessage());
+    }
+
+    // Recent board posts (last 5)
+    $recent_posts = [];
+    try {
+        $stmt = $pdo->query("SELECT bp.id, bp.title, bp.views, bp.created_at, u.name as author
+                             FROM board_posts bp
+                             LEFT JOIN users u ON bp.user_id = u.id
+                             WHERE bp.status != 'deleted'
+                             ORDER BY bp.created_at DESC LIMIT 5");
+        $recent_posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Dashboard recent posts error: " . $e->getMessage());
     }
 
     // Recent users (last 5)
@@ -332,6 +345,34 @@ try {
                                             </div>
                                             <div class="activity-time">
                                                 <?= date('m/d H:i', strtotime($analysis['created_at'])) ?>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Recent Board Posts -->
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3>최근 게시글</h3>
+                            <a href="/admin/board/" class="btn btn-outline btn-sm">전체보기</a>
+                        </div>
+                        <div class="card-body">
+                            <?php if (empty($recent_posts)): ?>
+                                <p class="no-data">최근 게시글이 없습니다.</p>
+                            <?php else: ?>
+                                <div class="activity-list">
+                                    <?php foreach ($recent_posts as $post): ?>
+                                        <div class="activity-item">
+                                            <div class="activity-icon">📝</div>
+                                            <div class="activity-info">
+                                                <strong><?= htmlspecialchars($post['title']) ?></strong>
+                                                <small><?= htmlspecialchars($post['author'] ?? '익명') ?> · 조회 <?= number_format($post['views']) ?></small>
+                                            </div>
+                                            <div class="activity-time">
+                                                <?= date('m/d H:i', strtotime($post['created_at'])) ?>
                                             </div>
                                         </div>
                                     <?php endforeach; ?>
