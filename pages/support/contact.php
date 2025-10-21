@@ -2,12 +2,15 @@
 // 데이터베이스 연결을 선택적으로 처리
 $currentUser = null;
 $dbConnected = false;
+$contactSettings = null;
 
 try {
     require_once __DIR__ . '/../../classes/Auth.php';
+    require_once __DIR__ . '/../../classes/ContactSettings.php';
     $auth = Auth::getInstance();
     $currentUser = $auth->getCurrentUser();
     $db = Database::getInstance();
+    $contactSettings = ContactSettings::getInstance();
     $dbConnected = true;
 } catch (Exception $e) {
     // 데이터베이스 연결 실패시 계속 진행
@@ -85,26 +88,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $dbConnected) {
                     <div class="method-card">
                         <div class="method-icon">📞</div>
                         <h3>전화 문의</h3>
-                        <p>02-0000-0000</p>
-                        <small>평일 09:00-18:00 (점심시간 12:00-13:00)</small>
+                        <p><?= $contactSettings ? htmlspecialchars($contactSettings->get('phone_number', '02-0000-0000')) : '02-0000-0000' ?></p>
+                        <small><?= $contactSettings ? htmlspecialchars($contactSettings->get('phone_hours', '평일 09:00-18:00 (점심시간 12:00-13:00)')) : '평일 09:00-18:00 (점심시간 12:00-13:00)' ?></small>
                     </div>
                     <div class="method-card">
                         <div class="method-icon">✉️</div>
                         <h3>이메일 문의</h3>
-                        <p>support@tangsaeng.com</p>
-                        <small>24시간 접수, 2-3일 내 답변</small>
+                        <p><?= $contactSettings ? htmlspecialchars($contactSettings->get('email_address', 'support@tangsaeng.com')) : 'support@tangsaeng.com' ?></p>
+                        <small><?= $contactSettings ? htmlspecialchars($contactSettings->get('email_response_time', '24시간 접수, 2-3일 내 답변')) : '24시간 접수, 2-3일 내 답변' ?></small>
                     </div>
                     <div class="method-card">
                         <div class="method-icon">💬</div>
                         <h3>온라인 문의</h3>
-                        <p>아래 문의 양식 작성</p>
-                        <small>실시간 접수, 빠른 답변</small>
+                        <p><?= $contactSettings ? htmlspecialchars($contactSettings->get('online_inquiry_desc', '아래 문의 양식 작성')) : '아래 문의 양식 작성' ?></p>
+                        <small><?= $contactSettings ? htmlspecialchars($contactSettings->get('online_inquiry_note', '실시간 접수, 빠른 답변')) : '실시간 접수, 빠른 답변' ?></small>
                     </div>
                     <div class="method-card">
                         <div class="method-icon">📍</div>
                         <h3>방문 상담</h3>
-                        <p>서울특별시 강남구 테헤란로 123</p>
-                        <small>사전 예약 후 방문 (전화 예약 필수)</small>
+                        <p><?= $contactSettings ? htmlspecialchars($contactSettings->get('visit_address', '서울특별시 강남구 테헤란로 123')) : '서울특별시 강남구 테헤란로 123' ?></p>
+                        <small><?= $contactSettings ? htmlspecialchars($contactSettings->get('visit_note', '사전 예약 후 방문 (전화 예약 필수)')) : '사전 예약 후 방문 (전화 예약 필수)' ?></small>
                     </div>
                 </div>
             </section>
@@ -208,33 +211,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $dbConnected) {
                         <div class="hours-info">
                             <div class="hours-item">
                                 <span class="day">평일</span>
-                                <span class="time">09:00 - 18:00</span>
+                                <span class="time"><?= $contactSettings ? htmlspecialchars($contactSettings->get('business_hours_weekday', '09:00 - 18:00')) : '09:00 - 18:00' ?></span>
                             </div>
                             <div class="hours-item">
                                 <span class="day">점심시간</span>
-                                <span class="time">12:00 - 13:00</span>
+                                <span class="time"><?= $contactSettings ? htmlspecialchars($contactSettings->get('business_hours_lunch', '12:00 - 13:00')) : '12:00 - 13:00' ?></span>
                             </div>
                             <div class="hours-item">
                                 <span class="day">주말/공휴일</span>
-                                <span class="time">휴무</span>
+                                <span class="time"><?= $contactSettings ? htmlspecialchars($contactSettings->get('business_hours_weekend', '휴무')) : '휴무' ?></span>
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="hours-card">
                         <h3>✉️ 이메일/온라인 문의</h3>
                         <div class="hours-info">
                             <div class="hours-item">
                                 <span class="day">접수</span>
-                                <span class="time">24시간</span>
+                                <span class="time"><?= $contactSettings ? htmlspecialchars($contactSettings->get('email_hours_reception', '24시간')) : '24시간' ?></span>
                             </div>
                             <div class="hours-item">
                                 <span class="day">답변</span>
-                                <span class="time">평일 기준 2-3일</span>
+                                <span class="time"><?= $contactSettings ? htmlspecialchars($contactSettings->get('email_hours_response', '평일 기준 2-3일')) : '평일 기준 2-3일' ?></span>
                             </div>
                             <div class="hours-item">
                                 <span class="day">긴급 문의</span>
-                                <span class="time">전화 상담 권장</span>
+                                <span class="time"><?= $contactSettings ? htmlspecialchars($contactSettings->get('email_hours_urgent', '전화 상담 권장')) : '전화 상담 권장' ?></span>
                             </div>
                         </div>
                     </div>
