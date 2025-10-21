@@ -117,16 +117,19 @@ class Auth {
             return true;
         }
 
-        // 세션에 없으면 데이터베이스에서 확인
+        // 세션에 없으면 데이터베이스에서 직접 확인
         try {
-            $user = $this->getCurrentUser();
-            if ($user && isset($user['plant_analysis_permission']) && $user['plant_analysis_permission'] == 1) {
-                // 세션에도 저장
+            $userId = $_SESSION['user_id'];
+            $userData = $this->user->getUserById($userId);
+
+            if ($userData && isset($userData['plant_analysis_permission']) && $userData['plant_analysis_permission'] == 1) {
+                // 세션에도 저장하여 다음 요청에서는 DB 조회 생략
                 $_SESSION['plant_analysis_permission'] = 1;
                 return true;
             }
         } catch (Exception $e) {
             // 데이터베이스 오류시 false 반환
+            error_log('hasPlantAnalysisPermission DB Error: ' . $e->getMessage());
         }
 
         return false;

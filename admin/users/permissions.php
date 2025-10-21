@@ -15,25 +15,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_permission']))
     $user_id = intval($_POST['user_id']);
     $permission_type = $_POST['permission_type'];
     $permission_value = isset($_POST['permission_value']) ? 1 : 0;
-    
+
     try {
         $pdo = Database::getInstance()->getConnection();
-        
+
         if ($permission_type === 'plant_analysis') {
-            $sql = "UPDATE users SET plant_analysis_permission = ? WHERE id = ?";
+            $sql = "UPDATE users SET plant_analysis_permission = ?, updated_at = NOW() WHERE id = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$permission_value, $user_id]);
-            
-            $success = '식물분석 권한이 업데이트되었습니다.';
+
+            // 권한 변경 로그 기록 (선택사항)
+            $admin_id = $auth->getCurrentUserId();
+            $action = $permission_value ? '권한 부여' : '권한 해제';
+            error_log("Admin {$admin_id} {$action} for User {$user_id} - plant_analysis_permission = {$permission_value}");
+
+            $success = '식물분석 권한이 업데이트되었습니다. 사용자가 로그인하면 변경된 권한이 적용됩니다.';
         } elseif ($permission_type === 'user_level') {
             $new_level = intval($_POST['user_level']);
-            $sql = "UPDATE users SET user_level = ? WHERE id = ?";
+            $sql = "UPDATE users SET user_level = ?, updated_at = NOW() WHERE id = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$new_level, $user_id]);
-            
+
             $success = '사용자 등급이 업데이트되었습니다.';
         }
-        
+
     } catch (Exception $e) {
         $error = '권한 업데이트에 실패했습니다: ' . $e->getMessage();
     }
