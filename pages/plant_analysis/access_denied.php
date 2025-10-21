@@ -22,8 +22,8 @@ try {
 <body>
     <?php include '../../includes/header.php'; ?>
 
-    <main >
-        <div class="access-denied-content">
+    <main style="display: flex; justify-content: center; align-items: flex-start; min-height: calc(100vh - 200px); padding: 2rem 1rem;">
+        <div class="access-denied-content" style="max-width: 900px; width: 100%; text-align: center;">
             <div class="access-denied-icon">🔒</div>
             <h1>식물분석 서비스 접근 권한이 없습니다</h1>
             
