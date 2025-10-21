@@ -180,6 +180,10 @@ if ($dbConnected) {
                             <span class="nav-icon">🌱</span>
                             <span>식물분석</span>
                         </a>
+                        <a href="/api/auth/logout.php" class="nav-link logout-link" onclick="return confirm('로그아웃하시겠습니까?')">
+                            <span class="nav-icon">🚪</span>
+                            <span>로그아웃</span>
+                        </a>
                     </nav>
                 </div>
 
