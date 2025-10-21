@@ -355,13 +355,19 @@ class SocialLogin {
 
                 // 새 사용자 생성
                 file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Creating new user...\n", FILE_APPEND);
+
+                // 소셜 로그인 사용자는 비밀번호가 필요 없으므로 랜덤 해시 생성
+                $randomPassword = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
+
                 $stmt = $this->pdo->prepare("
-                    INSERT INTO users (username, email, oauth_provider, oauth_id, avatar_url, created_at)
-                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    INSERT INTO users (username, email, password, name, oauth_provider, oauth_id, avatar_url, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ");
                 $stmt->execute([
                     $userData['username'],
-                    $userData['email'],
+                    $userData['email'] ?? 'kakao_' . $socialId . '@kakao.local',
+                    $randomPassword,
+                    $userData['username'],
                     $provider,
                     $socialId,
                     $userData['avatar_url']
