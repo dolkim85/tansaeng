@@ -55,8 +55,12 @@ try {
 
         $_SESSION['auth_success'] = '카카오 계정으로 로그인되었습니다.';
 
-        // 리디렉션 URL이 있으면 해당 페이지로, 없으면 메인으로
-        $redirectUrl = $_SESSION['redirect_after_login'] ?? '/';
+        // 관리자는 관리자 페이지로, 일반 사용자는 메인 페이지로
+        if (isset($user['role']) && $user['role'] === 'admin') {
+            $redirectUrl = '/admin/';
+        } else {
+            $redirectUrl = $_SESSION['redirect_after_login'] ?? '/';
+        }
         unset($_SESSION['redirect_after_login']);
 
         writeLog('Login successful, redirecting to: ' . $redirectUrl);
