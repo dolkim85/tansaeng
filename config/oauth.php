@@ -34,7 +34,7 @@ return [
     // 카카오 로그인 설정
     'kakao' => [
         'client_id' => env('KAKAO_CLIENT_ID', 'fcb1f0af57098d3ce5e3d97e355c159c'), // REST API 키
-        'client_secret' => env('KAKAO_CLIENT_SECRET', ''), // Client Secret 코드
+        'client_secret' => env('KAKAO_CLIENT_SECRET', 'KuAsKDmtBJEHizHKQCxQJP05Nw9SdQqM'), // Client Secret 코드
         'redirect_uri' => $baseUrl . '/pages/auth/kakao_callback.php',
         'authorize_url' => 'https://kauth.kakao.com/oauth/authorize',
         'token_url' => 'https://kauth.kakao.com/oauth/token',
