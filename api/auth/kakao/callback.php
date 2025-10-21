@@ -5,6 +5,13 @@
  * 카카오 OAuth 인증 후 리다이렉트되는 페이지
  */
 
+// 즉시 로그 기록 - session_start 전 (절대 경로 사용)
+$earlyLogFile = '/home/spinmoll/kakao_debug.log';
+$logMsg = "[" . date('Y-m-d H:i:s') . "] === CALLBACK EXECUTED (tansaeng_new/api) ===\n";
+$logMsg .= "File: " . __FILE__ . "\n";
+$logMsg .= "GET: " . print_r($_GET, true) . "\n";
+file_put_contents($earlyLogFile, $logMsg, FILE_APPEND);
+
 session_start();
 
 require_once __DIR__ . '/../../../classes/Auth.php';
@@ -29,28 +36,33 @@ if (!$code) {
 }
 
 try {
-    error_log('=== Kakao Callback Started ===');
-    error_log('Authorization Code: ' . substr($code, 0, 20) . '...');
+    // 로그 함수
+    function writeLog($msg) {
+        file_put_contents('/home/spinmoll/kakao_debug.log', "[" . date('Y-m-d H:i:s') . "] " . $msg . "\n", FILE_APPEND);
+    }
+
+    writeLog('=== Kakao Callback Started ===');
+    writeLog('Authorization Code: ' . substr($code, 0, 20) . '...');
 
     // 1. 인가 코드로 액세스 토큰 요청
     $tokenData = getKakaoAccessToken($code, $kakaoConfig);
 
-    error_log('Token Data: ' . json_encode($tokenData));
+    writeLog('Token Data: ' . json_encode($tokenData));
 
     if (!$tokenData || !isset($tokenData['access_token'])) {
-        error_log('Token Error: No access token received');
+        writeLog('Token Error: No access token received');
         throw new Exception('액세스 토큰을 받지 못했습니다.');
     }
 
-    error_log('Access Token Received: ' . substr($tokenData['access_token'], 0, 20) . '...');
+    writeLog('Access Token Received: ' . substr($tokenData['access_token'], 0, 20) . '...');
 
     // 2. 액세스 토큰으로 사용자 정보 가져오기
     $userInfo = getKakaoUserInfo($tokenData['access_token'], $kakaoConfig);
 
-    error_log('User Info: ' . json_encode($userInfo));
+    writeLog('User Info: ' . json_encode($userInfo));
 
     if (!$userInfo || !isset($userInfo['id'])) {
-        error_log('UserInfo Error: No user ID received');
+        writeLog('UserInfo Error: No user ID received');
         throw new Exception('사용자 정보를 가져오지 못했습니다.');
     }
 
@@ -59,7 +71,7 @@ try {
     $email = $userInfo['kakao_account']['email'] ?? null;
     $nickname = $userInfo['kakao_account']['profile']['nickname'] ?? '카카오 사용자';
 
-    error_log("Kakao ID: $kakaoId, Email: $email, Nickname: $nickname");
+    writeLog("Kakao ID: $kakaoId, Email: $email, Nickname: $nickname");
 
     // 이메일이 없으면 카카오ID로 생성 (카카오는 이메일 선택적 제공)
     if (!$email) {
@@ -67,7 +79,7 @@ try {
     }
 
     // 4. 데이터베이스에서 소셜 로그인 사용자 찾기 또는 생성
-    error_log('Creating/Finding OAuth User...');
+    writeLog('Creating/Finding OAuth User...');
     $auth = Auth::getInstance();
     $user = $auth->findOrCreateOAuthUser([
         'oauth_provider' => 'kakao',
@@ -77,25 +89,26 @@ try {
     ]);
 
     if (!$user) {
-        error_log('User Creation Failed');
+        writeLog('User Creation Failed');
         throw new Exception('사용자 생성에 실패했습니다.');
     }
 
-    error_log('User Created/Found: ID=' . $user['id'] . ', Name=' . $user['name']);
+    writeLog('User Created/Found: ID=' . $user['id'] . ', Name=' . $user['name']);
 
     // 5. 세션에 로그인 정보 저장
     $_SESSION['user_id'] = $user['id'];
     $_SESSION['user_email'] = $user['email'];
     $_SESSION['user_name'] = $user['name'];
 
-    error_log('Session saved. Redirecting to home...');
+    writeLog('Session saved. Redirecting to home...');
 
     // 6. 메인 페이지로 리다이렉트
     header('Location: /?login=success&provider=kakao');
     exit;
 
 } catch (Exception $e) {
-    error_log('Kakao OAuth Error: ' . $e->getMessage());
+    writeLog('!!! EXCEPTION: ' . $e->getMessage());
+    writeLog('Stack trace: ' . $e->getTraceAsString());
     header('Location: /pages/auth/login.php?error=' . urlencode('카카오 로그인 중 오류가 발생했습니다.'));
     exit;
 }

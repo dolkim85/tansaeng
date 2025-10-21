@@ -289,7 +289,7 @@ class SocialLogin {
     private function processUser($provider, $socialId, $userData) {
         try {
             // 기존 소셜 계정 확인
-            $stmt = $this->pdo->prepare("SELECT * FROM users WHERE social_provider = ? AND social_id = ?");
+            $stmt = $this->pdo->prepare("SELECT * FROM users WHERE oauth_provider = ? AND oauth_id = ?");
             $stmt->execute([$provider, $socialId]);
             $user = $stmt->fetch();
             
@@ -315,9 +315,9 @@ class SocialLogin {
                     if ($existingUser) {
                         // 기존 계정에 소셜 로그인 연결
                         $stmt = $this->pdo->prepare("
-                            UPDATE users SET 
-                                social_provider = ?, 
-                                social_id = ?,
+                            UPDATE users SET
+                                oauth_provider = ?,
+                                oauth_id = ?,
                                 avatar_url = COALESCE(NULLIF(?, ''), avatar_url),
                                 last_login = CURRENT_TIMESTAMP
                             WHERE id = ?
@@ -330,7 +330,7 @@ class SocialLogin {
                 
                 // 새 사용자 생성
                 $stmt = $this->pdo->prepare("
-                    INSERT INTO users (username, email, social_provider, social_id, avatar_url, created_at) 
+                    INSERT INTO users (username, email, oauth_provider, oauth_id, avatar_url, created_at)
                     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ");
                 $stmt->execute([
