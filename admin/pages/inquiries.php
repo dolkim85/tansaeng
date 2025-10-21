@@ -88,16 +88,18 @@ try {
 
     $total_pages = ceil($total_inquiries / $per_page);
 
-    // 문의 목록 조회
+    // 문의 목록 조회 - LIMIT와 OFFSET은 정수로 직접 삽입
+    $per_page_int = (int) $per_page;
+    $offset_int = (int) $offset;
     $sql = "SELECT ci.*, u.name as user_name
             FROM contact_inquiries ci
             LEFT JOIN users u ON ci.user_id = u.id
             $where_clause
             ORDER BY ci.created_at DESC
-            LIMIT ? OFFSET ?";
+            LIMIT $per_page_int OFFSET $offset_int";
 
     $stmt = $pdo->prepare($sql);
-    $stmt->execute(array_merge($params, [$per_page, $offset]));
+    $stmt->execute($params);
     $inquiries = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // 통계 조회
