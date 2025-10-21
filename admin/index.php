@@ -38,70 +38,110 @@ try {
     $pdo = Database::getInstance()->getConnection();
 
     // User statistics
-    $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE user_level < 9");
-    $stats['total_users'] = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE user_level < 9");
+        $stats['total_users'] = $stmt->fetchColumn();
 
-    $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE user_level < 9 AND status = 'active'");
-    $stats['active_users'] = $stmt->fetchColumn();
+        $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE user_level < 9 AND status = 'active'");
+        $stats['active_users'] = $stmt->fetchColumn();
 
-    $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE plant_analysis_permission = 1");
-    $stats['plant_permission_users'] = $stmt->fetchColumn();
+        $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE plant_analysis_permission = 1");
+        $stats['plant_permission_users'] = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Dashboard user statistics error: " . $e->getMessage());
+    }
 
     // Product statistics
-    $stmt = $pdo->query("SELECT COUNT(*) FROM products");
-    $stats['total_products'] = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM products");
+        $stats['total_products'] = $stmt->fetchColumn();
 
-    $stmt = $pdo->query("SELECT COUNT(*) FROM products WHERE status = 'active'");
-    $stats['active_products'] = $stmt->fetchColumn();
+        $stmt = $pdo->query("SELECT COUNT(*) FROM products WHERE status = 'active'");
+        $stats['active_products'] = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Dashboard product statistics error: " . $e->getMessage());
+    }
 
     // Order statistics
-    $stmt = $pdo->query("SELECT COUNT(*) FROM orders");
-    $stats['total_orders'] = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM orders");
+        $stats['total_orders'] = $stmt->fetchColumn();
 
-    $stmt = $pdo->query("SELECT COUNT(*) FROM orders WHERE status = 'pending'");
-    $stats['pending_orders'] = $stmt->fetchColumn();
+        $stmt = $pdo->query("SELECT COUNT(*) FROM orders WHERE order_status = 'pending'");
+        $stats['pending_orders'] = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Dashboard order statistics error: " . $e->getMessage());
+    }
 
     // Plant analysis statistics
-    $stmt = $pdo->query("SELECT COUNT(*) FROM plant_analysis");
-    $stats['total_analyses'] = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM plant_analysis");
+        $stats['total_analyses'] = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Dashboard plant analysis statistics error: " . $e->getMessage());
+    }
 
     // Inquiry statistics
-    $stmt = $pdo->query("SELECT COUNT(*) FROM contact_inquiries");
-    $stats['total_inquiries'] = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM contact_inquiries");
+        $stats['total_inquiries'] = $stmt->fetchColumn();
 
-    $stmt = $pdo->query("SELECT COUNT(*) FROM contact_inquiries WHERE status = 'pending'");
-    $stats['pending_inquiries'] = $stmt->fetchColumn();
+        $stmt = $pdo->query("SELECT COUNT(*) FROM contact_inquiries WHERE status = 'pending'");
+        $stats['pending_inquiries'] = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Dashboard inquiry statistics error: " . $e->getMessage());
+    }
 
     // Board posts statistics
-    $stmt = $pdo->query("SELECT COUNT(*) FROM board_posts");
-    $stats['total_posts'] = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM board_posts");
+        $stats['total_posts'] = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Dashboard board statistics error: " . $e->getMessage());
+    }
 
     // Recent users (last 5)
-    $stmt = $pdo->query("SELECT id, name, email, created_at FROM users WHERE user_level < 9 ORDER BY created_at DESC LIMIT 5");
-    $recent_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $stmt = $pdo->query("SELECT id, name, email, created_at FROM users WHERE user_level < 9 ORDER BY created_at DESC LIMIT 5");
+        $recent_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Dashboard recent users error: " . $e->getMessage());
+    }
 
     // Recent orders (last 5)
-    $stmt = $pdo->query("SELECT o.id, o.total_amount, o.status, o.created_at, u.name as user_name
-                         FROM orders o
-                         LEFT JOIN users u ON o.user_id = u.id
-                         ORDER BY o.created_at DESC LIMIT 5");
-    $recent_orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $stmt = $pdo->query("SELECT o.id, o.total_amount, o.order_status as status, o.created_at, u.name as user_name
+                             FROM orders o
+                             LEFT JOIN users u ON o.user_id = u.id
+                             ORDER BY o.created_at DESC LIMIT 5");
+        $recent_orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Dashboard recent orders error: " . $e->getMessage());
+    }
 
     // Recent plant analyses (last 5)
-    $stmt = $pdo->query("SELECT pa.id, pa.created_at, pa.status, u.name as user_name
-                         FROM plant_analysis pa
-                         LEFT JOIN users u ON pa.user_id = u.id
-                         ORDER BY pa.created_at DESC LIMIT 5");
-    $recent_analyses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $stmt = $pdo->query("SELECT pa.id, pa.created_at, u.name as user_name
+                             FROM plant_analysis pa
+                             LEFT JOIN users u ON pa.user_id = u.id
+                             ORDER BY pa.created_at DESC LIMIT 5");
+        $recent_analyses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Dashboard recent analyses error: " . $e->getMessage());
+    }
 
     // Recent inquiries (last 5)
-    $stmt = $pdo->query("SELECT id, name, subject, status, created_at
-                         FROM contact_inquiries
-                         ORDER BY created_at DESC LIMIT 5");
-    $recent_inquiries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $stmt = $pdo->query("SELECT id, name, subject, status, created_at
+                             FROM contact_inquiries
+                             ORDER BY created_at DESC LIMIT 5");
+        $recent_inquiries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Dashboard recent inquiries error: " . $e->getMessage());
+    }
 
 } catch (Exception $e) {
-    error_log("Dashboard statistics error: " . $e->getMessage());
+    error_log("Dashboard database connection error: " . $e->getMessage());
 }
 ?>
 <!DOCTYPE html>
