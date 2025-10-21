@@ -44,10 +44,14 @@ try {
     writeLog('handleKakaoCallback returned: ' . json_encode($user));
 
     if ($user) {
-        // 로그인 성공
-        writeLog('User found, logging in...');
-        $auth = Auth::getInstance();
-        $auth->login($user['id']);
+        // 로그인 성공 - 세션에 사용자 정보 저장
+        writeLog('User found, setting session...');
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_name'] = $user['name'] ?? $user['username'] ?? '카카오 사용자';
+        $_SESSION['user_role'] = $user['role'] ?? 'user';
+
+        writeLog('Session set: user_id=' . $user['id'] . ', email=' . $user['email']);
 
         $_SESSION['auth_success'] = '카카오 계정으로 로그인되었습니다.';
 
