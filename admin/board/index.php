@@ -20,7 +20,7 @@ try {
     $params = [];
 
     if ($filter === 'published') {
-        $where_conditions[] = "b.status = 'published'";
+        $where_conditions[] = "b.status = 'active'";
     } elseif ($filter === 'draft') {
         $where_conditions[] = "b.status = 'draft'";
     } elseif ($filter === 'deleted') {
@@ -37,9 +37,8 @@ try {
 
     $where_clause = empty($where_conditions) ? '' : 'WHERE ' . implode(' AND ', $where_conditions);
 
-    $count_sql = "SELECT COUNT(*) FROM boards b
+    $count_sql = "SELECT COUNT(*) FROM board_posts b
                   LEFT JOIN users u ON b.user_id = u.id
-                  LEFT JOIN board_categories c ON b.category_id = c.id
                   $where_clause";
     $stmt = $pdo->prepare($count_sql);
     $stmt->execute($params);
@@ -50,11 +49,10 @@ try {
     // Fix LIMIT/OFFSET binding issue
     $per_page = (int) $per_page;
     $offset = (int) $offset;
-    $sql = "SELECT b.id, b.title, b.views, b.is_notice, b.is_featured, b.status, b.created_at,
-                   u.name as author, c.name as category_name
-            FROM boards b
+    $sql = "SELECT b.id, b.title, b.views, b.status, b.created_at, b.category,
+                   u.name as author
+            FROM board_posts b
             LEFT JOIN users u ON b.user_id = u.id
-            LEFT JOIN board_categories c ON b.category_id = c.id
             $where_clause
             ORDER BY b.created_at DESC
             LIMIT $per_page OFFSET $offset";
@@ -81,17 +79,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             switch ($action) {
                 case 'delete':
-                    $sql = "UPDATE boards SET status = 'deleted' WHERE id IN ($placeholders)";
+                    $sql = "UPDATE board_posts SET status = 'deleted' WHERE id IN ($placeholders)";
                     break;
                 case 'restore':
-                    $sql = "UPDATE boards SET status = 'published' WHERE id IN ($placeholders)";
+                    $sql = "UPDATE board_posts SET status = 'active' WHERE id IN ($placeholders)";
                     break;
                 case 'notice_on':
-                    $sql = "UPDATE boards SET is_notice = 1 WHERE id IN ($placeholders)";
-                    break;
+                    // board_posts 테이블에는 is_notice 컬럼이 없을 수 있으므로 스킵
+                    continue 2;
                 case 'notice_off':
-                    $sql = "UPDATE boards SET is_notice = 0 WHERE id IN ($placeholders)";
-                    break;
+                    // board_posts 테이블에는 is_notice 컬럼이 없을 수 있으므로 스킵
+                    continue 2;
             }
             
             $stmt = $pdo->prepare($sql);
@@ -164,8 +162,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <div class="bulk-actions">
                                     <select name="action" id="bulkAction" class="form-select">
                                         <option value="">선택된 게시글 작업</option>
-                                        <option value="notice_on">공지로 설정</option>
-                                        <option value="notice_off">공지 해제</option>
                                         <option value="delete">삭제</option>
                                         <option value="restore">복원</option>
                                     </select>
@@ -198,12 +194,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                     <td><?= $post['id'] ?></td>
                                                     <td>
                                                         <div class="post-title-cell">
-                                                            <?php if ($post['is_notice']): ?>
-                                                                <span class="badge badge-notice">공지</span>
-                                                            <?php endif; ?>
-                                                            <?php if ($post['is_featured']): ?>
-                                                                <span class="badge badge-featured">추천</span>
-                                                            <?php endif; ?>
                                                             <a href="/pages/board/view.php?id=<?= $post['id'] ?>" target="_blank" class="post-title-link">
                                                                 <?= htmlspecialchars($post['title']) ?>
                                                             </a>
@@ -212,26 +202,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                     <td><?= htmlspecialchars($post['author'] ?: '익명') ?></td>
                                                     <td>
                                                         <span class="category-name">
-                                                            <?= htmlspecialchars($post['category_name'] ?: '기본') ?>
+                                                            <?= htmlspecialchars($post['category'] ?: '일반') ?>
                                                         </span>
                                                     </td>
                                                     <td><?= number_format($post['views']) ?></td>
                                                     <td>
                                                         <span class="status-badge status-<?= $post['status'] ?>">
-                                                            <?= $post['status'] === 'published' ? '게시됨' : ($post['status'] === 'draft' ? '임시저장' : '삭제됨') ?>
+                                                            <?= $post['status'] === 'active' ? '게시됨' : ($post['status'] === 'draft' ? '임시저장' : '삭제됨') ?>
                                                         </span>
                                                     </td>
                                                     <td><?= date('m-d H:i', strtotime($post['created_at'])) ?></td>
                                                     <td>
                                                         <div class="action-buttons">
-                                                            <a href="/pages/board/view.php?id=<?= $post['id'] ?>" target="_blank" 
+                                                            <a href="/pages/board/view.php?id=<?= $post['id'] ?>" target="_blank"
                                                                class="btn btn-sm btn-outline" title="보기">👁️</a>
-                                                            <?php if ($post['status'] === 'published'): ?>
-                                                                <a href="delete_post.php?id=<?= $post['id'] ?>" 
+                                                            <?php if ($post['status'] === 'active'): ?>
+                                                                <a href="delete_post.php?id=<?= $post['id'] ?>"
                                                                    class="btn btn-sm btn-danger" title="삭제"
                                                                    onclick="return confirm('정말 삭제하시겠습니까?')">🗑️</a>
                                                             <?php else: ?>
-                                                                <a href="restore_post.php?id=<?= $post['id'] ?>" 
+                                                                <a href="restore_post.php?id=<?= $post['id'] ?>"
                                                                    class="btn btn-sm btn-success" title="복원"
                                                                    onclick="return confirm('게시글을 복원하시겠습니까?')">↩️</a>
                                                             <?php endif; ?>
