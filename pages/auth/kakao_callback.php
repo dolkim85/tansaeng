@@ -1,6 +1,6 @@
 <?php
 // 즉시 로그 기록
-$logFile = '/home/spinmoll/kakao_debug.log';
+$logFile = __DIR__ . '/../../kakao_debug.log';
 file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] === KAKAO CALLBACK (pages/auth) EXECUTED ===\n", FILE_APPEND);
 file_put_contents($logFile, "GET: " . print_r($_GET, true) . "\n", FILE_APPEND);
 
@@ -12,7 +12,8 @@ require_once __DIR__ . '/../../classes/SocialLogin.php';
 
 // 로그 함수
 function writeLog($msg) {
-    file_put_contents('/home/spinmoll/kakao_debug.log', "[" . date('Y-m-d H:i:s') . "] " . $msg . "\n", FILE_APPEND);
+    $logFile = __DIR__ . '/../../kakao_debug.log';
+    file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] " . $msg . "\n", FILE_APPEND);
 }
 
 // 에러 체크
