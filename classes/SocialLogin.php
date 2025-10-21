@@ -93,27 +93,43 @@ class SocialLogin {
      * 카카오 OAuth 콜백 처리
      */
     public function handleKakaoCallback($code) {
+        $logFile = __DIR__ . '/../kakao_debug.log';
+
         try {
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] handleKakaoCallback started with code: " . substr($code, 0, 20) . "...\n", FILE_APPEND);
+
             // 1. 액세스 토큰 요청
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Requesting access token...\n", FILE_APPEND);
             $tokenData = $this->getKakaoAccessToken($code);
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Token data: " . json_encode($tokenData) . "\n", FILE_APPEND);
+
             if (!$tokenData || !isset($tokenData['access_token'])) {
                 throw new Exception('Failed to get access token');
             }
-            
+
             // 2. 사용자 정보 가져오기
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Requesting user info...\n", FILE_APPEND);
             $userInfo = $this->getKakaoUserInfo($tokenData['access_token']);
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] User info: " . json_encode($userInfo) . "\n", FILE_APPEND);
+
             if (!$userInfo) {
                 throw new Exception('Failed to get user info');
             }
-            
+
             // 3. 사용자 등록 또는 로그인 처리
-            return $this->processUser('kakao', $userInfo['id'], [
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Processing user...\n", FILE_APPEND);
+            $result = $this->processUser('kakao', $userInfo['id'], [
                 'email' => $userInfo['kakao_account']['email'] ?? null,
                 'username' => $userInfo['properties']['nickname'] ?? '카카오사용자',
                 'avatar_url' => $userInfo['properties']['profile_image'] ?? null
             ]);
-            
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] processUser result: " . json_encode($result) . "\n", FILE_APPEND);
+
+            return $result;
+
         } catch (Exception $e) {
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] !!! EXCEPTION in handleKakaoCallback: " . $e->getMessage() . "\n", FILE_APPEND);
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Stack trace: " . $e->getTraceAsString() . "\n", FILE_APPEND);
             error_log('Kakao login error: ' . $e->getMessage());
             return false;
         }
