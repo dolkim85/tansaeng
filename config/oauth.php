@@ -7,10 +7,21 @@
  * - 운영: https://www.tansaeng.com
  */
 
-// .env 파일 로드 (있을 경우에만)
-$envFile = __DIR__ . '/env.php';
-if (file_exists($envFile)) {
-    require_once $envFile;
+// .env 파일 직접 로드
+$dotenvFile = dirname(__DIR__) . '/.env';
+if (file_exists($dotenvFile)) {
+    $lines = file($dotenvFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0 || strpos($line, '=') === false) {
+            continue;
+        }
+        list($key, $value) = explode('=', $line, 2);
+        $key = trim($key);
+        $value = trim($value);
+        $value = trim($value, '"\'');
+        putenv("$key=$value");
+        $_ENV[$key] = $value;
+    }
 }
 
 // env() 함수가 정의되지 않은 경우 정의
