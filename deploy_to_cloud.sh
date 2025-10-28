@@ -11,7 +11,7 @@ CLOUD_USER="ubuntu"
 SSH_KEY="/home/spinmoll/.ssh/tansaeng.pem"
 CLOUD_PATH="/var/www/html"
 REPO_URL="https://github.com/dolkim85/tansaeng.git"
-DEPLOY_TAG="latest_v12"
+DEPLOY_TAG="latest_v13"
 DOMAIN="www.tansaeng.com"
 
 # Git 상태 확인
@@ -42,17 +42,17 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         sudo rm -rf *
         sudo git clone https://github.com/dolkim85/tansaeng.git .
         sudo git fetch --tags
-        sudo git checkout tags/latest_v12
+        sudo git checkout tags/latest_v13
     else
         echo "🔄 최신 변경사항 가져오는 중..."
         sudo git fetch origin --tags
         sudo git reset --hard HEAD
         sudo git clean -fd
-        sudo git checkout tags/latest_v12
+        sudo git checkout tags/latest_v13
         sudo git pull origin main
     fi
 
-    echo "✅ Version latest_v12 체크아웃 완료"
+    echo "✅ Version latest_v13 체크아웃 완료"
 
     # 권한 설정
     echo "🔐 파일 권한 설정 중..."
