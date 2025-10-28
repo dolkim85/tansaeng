@@ -21,23 +21,84 @@ if (!isset($_GET['code']) || !isset($_GET['state'])) {
 
 try {
     $socialLogin = new SocialLogin();
-    $user = $socialLogin->handleNaverCallback($_GET['code'], $_GET['state']);
-    
+
+    // state 확인
+    if (!isset($_SESSION['naver_state']) || $_SESSION['naver_state'] !== $_GET['state']) {
+        throw new Exception('Invalid state parameter');
+    }
+
+    // 액세스 토큰 요청
+    $tokenData = $socialLogin->getNaverAccessToken($_GET['code'], $_GET['state']);
+
+    if (!$tokenData || !isset($tokenData['access_token'])) {
+        throw new Exception('Failed to get access token');
+    }
+
+    // 사용자 정보 요청
+    $userInfo = $socialLogin->getNaverUserInfo($tokenData['access_token']);
+
+    if (!$userInfo || !isset($userInfo['response'])) {
+        throw new Exception('Failed to get user info');
+    }
+
+    $naverUser = $userInfo['response'];
+    $socialId = $naverUser['id'];
+    $email = $naverUser['email'] ?? null;
+    $username = $naverUser['name'] ?? $naverUser['nickname'] ?? '네이버사용자';
+    $avatarUrl = $naverUser['profile_image'] ?? null;
+
+    // 기존 사용자 확인
+    $user = $socialLogin->findExistingUser('naver', $socialId);
+
+    if (!$user && $email) {
+        // 이메일로 기존 사용자 확인
+        $user = $socialLogin->findUserByEmail($email);
+        if ($user) {
+            // 기존 계정에 네이버 로그인 연결
+            $pdo = Database::getInstance()->getConnection();
+            $stmt = $pdo->prepare("
+                UPDATE users SET
+                    oauth_provider = ?,
+                    oauth_id = ?,
+                    avatar_url = COALESCE(NULLIF(?, ''), avatar_url),
+                    last_login = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ");
+            $stmt->execute(['naver', $socialId, $avatarUrl, $user['id']]);
+        }
+    }
+
     if ($user) {
-        // 로그인 성공
-        $auth = Auth::getInstance();
-        $auth->login($user['id']);
-        
+        // 기존 사용자 - 로그인 처리
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_name'] = $user['name'] ?? $user['username'] ?? '네이버 사용자';
+        $_SESSION['user_role'] = $user['role'] ?? 'user';
+
         $_SESSION['auth_success'] = '네이버 계정으로 로그인되었습니다.';
-        
-        // 리디렉션 URL이 있으면 해당 페이지로, 없으면 메인으로
-        $redirectUrl = $_SESSION['redirect_after_login'] ?? '/';
+
+        // 리다이렉트
+        if (isset($user['role']) && $user['role'] === 'admin') {
+            $redirectUrl = '/admin/';
+        } else {
+            $redirectUrl = $_SESSION['redirect_after_login'] ?? '/';
+        }
         unset($_SESSION['redirect_after_login']);
-        
+
         header('Location: ' . $redirectUrl);
         exit;
     } else {
-        throw new Exception('네이버 로그인 처리 중 오류가 발생했습니다.');
+        // 신규 사용자 - 추가 정보 입력 페이지로
+        $_SESSION['social_temp_user'] = [
+            'provider' => 'naver',
+            'social_id' => $socialId,
+            'email' => $email ?? 'naver_' . $socialId . '@naver.local',
+            'username' => $username,
+            'avatar_url' => $avatarUrl
+        ];
+
+        header('Location: /pages/auth/social_register.php');
+        exit;
     }
     
 } catch (Exception $e) {

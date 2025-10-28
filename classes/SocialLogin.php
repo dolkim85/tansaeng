@@ -175,7 +175,7 @@ class SocialLogin {
     /**
      * 구글 액세스 토큰 요청
      */
-    private function getGoogleAccessToken($code) {
+    public function getGoogleAccessToken($code) {
         $postData = [
             'client_id' => $this->config['google']['client_id'],
             'client_secret' => $this->config['google']['client_secret'],
@@ -200,7 +200,7 @@ class SocialLogin {
     /**
      * 구글 사용자 정보 요청
      */
-    private function getGoogleUserInfo($accessToken) {
+    public function getGoogleUserInfo($accessToken) {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, 'https://www.googleapis.com/oauth2/v2/userinfo');
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $accessToken]);
@@ -216,7 +216,7 @@ class SocialLogin {
     /**
      * 카카오 액세스 토큰 요청
      */
-    private function getKakaoAccessToken($code) {
+    public function getKakaoAccessToken($code) {
         $postData = [
             'grant_type' => 'authorization_code',
             'client_id' => $this->config['kakao']['client_id'],
@@ -245,7 +245,7 @@ class SocialLogin {
     /**
      * 카카오 사용자 정보 요청
      */
-    private function getKakaoUserInfo($accessToken) {
+    public function getKakaoUserInfo($accessToken) {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, 'https://kapi.kakao.com/v2/user/me');
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $accessToken]);
@@ -261,7 +261,7 @@ class SocialLogin {
     /**
      * 네이버 액세스 토큰 요청
      */
-    private function getNaverAccessToken($code, $state) {
+    public function getNaverAccessToken($code, $state) {
         $postData = [
             'grant_type' => 'authorization_code',
             'client_id' => $this->config['naver']['client_id'],
@@ -286,7 +286,7 @@ class SocialLogin {
     /**
      * 네이버 사용자 정보 요청
      */
-    private function getNaverUserInfo($accessToken) {
+    public function getNaverUserInfo($accessToken) {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, 'https://openapi.naver.com/v1/nid/me');
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $accessToken]);
@@ -299,6 +299,27 @@ class SocialLogin {
         return json_decode($response, true);
     }
     
+    /**
+     * 기존 소셜 사용자 확인
+     */
+    public function findExistingUser($provider, $socialId) {
+        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE oauth_provider = ? AND oauth_id = ?");
+        $stmt->execute([$provider, $socialId]);
+        return $stmt->fetch();
+    }
+
+    /**
+     * 이메일로 기존 사용자 확인
+     */
+    public function findUserByEmail($email) {
+        if (empty($email)) {
+            return null;
+        }
+        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        return $stmt->fetch();
+    }
+
     /**
      * 사용자 등록 또는 로그인 처리
      */

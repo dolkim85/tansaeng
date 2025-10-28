@@ -1,18 +1,29 @@
 <?php
 session_start();
 
+// 소셜 로그인 임시 데이터 확인
+if (!isset($_SESSION['social_temp_user'])) {
+    // 소셜 로그인 정보가 없으면 로그인 페이지로
+    header('Location: /pages/auth/login.php');
+    exit;
+}
+
+$socialData = $_SESSION['social_temp_user'];
+$provider = $socialData['provider'];
+$providerName = [
+    'google' => '구글',
+    'kakao' => '카카오',
+    'naver' => '네이버'
+][$provider] ?? $provider;
+
 require_once __DIR__ . '/../../classes/Database.php';
 require_once __DIR__ . '/../../classes/Auth.php';
 
 $error = '';
 $success = '';
 
-// POST 요청 처리
+// 폼 제출 처리
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $password_confirm = $_POST['password_confirm'] ?? '';
     $phone = trim($_POST['phone'] ?? '');
     $address = trim($_POST['address'] ?? '');
 
@@ -21,56 +32,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $age_range = $optional_info_agree ? (trim($_POST['age_range'] ?? '')) : null;
     $gender = $optional_info_agree ? (trim($_POST['gender'] ?? '')) : null;
 
-    $terms_agree = isset($_POST['terms_agree']);
-    $privacy_agree = isset($_POST['privacy_agree']);
+    $termsAgree = isset($_POST['terms_agree']);
+    $privacyAgree = isset($_POST['privacy_agree']);
 
     // 유효성 검사
-    if (empty($username) || empty($email) || empty($password) || empty($phone)) {
-        $error = '필수 항목을 모두 입력해주세요.';
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = '올바른 이메일 주소를 입력해주세요.';
-    } elseif (strlen($password) < 6) {
-        $error = '비밀번호는 최소 6자 이상이어야 합니다.';
-    } elseif ($password !== $password_confirm) {
-        $error = '비밀번호가 일치하지 않습니다.';
-    } elseif (!$terms_agree || !$privacy_agree) {
+    if (empty($phone)) {
+        $error = '휴대전화번호를 입력해주세요.';
+    } elseif (!$termsAgree || !$privacyAgree) {
         $error = '필수 약관에 동의해주세요.';
     } else {
         try {
             $db = Database::getInstance();
             $pdo = $db->getConnection();
 
-            // 이메일 중복 확인
-            $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
-            $stmt->execute([$email]);
-            if ($stmt->fetch()) {
-                $error = '이미 사용 중인 이메일입니다.';
-            } else {
-                // 회원가입 처리
-                $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            // 소셜 로그인 사용자는 비밀번호가 필요 없으므로 랜덤 해시 생성
+            $randomPassword = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
 
-                $stmt = $pdo->prepare("
-                    INSERT INTO users (username, email, password, name, phone, address, age_range, gender, role, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'user', CURRENT_TIMESTAMP)
-                ");
+            // 사용자 등록
+            $stmt = $pdo->prepare("
+                INSERT INTO users (username, email, password, name, phone, address, age_range, gender,
+                                   oauth_provider, oauth_id, avatar_url, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ");
 
-                $stmt->execute([
-                    $username,
-                    $email,
-                    $hashedPassword,
-                    $username,
-                    $phone,
-                    $address ?: null,
-                    $age_range,
-                    $gender
-                ]);
+            $stmt->execute([
+                $socialData['username'],
+                $socialData['email'],
+                $randomPassword,
+                $socialData['username'],
+                $phone,
+                $address ?: null,
+                $age_range,
+                $gender,
+                $provider,
+                $socialData['social_id'],
+                $socialData['avatar_url'] ?? null
+            ]);
 
-                $_SESSION['auth_success'] = '회원가입이 완료되었습니다. 로그인해주세요.';
-                header('Location: /pages/auth/login.php');
-                exit;
-            }
+            $userId = $pdo->lastInsertId();
+
+            // 세션에 사용자 정보 저장
+            $_SESSION['user_id'] = $userId;
+            $_SESSION['user_email'] = $socialData['email'];
+            $_SESSION['user_name'] = $socialData['username'];
+            $_SESSION['user_role'] = 'user';
+
+            // 임시 데이터 제거
+            unset($_SESSION['social_temp_user']);
+
+            $_SESSION['auth_success'] = $providerName . ' 계정으로 회원가입이 완료되었습니다.';
+
+            // 리디렉션
+            $redirectUrl = $_SESSION['redirect_after_login'] ?? '/';
+            unset($_SESSION['redirect_after_login']);
+
+            header('Location: ' . $redirectUrl);
+            exit;
+
         } catch (Exception $e) {
-            error_log('Register error: ' . $e->getMessage());
+            error_log('Social register error: ' . $e->getMessage());
             $error = '회원가입 처리 중 오류가 발생했습니다.';
         }
     }
@@ -81,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>회원가입 - 탄생</title>
+    <title><?= $providerName ?> 회원가입 - 탄생</title>
     <link rel="stylesheet" href="/assets/css/main.css">
     <link rel="stylesheet" href="/assets/css/auth.css">
 </head>
@@ -94,44 +114,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <form method="post" class="auth-form">
-                <h2>회원가입</h2>
+                <h2><?= $providerName ?> 회원가입</h2>
+                <p class="social-welcome">
+                    <?= $providerName ?>로 로그인하셨습니다.<br>
+                    추가 정보를 입력해주세요.
+                </p>
 
                 <?php if ($error): ?>
                     <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
                 <?php endif; ?>
 
-                <?php if ($success): ?>
-                    <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
-                <?php endif; ?>
-
-                <div class="form-group">
-                    <label for="username">이름 *</label>
-                    <input type="text" id="username" name="username" value="<?= htmlspecialchars($username ?? '') ?>" required>
+                <!-- 소셜 로그인 정보 표시 -->
+                <div class="social-info">
+                    <?php if (!empty($socialData['avatar_url'])): ?>
+                        <img src="<?= htmlspecialchars($socialData['avatar_url']) ?>" alt="프로필" class="profile-image">
+                    <?php endif; ?>
+                    <div class="info-item">
+                        <label>이름</label>
+                        <div class="readonly-value"><?= htmlspecialchars($socialData['username']) ?></div>
+                    </div>
+                    <div class="info-item">
+                        <label>이메일</label>
+                        <div class="readonly-value"><?= htmlspecialchars($socialData['email']) ?></div>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="email">이메일 *</label>
-                    <input type="email" id="email" name="email" value="<?= htmlspecialchars($email ?? '') ?>" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="password">비밀번호 * (최소 6자)</label>
-                    <input type="password" id="password" name="password" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="password_confirm">비밀번호 확인 *</label>
-                    <input type="password" id="password_confirm" name="password_confirm" required>
-                </div>
-
+                <!-- 추가 정보 입력 -->
                 <div class="form-group">
                     <label for="phone">휴대전화번호 *</label>
-                    <input type="tel" id="phone" name="phone" value="<?= htmlspecialchars($phone ?? '') ?>" placeholder="010-1234-5678" required>
+                    <input type="tel" id="phone" name="phone" placeholder="010-1234-5678" required>
                 </div>
 
                 <div class="form-group">
                     <label for="address">주소</label>
-                    <input type="text" id="address" name="address" value="<?= htmlspecialchars($address ?? '') ?>" placeholder="서울시 강남구...">
+                    <input type="text" id="address" name="address" placeholder="서울시 강남구...">
                 </div>
 
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e9ecef;">
@@ -177,6 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
+                <!-- 약관 동의 -->
                 <div class="terms-section">
                     <div class="form-check" style="border-bottom: 1px solid #dee2e6; padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
                         <input type="checkbox" id="all_agree">
@@ -200,16 +217,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-full">가입하기</button>
+                <button type="submit" class="btn btn-primary btn-full">가입 완료</button>
 
                 <div class="auth-links">
-                    <a href="/pages/auth/login.php">이미 계정이 있으신가요? 로그인</a>
+                    <a href="/pages/auth/login.php">로그인으로 돌아가기</a>
                 </div>
             </form>
-
-            <div class="auth-footer">
-                <a href="/">홈으로 돌아가기</a>
-            </div>
         </div>
     </div>
 
@@ -275,15 +288,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     color: #495057;
 }
 
+.social-welcome {
+    text-align: center;
+    margin: 1rem 0 1.5rem;
+    color: #666;
+    line-height: 1.5;
+}
+
+.social-info {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.profile-image {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin-bottom: 1rem;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.info-item {
+    margin: 0.75rem 0;
+    text-align: left;
+}
+
+.info-item label {
+    display: block;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.readonly-value {
+    padding: 0.5rem;
+    background: white;
+    border-radius: 4px;
+    color: #212529;
+}
+
 .terms-section {
     background: #f8f9fa;
     padding: 1rem;
     border-radius: 6px;
-    margin: 1rem 0;
+    margin: 1.5rem 0;
 }
 
 .form-check {
-    margin: 0.5rem 0;
+    margin: 0.75rem 0;
 }
 
 .form-check input[type="checkbox"] {
@@ -295,7 +352,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     display: inline;
     margin: 0;
     font-weight: normal;
-    font-size: 0.9rem;
 }
 
 .form-check label a {

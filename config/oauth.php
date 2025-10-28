@@ -33,29 +33,30 @@ return [
 
     // 카카오 로그인 설정
     'kakao' => [
-        'client_id' => env('KAKAO_CLIENT_ID', 'fcb1f0af57098d3ce5e3d97e355c159c'), // REST API 키
-        'client_secret' => env('KAKAO_CLIENT_SECRET', 'KuAsKDmtBJEHizHKQCxQJP05Nw9SdQqM'), // Client Secret 코드
+        'client_id' => env('KAKAO_CLIENT_ID', ''), // REST API 키
+        'client_secret' => env('KAKAO_CLIENT_SECRET', ''), // Client Secret 코드
         'redirect_uri' => $baseUrl . '/pages/auth/kakao_callback.php',
         'authorize_url' => 'https://kauth.kakao.com/oauth/authorize',
         'token_url' => 'https://kauth.kakao.com/oauth/token',
         'user_info_url' => 'https://kapi.kakao.com/v2/user/me',
     ],
 
-    // 구글 로그인 설정 (나중에 추가)
+    // 구글 로그인 설정
     'google' => [
         'client_id' => env('GOOGLE_CLIENT_ID', ''),
         'client_secret' => env('GOOGLE_CLIENT_SECRET', ''),
-        'redirect_uri' => $baseUrl . '/api/auth/google/callback.php',
+        'redirect_uri' => $baseUrl . '/pages/auth/google_callback.php',
         'authorize_url' => 'https://accounts.google.com/o/oauth2/v2/auth',
         'token_url' => 'https://oauth2.googleapis.com/token',
-        'user_info_url' => 'https://www.googleapis.com/oauth2/v1/userinfo',
+        'user_info_url' => 'https://www.googleapis.com/oauth2/v2/userinfo',
+        'scope' => 'email profile',
     ],
 
-    // 네이버 로그인 설정 (나중에 추가)
+    // 네이버 로그인 설정
     'naver' => [
         'client_id' => env('NAVER_CLIENT_ID', ''),
         'client_secret' => env('NAVER_CLIENT_SECRET', ''),
-        'redirect_uri' => $baseUrl . '/api/auth/naver/callback.php',
+        'redirect_uri' => $baseUrl . '/pages/auth/naver_callback.php',
         'authorize_url' => 'https://nid.naver.com/oauth2.0/authorize',
         'token_url' => 'https://nid.naver.com/oauth2.0/token',
         'user_info_url' => 'https://openapi.naver.com/v1/nid/me',

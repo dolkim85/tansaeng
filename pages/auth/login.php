@@ -117,33 +117,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </form>
 
-            <!-- Firebase Social Login Section -->
+            <?php if ($dbConnected && $socialLogin): ?>
+            <!-- Social Login Section -->
             <div class="social-login-section">
                 <div class="divider">
-                    <span>또는</span>
+                    <span>소셜 로그인</span>
                 </div>
-                
+
                 <div class="social-buttons">
-                    <button type="button" class="social-btn google-btn firebase-google-login" data-redirect="<?= htmlspecialchars($redirect) ?>">
+                    <a href="<?= $socialLogin->getGoogleLoginUrl() ?>" class="social-btn google-btn">
                         <span class="social-icon">G</span>
                         Google로 로그인
-                    </button>
-                </div>
-            </div>
+                    </a>
 
-            <?php if ($dbConnected && $socialLogin): ?>
-            <!-- Traditional Social Login Section -->
-            <div class="social-login-section">
-                <div class="divider">
-                    <span>기타 소셜 로그인</span>
-                </div>
-                
-                <div class="social-buttons">
                     <a href="<?= $socialLogin->getKakaoLoginUrl() ?>" class="social-btn kakao-btn">
                         <span class="social-icon">K</span>
                         카카오로 로그인
                     </a>
-                    
+
                     <a href="<?= $socialLogin->getNaverLoginUrl() ?>" class="social-btn naver-btn">
                         <span class="social-icon">N</span>
                         네이버로 로그인
@@ -159,7 +150,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     
     <script src="/assets/js/auth.js"></script>
-    <script type="module" src="/assets/js/firebase-auth.js"></script>
 </body>
 </html>
 
@@ -205,12 +195,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 /* Social Login Styles */
 .social-login-section {
-    margin-top: 2rem;
+    margin-top: 1rem;
 }
 
 .divider {
     text-align: center;
-    margin: 1.5rem 0;
+    margin: 0.75rem 0;
     position: relative;
 }
 
@@ -234,21 +224,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 .social-buttons {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 
 .social-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
     border: 1px solid #e9ecef;
     border-radius: 6px;
     text-decoration: none;
     font-weight: 500;
     transition: all 0.2s ease;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 .social-btn:hover {

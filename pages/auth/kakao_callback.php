@@ -38,24 +38,61 @@ try {
     writeLog('Creating SocialLogin instance...');
     $socialLogin = new SocialLogin();
 
-    writeLog('Calling handleKakaoCallback...');
-    $user = $socialLogin->handleKakaoCallback($_GET['code']);
+    writeLog('Getting access token...');
+    $tokenData = $socialLogin->getKakaoAccessToken($_GET['code']);
 
-    writeLog('handleKakaoCallback returned: ' . json_encode($user));
+    if (!$tokenData || !isset($tokenData['access_token'])) {
+        throw new Exception('Failed to get access token');
+    }
+
+    writeLog('Getting user info...');
+    $userInfo = $socialLogin->getKakaoUserInfo($tokenData['access_token']);
+
+    if (!$userInfo) {
+        throw new Exception('Failed to get user info');
+    }
+
+    $socialId = $userInfo['id'];
+    $email = $userInfo['kakao_account']['email'] ?? null;
+    $username = $userInfo['properties']['nickname'] ?? '카카오사용자';
+    $avatarUrl = $userInfo['properties']['profile_image'] ?? null;
+
+    writeLog('Social ID: ' . $socialId);
+    writeLog('Email: ' . ($email ?? 'none'));
+
+    // 기존 사용자 확인
+    $user = $socialLogin->findExistingUser('kakao', $socialId);
+
+    if (!$user && $email) {
+        // 이메일로 기존 사용자 확인
+        $user = $socialLogin->findUserByEmail($email);
+        if ($user) {
+            // 기존 계정에 카카오 로그인 연결
+            writeLog('Linking kakao to existing user by email');
+            $pdo = Database::getInstance()->getConnection();
+            $stmt = $pdo->prepare("
+                UPDATE users SET
+                    oauth_provider = ?,
+                    oauth_id = ?,
+                    avatar_url = COALESCE(NULLIF(?, ''), avatar_url),
+                    last_login = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ");
+            $stmt->execute(['kakao', $socialId, $avatarUrl, $user['id']]);
+        }
+    }
 
     if ($user) {
-        // 로그인 성공 - 세션에 사용자 정보 저장
-        writeLog('User found, setting session...');
+        // 기존 사용자 - 로그인 처리
+        writeLog('Existing user found, logging in...');
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['user_name'] = $user['name'] ?? $user['username'] ?? '카카오 사용자';
         $_SESSION['user_role'] = $user['role'] ?? 'user';
 
-        writeLog('Session set: user_id=' . $user['id'] . ', email=' . $user['email']);
-
         $_SESSION['auth_success'] = '카카오 계정으로 로그인되었습니다.';
 
-        // 관리자는 관리자 페이지로, 일반 사용자는 메인 페이지로
+        // 리다이렉트
         if (isset($user['role']) && $user['role'] === 'admin') {
             $redirectUrl = '/admin/';
         } else {
@@ -67,8 +104,18 @@ try {
         header('Location: ' . $redirectUrl);
         exit;
     } else {
-        writeLog('handleKakaoCallback returned null/false');
-        throw new Exception('카카오 로그인 처리 중 오류가 발생했습니다.');
+        // 신규 사용자 - 추가 정보 입력 페이지로
+        writeLog('New user, redirecting to social_register...');
+        $_SESSION['social_temp_user'] = [
+            'provider' => 'kakao',
+            'social_id' => $socialId,
+            'email' => $email ?? 'kakao_' . $socialId . '@kakao.local',
+            'username' => $username,
+            'avatar_url' => $avatarUrl
+        ];
+
+        header('Location: /pages/auth/social_register.php');
+        exit;
     }
 
 } catch (Exception $e) {

@@ -122,7 +122,8 @@ function getKakaoAccessToken($code, $config) {
         'client_id' => $config['client_id'],
         'redirect_uri' => $config['redirect_uri'],
         'code' => $code,
-    ];
+    ]
+    
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $config['token_url']);
