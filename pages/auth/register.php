@@ -119,17 +119,17 @@ $socialLogin = new SocialLogin();
                 <p class="social-description">소셜 계정으로 빠르고 안전하게 가입하세요</p>
 
                 <div class="social-buttons">
-                    <a href="<?= $socialLogin->getGoogleLoginUrl() ?>" class="social-btn google-btn">
+                    <a href="#" data-url="<?= $socialLogin->getGoogleLoginUrl() ?>" class="social-btn google-btn" onclick="return checkTermsAndRedirect(event, this)">
                         <span class="social-icon">G</span>
                         <span>Google로 시작하기</span>
                     </a>
 
-                    <a href="<?= $socialLogin->getKakaoLoginUrl() ?>" class="social-btn kakao-btn">
+                    <a href="#" data-url="<?= $socialLogin->getKakaoLoginUrl() ?>" class="social-btn kakao-btn" onclick="return checkTermsAndRedirect(event, this)">
                         <span class="social-icon">K</span>
                         <span>카카오로 시작하기</span>
                     </a>
 
-                    <a href="<?= $socialLogin->getNaverLoginUrl() ?>" class="social-btn naver-btn">
+                    <a href="#" data-url="<?= $socialLogin->getNaverLoginUrl() ?>" class="social-btn naver-btn" onclick="return checkTermsAndRedirect(event, this)">
                         <span class="social-icon">N</span>
                         <span>네이버로 시작하기</span>
                     </a>
@@ -139,16 +139,41 @@ $socialLogin = new SocialLogin();
                     <span>또는</span>
                 </div>
 
-                <button type="button" class="btn btn-secondary btn-full" onclick="openEmailRegisterModal()">
-                    이메일로 회원가입
-                </button>
+                <div style="text-align: center;">
+                    <button type="button" class="btn btn-secondary btn-full" onclick="openEmailRegisterModal()">
+                        이메일로 회원가입
+                    </button>
+                </div>
 
-                <div class="terms-notice">
-                    <p style="font-size: 0.85rem; color: #666; line-height: 1.6;">
-                        회원가입 시
-                        <a href="#" onclick="openPrivacyModal(event)">개인정보처리방침</a> 및
-                        <a href="#" onclick="openTermsModal(event)">이용약관</a>에 동의하게 됩니다.
-                    </p>
+                <!-- 약관 동의 섹션 -->
+                <div class="register-terms-section">
+                    <div class="form-check" style="border-bottom: 1px solid #dee2e6; padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
+                        <input type="checkbox" id="register_all_agree">
+                        <label for="register_all_agree" style="font-weight: 600;">
+                            전체 동의
+                        </label>
+                    </div>
+
+                    <div class="form-check">
+                        <input type="checkbox" id="register_terms_agree" class="register-required-agree" required>
+                        <label for="register_terms_agree">
+                            <a href="#" onclick="openTermsModal(event)">이용약관</a>에 동의합니다 (필수)
+                        </label>
+                    </div>
+
+                    <div class="form-check">
+                        <input type="checkbox" id="register_privacy_agree" class="register-required-agree" required>
+                        <label for="register_privacy_agree">
+                            <a href="#" onclick="openPrivacyModal(event)">개인정보처리방침</a>에 동의합니다 (필수)
+                        </label>
+                    </div>
+
+                    <div class="form-check">
+                        <input type="checkbox" id="register_optional_agree">
+                        <label for="register_optional_agree">
+                            선택 정보 수집에 동의합니다 (선택)
+                        </label>
+                    </div>
                 </div>
 
                 <div class="auth-links">
@@ -310,8 +335,61 @@ $socialLogin = new SocialLogin();
     </div>
 
     <script>
+        // 소셜 로그인 전 약관 동의 확인
+        function checkTermsAndRedirect(event, element) {
+            event.preventDefault();
+
+            const termsAgree = document.getElementById('register_terms_agree').checked;
+            const privacyAgree = document.getElementById('register_privacy_agree').checked;
+
+            if (!termsAgree || !privacyAgree) {
+                alert('필수 약관에 동의해주세요.');
+                return false;
+            }
+
+            // 약관에 동의했으면 소셜 로그인 URL로 이동
+            window.location.href = element.getAttribute('data-url');
+            return false;
+        }
+
+        // 회원가입 페이지 전체 동의 체크박스
+        document.getElementById('register_all_agree').addEventListener('change', function() {
+            const requiredCheckboxes = document.querySelectorAll('.register-required-agree');
+            const optionalCheckbox = document.getElementById('register_optional_agree');
+
+            if (this.checked) {
+                requiredCheckboxes.forEach(cb => cb.checked = true);
+                optionalCheckbox.checked = true;
+            } else {
+                requiredCheckboxes.forEach(cb => cb.checked = false);
+                optionalCheckbox.checked = false;
+            }
+        });
+
+        // 개별 체크박스 변경 시 전체 동의 상태 업데이트
+        document.querySelectorAll('.register-required-agree, #register_optional_agree').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const allAgree = document.getElementById('register_all_agree');
+                const requiredCheckboxes = document.querySelectorAll('.register-required-agree');
+                const optionalCheckbox = document.getElementById('register_optional_agree');
+
+                const allRequired = Array.from(requiredCheckboxes).every(cb => cb.checked);
+                const optionalChecked = optionalCheckbox.checked;
+
+                allAgree.checked = allRequired && optionalChecked;
+            });
+        });
+
         // 이메일 회원가입 모달
         function openEmailRegisterModal() {
+            const termsAgree = document.getElementById('register_terms_agree').checked;
+            const privacyAgree = document.getElementById('register_privacy_agree').checked;
+
+            if (!termsAgree || !privacyAgree) {
+                alert('필수 약관에 동의해주세요.');
+                return false;
+            }
+
             document.getElementById('emailRegisterModal').style.display = 'block';
         }
 
@@ -651,6 +729,13 @@ $socialLogin = new SocialLogin();
 
 .terms-notice a:hover {
     text-decoration: underline;
+}
+
+.register-terms-section {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 6px;
+    margin: 1.5rem 0;
 }
 
 .info-notice {
