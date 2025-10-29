@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <div class="auth-links">
                     <a href="/pages/auth/register.php">회원가입</a>
-                    <a href="/pages/auth/password_reset.php">비밀번호 찾기</a>
+                    <a href="/pages/auth/forgot_password.php">비밀번호 찾기</a>
                 </div>
             </form>
 

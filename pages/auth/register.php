@@ -54,32 +54,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_register'])) {
             if ($stmt->fetch()) {
                 echo json_encode(['success' => false, 'message' => '이미 사용 중인 이메일입니다.']);
                 exit;
-            } else {
-                // 회원가입 처리
-                $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-
-                $stmt = $pdo->prepare("
-                    INSERT INTO users (username, email, password, name, phone, address, age_range, gender, role, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'user', CURRENT_TIMESTAMP)
-                ");
-
-                $stmt->execute([
-                    $username,
-                    $email,
-                    $hashedPassword,
-                    $username,
-                    $phone,
-                    $address ?: null,
-                    $age_range,
-                    $gender
-                ]);
-
-                echo json_encode(['success' => true, 'message' => '회원가입이 완료되었습니다. 로그인해주세요.']);
-                exit;
             }
+
+            // 회원가입 처리
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+
+            $stmt = $pdo->prepare("
+                INSERT INTO users (username, email, password, name, phone, address, age_range, gender, role, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'user', CURRENT_TIMESTAMP)
+            ");
+
+            $result = $stmt->execute([
+                $username,
+                $email,
+                $hashedPassword,
+                $username,
+                $phone,
+                $address ?: null,
+                $age_range,
+                $gender
+            ]);
+
+            if ($result) {
+                $userId = $pdo->lastInsertId();
+                error_log('New user registered: ID=' . $userId . ', Email=' . $email);
+                echo json_encode(['success' => true, 'message' => '회원가입이 완료되었습니다. 로그인해주세요.']);
+            } else {
+                throw new Exception('Failed to insert user data');
+            }
+            exit;
+        } catch (PDOException $e) {
+            error_log('Database error during registration: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => '데이터베이스 오류: ' . $e->getMessage()]);
+            exit;
         } catch (Exception $e) {
             error_log('Register error: ' . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => '회원가입 처리 중 오류가 발생했습니다.']);
+            echo json_encode(['success' => false, 'message' => '회원가입 처리 중 오류가 발생했습니다: ' . $e->getMessage()]);
             exit;
         }
     }
@@ -105,7 +115,7 @@ $socialLogin = new SocialLogin();
             </div>
 
             <div class="social-auth">
-                <h2>간편 회원가입</h2>
+                <h2 style="text-align: center;">간편 회원가입</h2>
                 <p class="social-description">소셜 계정으로 빠르고 안전하게 가입하세요</p>
 
                 <div class="social-buttons">
