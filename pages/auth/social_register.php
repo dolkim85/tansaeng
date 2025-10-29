@@ -143,25 +143,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <!-- 추가 정보 입력 -->
                 <div class="form-group">
                     <label for="phone">휴대전화번호 *</label>
-                    <input type="tel" id="phone" name="phone" placeholder="010-1234-5678" required>
+                    <input type="tel" id="phone" name="phone" required>
                 </div>
 
                 <div class="form-group">
                     <label for="postcode">우편번호</label>
                     <div style="display: flex; gap: 0.5rem;">
-                        <input type="text" id="postcode" name="postcode" placeholder="우편번호" readonly style="flex: 1;">
-                        <button type="button" onclick="execDaumPostcode()" class="btn btn-outline" style="white-space: nowrap;">우편번호 찾기</button>
+                        <input type="text" id="postcode" name="postcode" readonly style="flex: 1; background: #f8f9fa;">
+                        <button type="button" onclick="execDaumPostcode()" class="btn btn-outline" style="white-space: nowrap;">주소 찾기</button>
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label for="address">주소</label>
-                    <input type="text" id="address" name="address" placeholder="주소" readonly>
+                    <input type="text" id="address" name="address" readonly style="background: #f8f9fa;">
                 </div>
 
                 <div class="form-group">
                     <label for="detailAddress">상세주소</label>
-                    <input type="text" id="detailAddress" name="detailAddress" placeholder="상세주소를 입력하세요">
+                    <input type="text" id="detailAddress" name="detailAddress">
                 </div>
 
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e9ecef;">

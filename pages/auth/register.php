@@ -212,7 +212,7 @@ $socialLogin = new SocialLogin();
                     </div>
 
                     <div class="form-group">
-                        <label for="password">비밀번호 * (최소 6자)</label>
+                        <label for="password">비밀번호 * <span style="font-weight: normal; font-size: 0.85rem; color: #666;">(최소 6자)</span></label>
                         <input type="password" id="password" name="password" required>
                     </div>
 
@@ -223,25 +223,25 @@ $socialLogin = new SocialLogin();
 
                     <div class="form-group">
                         <label for="phone">휴대전화번호 *</label>
-                        <input type="tel" id="phone" name="phone" placeholder="010-1234-5678" required>
+                        <input type="tel" id="phone" name="phone" required>
                     </div>
 
                     <div class="form-group">
                         <label for="postcode">우편번호</label>
                         <div style="display: flex; gap: 0.5rem;">
-                            <input type="text" id="postcode" name="postcode" placeholder="우편번호" readonly style="flex: 1;">
-                            <button type="button" onclick="execDaumPostcode()" class="btn btn-outline" style="white-space: nowrap;">우편번호 찾기</button>
+                            <input type="text" id="postcode" name="postcode" readonly style="flex: 1; background: #f8f9fa;">
+                            <button type="button" onclick="execDaumPostcode()" class="btn btn-outline" style="white-space: nowrap;">주소 찾기</button>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="address">주소</label>
-                        <input type="text" id="address" name="address" placeholder="주소" readonly>
+                        <input type="text" id="address" name="address" readonly style="background: #f8f9fa;">
                     </div>
 
                     <div class="form-group">
                         <label for="detailAddress">상세주소</label>
-                        <input type="text" id="detailAddress" name="detailAddress" placeholder="상세주소를 입력하세요">
+                        <input type="text" id="detailAddress" name="detailAddress">
                     </div>
 
                     <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e9ecef;">
@@ -668,25 +668,38 @@ $socialLogin = new SocialLogin();
     width: 100%;
     height: 100%;
     overflow: auto;
-    background-color: rgba(0,0,0,0.5);
+    background-color: rgba(0,0,0,0.6);
+    backdrop-filter: blur(2px);
 }
 
 .modal-content {
-    background-color: #fefefe;
-    margin: 2% auto;
+    background-color: #ffffff;
+    margin: 3% auto;
     padding: 0;
-    border: 1px solid #888;
+    border: none;
     width: 90%;
-    max-width: 600px;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    max-width: 550px;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    animation: modalFadeIn 0.3s ease;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .modal-header {
-    padding: 1.5rem;
+    padding: 1.75rem 2rem;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    border-radius: 8px 8px 0 0;
+    border-radius: 12px 12px 0 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -694,7 +707,8 @@ $socialLogin = new SocialLogin();
 
 .modal-header h3 {
     margin: 0;
-    font-size: 1.5rem;
+    font-size: 1.4rem;
+    font-weight: 600;
 }
 
 .close-modal {
@@ -703,23 +717,130 @@ $socialLogin = new SocialLogin();
     font-weight: bold;
     cursor: pointer;
     line-height: 1;
+    transition: all 0.2s ease;
+    opacity: 0.8;
 }
 
 .close-modal:hover,
 .close-modal:focus {
-    color: #ddd;
+    opacity: 1;
+    transform: scale(1.1);
 }
 
 .modal-body {
     padding: 2rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.modal-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+    background: #999;
 }
 
 .modal-footer {
-    padding: 1rem 1.5rem;
+    padding: 1.25rem 2rem;
     background: #f8f9fa;
-    border-radius: 0 0 8px 8px;
+    border-radius: 0 0 12px 12px;
     text-align: right;
-    border-top: 1px solid #dee2e6;
+    border-top: 1px solid #e9ecef;
+}
+
+/* Form 스타일 개선 */
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #333;
+    font-size: 0.95rem;
+}
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="password"],
+.form-group input[type="tel"],
+.form-group select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1.5px solid #e1e5eb;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="email"]:focus,
+.form-group input[type="password"]:focus,
+.form-group input[type="tel"]:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group input[readonly] {
+    background: #f8f9fa;
+    cursor: not-allowed;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: none;
+    font-size: 0.95rem;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-outline {
+    background: white;
+    border: 1.5px solid #e1e5eb;
+    color: #333;
+}
+
+.btn-outline:hover {
+    background: #f8f9fa;
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.btn-full {
+    width: 100%;
+}
+
+hr {
+    margin: 1.5rem 0;
+    border: none;
+    border-top: 1px solid #e9ecef;
 }
 
 /* 소셜 버튼 스타일 */
