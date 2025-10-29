@@ -105,6 +105,7 @@ $socialLogin = new SocialLogin();
     <title>회원가입 - 탄생</title>
     <link rel="stylesheet" href="/assets/css/main.css">
     <link rel="stylesheet" href="/assets/css/auth.css">
+    <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 </head>
 <body>
     <div class="auth-container">
@@ -226,8 +227,21 @@ $socialLogin = new SocialLogin();
                     </div>
 
                     <div class="form-group">
+                        <label for="postcode">우편번호</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" id="postcode" name="postcode" placeholder="우편번호" readonly style="flex: 1;">
+                            <button type="button" onclick="execDaumPostcode()" class="btn btn-outline" style="white-space: nowrap;">우편번호 찾기</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
                         <label for="address">주소</label>
-                        <input type="text" id="address" name="address" placeholder="서울시 강남구...">
+                        <input type="text" id="address" name="address" placeholder="주소" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="detailAddress">상세주소</label>
+                        <input type="text" id="detailAddress" name="detailAddress" placeholder="상세주소를 입력하세요">
                     </div>
 
                     <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e9ecef;">
@@ -398,6 +412,23 @@ $socialLogin = new SocialLogin();
     </div>
 
     <script>
+        // Daum 우편번호 API
+        function execDaumPostcode() {
+            new daum.Postcode({
+                oncomplete: function(data) {
+                    // 도로명 주소 또는 지번 주소 선택
+                    var addr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
+
+                    // 우편번호와 주소 입력
+                    document.getElementById('postcode').value = data.zonecode;
+                    document.getElementById('address').value = addr;
+
+                    // 상세주소 입력 칸으로 포커스 이동
+                    document.getElementById('detailAddress').focus();
+                }
+            }).open();
+        }
+
         // 소셜 로그인 전 약관 동의 확인
         function checkTermsAndRedirect(event, element) {
             event.preventDefault();
@@ -537,6 +568,20 @@ $socialLogin = new SocialLogin();
             e.preventDefault();
 
             const formData = new FormData(this);
+
+            // 주소 합치기 (우편번호 + 주소 + 상세주소)
+            const postcode = document.getElementById('postcode').value;
+            const address = document.getElementById('address').value;
+            const detailAddress = document.getElementById('detailAddress').value;
+
+            let fullAddress = '';
+            if (postcode) fullAddress += '[' + postcode + '] ';
+            if (address) fullAddress += address;
+            if (detailAddress) fullAddress += ' ' + detailAddress;
+
+            // 합쳐진 주소를 formData에 설정
+            formData.set('address', fullAddress.trim());
+
             const alertDiv = document.getElementById('registerAlert');
 
             fetch('/pages/auth/register.php', {

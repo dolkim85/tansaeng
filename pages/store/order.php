@@ -47,6 +47,7 @@ $totalAmount = $subtotal + $shippingCost;
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>주문/결제 - 탄생</title>
     <link rel="stylesheet" href="../../assets/css/main.css?v=<?= date('YmdHis') ?>">
+    <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Noto Sans KR', sans-serif; background: #f8f9fa; }
@@ -992,14 +993,21 @@ $totalAmount = $subtotal + $shippingCost;
             `).join('');
         }
 
-        // 주소 검색 (다음 우편번호 API 연동 시뮬레이션)
+        // Daum 우편번호 API
         function searchAddress() {
-            // 실제로는 다음 우편번호 API를 사용
-            alert('주소 검색 기능은 준비 중입니다.\n\n실제 서비스에서는 다음 우편번호 API가 연동됩니다.');
+            new daum.Postcode({
+                oncomplete: function(data) {
+                    // 도로명 주소 또는 지번 주소 선택
+                    var addr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
 
-            // 예시 주소 입력
-            document.getElementById('zipCode').value = '06234';
-            document.getElementById('address').value = '서울시 강남구 테헤란로 123';
+                    // 우편번호와 주소 입력
+                    document.getElementById('zipCode').value = data.zonecode;
+                    document.getElementById('address').value = addr;
+
+                    // 상세주소 입력 칸으로 포커스 이동
+                    document.getElementById('addressDetail').focus();
+                }
+            }).open();
         }
 
         // 주문 처리

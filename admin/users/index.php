@@ -69,6 +69,9 @@ $totalPages = ceil($totalUsers / $limit);
                                 <th>이름</th>
                                 <th>이메일</th>
                                 <th>연락처</th>
+                                <th>연령대</th>
+                                <th>성별</th>
+                                <th>가입유형</th>
                                 <th>사용자 레벨</th>
                                 <th>식물분석 권한</th>
                                 <th>가입일</th>
@@ -80,7 +83,7 @@ $totalPages = ceil($totalUsers / $limit);
                         <tbody>
                             <?php if (empty($users)): ?>
                             <tr>
-                                <td colspan="10" class="no-data">
+                                <td colspan="13" class="no-data">
                                     <?= $search ? '검색 결과가 없습니다.' : '등록된 사용자가 없습니다.' ?>
                                 </td>
                             </tr>
@@ -93,6 +96,36 @@ $totalPages = ceil($totalUsers / $limit);
                                 </td>
                                 <td><?= htmlspecialchars($userData['email']) ?></td>
                                 <td><?= htmlspecialchars($userData['phone'] ?? '-') ?></td>
+                                <td>
+                                    <?php if (!empty($userData['age_range'])): ?>
+                                    <span class="info-badge"><?= htmlspecialchars($userData['age_range']) ?></span>
+                                    <?php else: ?>
+                                    <span style="color: #999;">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($userData['gender'])): ?>
+                                    <span class="info-badge"><?= htmlspecialchars($userData['gender']) ?></span>
+                                    <?php else: ?>
+                                    <span style="color: #999;">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($userData['oauth_provider'])): ?>
+                                    <span class="oauth-badge oauth-<?= $userData['oauth_provider'] ?>">
+                                        <?php
+                                        switch($userData['oauth_provider']) {
+                                            case 'google': echo '구글'; break;
+                                            case 'kakao': echo '카카오'; break;
+                                            case 'naver': echo '네이버'; break;
+                                            default: echo ucfirst($userData['oauth_provider']);
+                                        }
+                                        ?>
+                                    </span>
+                                    <?php else: ?>
+                                    <span class="oauth-badge oauth-email">이메일</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <span class="user-level level-<?= $userData['user_level'] ?>">
                                         <?php
@@ -165,6 +198,54 @@ $totalPages = ceil($totalUsers / $limit);
             </div>
         </main>
     </div>
+
+    <style>
+        .info-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            background: #e7f3ff;
+            color: #0066cc;
+            font-weight: 500;
+        }
+
+        .oauth-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .oauth-google {
+            background: #4285f4;
+            color: white;
+        }
+
+        .oauth-kakao {
+            background: #fee500;
+            color: #3c1e1e;
+        }
+
+        .oauth-naver {
+            background: #03c75a;
+            color: white;
+        }
+
+        .oauth-email {
+            background: #6c757d;
+            color: white;
+        }
+
+        .admin-table th {
+            white-space: nowrap;
+        }
+
+        .admin-table td {
+            white-space: nowrap;
+        }
+    </style>
 
     <script src="/assets/js/main.js"></script>
     <script src="/assets/js/admin.js"></script>
