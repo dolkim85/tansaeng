@@ -71,8 +71,19 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
     echo "🔐 파일 권한 설정 중..."
     sudo chmod -R 755 /var/www/html/
 
-    # uploads는 블록 스토리지의 심볼릭 링크이므로 별도 권한 설정 불필요
-    # 블록 스토리지 권한만 확인
+    # 🔗 uploads 심볼릭 링크 복원 (배포 시 삭제될 수 있음)
+    if [ -d "/var/www/html/uploads" ] && [ ! -L "/var/www/html/uploads" ]; then
+        echo "📁 실제 uploads 디렉토리 발견, 제거 후 심볼릭 링크 생성..."
+        sudo rm -rf /var/www/html/uploads
+    fi
+
+    if [ ! -L "/var/www/html/uploads" ]; then
+        echo "🔗 uploads 심볼릭 링크 생성 중..."
+        sudo ln -sf /mnt/block-storage/uploads /var/www/html/uploads
+        echo "✅ 심볼릭 링크 생성 완료"
+    fi
+
+    # 블록 스토리지 권한 설정
     if [ -d "/mnt/block-storage/uploads" ]; then
         sudo chown -R www-data:www-data /mnt/block-storage/uploads
         sudo chmod -R 755 /mnt/block-storage/uploads
