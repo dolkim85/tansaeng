@@ -23,9 +23,10 @@ class SocialLogin {
             'redirect_uri' => $this->config['google']['redirect_uri'],
             'scope' => $this->config['google']['scope'],
             'response_type' => 'code',
-            'access_type' => 'online'
+            'access_type' => 'online',
+            'prompt' => 'consent' // 항상 동의 화면 표시
         ];
-        
+
         return 'https://accounts.google.com/o/oauth2/auth?' . http_build_query($params);
     }
     
@@ -36,9 +37,10 @@ class SocialLogin {
         $params = [
             'client_id' => $this->config['kakao']['client_id'],
             'redirect_uri' => $this->config['kakao']['redirect_uri'],
-            'response_type' => 'code'
+            'response_type' => 'code',
+            'prompt' => 'login' // 항상 로그인 화면 표시
         ];
-        
+
         return 'https://kauth.kakao.com/oauth/authorize?' . http_build_query($params);
     }
     
@@ -48,14 +50,15 @@ class SocialLogin {
     public function getNaverLoginUrl() {
         $state = bin2hex(random_bytes(16));
         $_SESSION['naver_state'] = $state;
-        
+
         $params = [
             'response_type' => 'code',
             'client_id' => $this->config['naver']['client_id'],
             'redirect_uri' => $this->config['naver']['redirect_uri'],
-            'state' => $state
+            'state' => $state,
+            'auth_type' => 'reprompt' // 항상 동의 화면 표시
         ];
-        
+
         return 'https://nid.naver.com/oauth2.0/authorize?' . http_build_query($params);
     }
     
