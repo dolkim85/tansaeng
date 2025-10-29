@@ -45,9 +45,22 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         sudo git checkout tags/latest_v14
     else
         echo "🔄 최신 변경사항 가져오는 중..."
+
+        # 📦 배포 전 자동 백업 (2단계)
+        echo "💾 블록 스토리지 백업 중..."
+        BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
+        if [ -d "/mnt/block-storage/uploads" ]; then
+            sudo mkdir -p /var/backups/tansaeng
+            sudo cp -r /mnt/block-storage/uploads /var/backups/tansaeng/uploads_$BACKUP_DATE
+            echo "✅ 백업 완료: /var/backups/tansaeng/uploads_$BACKUP_DATE"
+        fi
+
         sudo git fetch origin --tags
         sudo git reset --hard HEAD
-        sudo git clean -fd
+
+        # 🛡️ Git clean에서 중요 파일 제외 (1단계)
+        sudo git clean -fd -e uploads -e .env -e uploads_backup_*
+
         sudo git checkout tags/latest_v14
         sudo git pull origin main
     fi
@@ -57,8 +70,15 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
     # 권한 설정
     echo "🔐 파일 권한 설정 중..."
     sudo chmod -R 755 /var/www/html/
-    sudo mkdir -p /var/www/html/uploads/
-    sudo chmod -R 777 /var/www/html/uploads/
+
+    # uploads는 블록 스토리지의 심볼릭 링크이므로 별도 권한 설정 불필요
+    # 블록 스토리지 권한만 확인
+    if [ -d "/mnt/block-storage/uploads" ]; then
+        sudo chown -R www-data:www-data /mnt/block-storage/uploads
+        sudo chmod -R 755 /mnt/block-storage/uploads
+        echo "✅ 블록 스토리지 uploads 권한 설정 완료"
+    fi
+
     sudo chown -R www-data:www-data /var/www/html/
 
     # 환경별 설정 확인
