@@ -171,7 +171,7 @@ $socialLogin = new SocialLogin();
                     <div class="form-check">
                         <input type="checkbox" id="register_optional_agree">
                         <label for="register_optional_agree">
-                            선택 정보 수집에 동의합니다 (선택)
+                            <a href="#" onclick="openOptionalInfoModal(event)">선택 정보 수집</a>에 동의합니다 (선택)
                         </label>
                     </div>
                 </div>
@@ -334,6 +334,69 @@ $socialLogin = new SocialLogin();
         </div>
     </div>
 
+    <!-- 선택 정보 수집 모달 -->
+    <div id="optionalInfoModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3>선택 정보 수집 안내</h3>
+                <span class="close-modal" onclick="closeOptionalInfoModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="background: #e7f3ff; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                    <p style="margin: 0; color: #0066cc; font-weight: 600;">선택 항목은 동의하지 않으셔도 서비스를 이용하실 수 있습니다.</p>
+                </div>
+
+                <h2 style="color: #34495e; margin-top: 1.5rem; font-size: 1.1rem;">수집하는 선택 정보</h2>
+
+                <div style="background: #d1ecf1; padding: 1rem; border-left: 4px solid #17a2b8; border-radius: 4px; margin: 1rem 0;">
+                    <ul style="margin: 0; padding-left: 1.5rem;">
+                        <li style="margin-bottom: 0.5rem;">
+                            <strong>연령대</strong>: 연령대별 맞춤 서비스 및 상품 추천
+                        </li>
+                        <li style="margin-bottom: 0;">
+                            <strong>성별</strong>: 성별 맞춤 상품 추천 및 통계
+                        </li>
+                    </ul>
+                </div>
+
+                <h2 style="color: #34495e; margin-top: 1.5rem; font-size: 1.1rem;">수집 목적</h2>
+                <p style="line-height: 1.6; color: #555;">
+                    선택 정보는 다음과 같은 목적으로 사용됩니다:
+                </p>
+                <ul style="line-height: 1.6; color: #555; padding-left: 1.5rem;">
+                    <li>연령대 및 성별에 맞는 상품 추천</li>
+                    <li>맞춤형 콘텐츠 및 서비스 제공</li>
+                    <li>서비스 개선을 위한 통계 분석</li>
+                    <li>마케팅 및 프로모션 정보 제공</li>
+                </ul>
+
+                <h2 style="color: #34495e; margin-top: 1.5rem; font-size: 1.1rem;">보유 및 이용 기간</h2>
+                <p style="line-height: 1.6; color: #555;">
+                    선택 정보는 <strong>회원 탈퇴 시까지</strong> 보유 및 이용됩니다.<br>
+                    탈퇴 즉시 지체없이 파기하며, 법령에 따라 보관이 필요한 경우 해당 기간 동안만 별도 보관합니다.
+                </p>
+
+                <h2 style="color: #34495e; margin-top: 1.5rem; font-size: 1.1rem;">동의 거부권</h2>
+                <div style="background: #fff3cd; padding: 1rem; border-left: 4px solid #ffc107; border-radius: 4px; margin: 1rem 0;">
+                    <p style="margin: 0; line-height: 1.6; color: #555;">
+                        귀하는 선택 정보 수집에 대한 동의를 거부할 권리가 있습니다.<br>
+                        다만, 동의를 거부할 경우 <strong>맞춤형 서비스 제공이 제한</strong>될 수 있습니다.
+                    </p>
+                </div>
+
+                <div style="background: #f8f9fa; padding: 1rem; border-radius: 6px; margin-top: 1.5rem;">
+                    <p style="margin: 0; font-size: 0.9rem; color: #666; line-height: 1.6;">
+                        ※ 선택 정보는 언제든지 마이페이지에서 수정 또는 삭제하실 수 있습니다.<br>
+                        ※ 자세한 내용은 <a href="#" onclick="openPrivacyModal(event); closeOptionalInfoModal();" style="color: #007bff;">개인정보처리방침</a>을 참고해주세요.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeOptionalInfoModal()" class="btn btn-primary">확인</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // 소셜 로그인 전 약관 동의 확인
         function checkTermsAndRedirect(event, element) {
@@ -450,6 +513,16 @@ $socialLogin = new SocialLogin();
 
         function closeTermsModal() {
             document.getElementById('termsModal').style.display = 'none';
+        }
+
+        // 선택 정보 수집 모달
+        function openOptionalInfoModal(e) {
+            if (e) e.preventDefault();
+            document.getElementById('optionalInfoModal').style.display = 'block';
+        }
+
+        function closeOptionalInfoModal() {
+            document.getElementById('optionalInfoModal').style.display = 'none';
         }
 
         // 모달 외부 클릭시 닫기
