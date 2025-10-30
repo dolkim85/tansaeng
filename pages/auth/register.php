@@ -60,8 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_register'])) {
             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
             $stmt = $pdo->prepare("
-                INSERT INTO users (username, email, password, name, phone, address, age_range, gender, role, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'user', CURRENT_TIMESTAMP)
+                INSERT INTO users (username, email, password, name, phone, address, age_range, gender, role)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'user')
             ");
 
             $result = $stmt->execute([
@@ -71,8 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_register'])) {
                 $username,
                 $phone,
                 $address ?: null,
-                $age_range,
-                $gender
+                $age_range ?: null,
+                $gender ?: null
             ]);
 
             if ($result) {
@@ -556,12 +556,20 @@ $socialLogin = new SocialLogin();
             document.getElementById('optionalInfoModal').style.display = 'none';
         }
 
-        // 모달 외부 클릭시 닫기
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) {
+        // 모달 외부 클릭시 닫기 (드래그 무시)
+        let mouseDownTarget = null;
+
+        window.addEventListener('mousedown', function(event) {
+            mouseDownTarget = event.target;
+        });
+
+        window.addEventListener('click', function(event) {
+            // mousedown과 click이 둘 다 모달 배경에서 발생한 경우에만 닫기
+            if (mouseDownTarget && mouseDownTarget.classList.contains('modal') &&
+                event.target.classList.contains('modal')) {
                 event.target.style.display = 'none';
             }
-        }
+        });
 
         // 이메일 회원가입 폼 제출
         document.getElementById('emailRegisterForm').addEventListener('submit', function(e) {

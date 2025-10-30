@@ -51,8 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 사용자 등록
             $stmt = $pdo->prepare("
                 INSERT INTO users (username, email, password, name, phone, address, age_range, gender,
-                                   oauth_provider, oauth_id, avatar_url, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                                   oauth_provider, oauth_id, avatar_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $stmt->execute([
@@ -62,8 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $socialData['username'],
                 $phone,
                 $address ?: null,
-                $age_range,
-                $gender,
+                $age_range ?: null,
+                $gender ?: null,
                 $provider,
                 $socialData['social_id'],
                 $socialData['avatar_url'] ?? null
