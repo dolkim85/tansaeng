@@ -34,8 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_register'])) {
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         echo json_encode(['success' => false, 'message' => '올바른 이메일 주소를 입력해주세요.']);
         exit;
-    } elseif (strlen($password) < 6) {
-        echo json_encode(['success' => false, 'message' => '비밀번호는 최소 6자 이상이어야 합니다.']);
+    } elseif (strlen($password) < 8) {
+        echo json_encode(['success' => false, 'message' => '비밀번호는 최소 8자 이상이어야 합니다.']);
         exit;
     } elseif ($password !== $password_confirm) {
         echo json_encode(['success' => false, 'message' => '비밀번호가 일치하지 않습니다.']);
@@ -212,7 +212,7 @@ $socialLogin = new SocialLogin();
                     </div>
 
                     <div class="form-group">
-                        <label for="password">비밀번호 * <span style="font-weight: normal; font-size: 0.85rem; color: #666;">(최소 6자)</span></label>
+                        <label for="password">비밀번호 * <span style="font-weight: normal; font-size: 0.85rem; color: #666;">(최소 8자)</span></label>
                         <input type="password" id="password" name="password" required>
                     </div>
 

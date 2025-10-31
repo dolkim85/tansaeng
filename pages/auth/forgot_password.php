@@ -94,8 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
     } elseif (empty($new_password)) {
         $error = '새 비밀번호를 입력해주세요.';
         $step = 'reset';
-    } elseif (strlen($new_password) < 6) {
-        $error = '비밀번호는 최소 6자 이상이어야 합니다.';
+    } elseif (strlen($new_password) < 8) {
+        $error = '비밀번호는 최소 8자 이상이어야 합니다.';
         $step = 'reset';
     } elseif ($new_password !== $new_password_confirm) {
         $error = '비밀번호가 일치하지 않습니다.';
