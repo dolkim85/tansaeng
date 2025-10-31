@@ -20,13 +20,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_email'])) {
             $db = Database::getInstance();
             $pdo = $db->getConnection();
 
-            $stmt = $pdo->prepare("SELECT id, email, phone, oauth_provider FROM users WHERE email = ?");
+            $stmt = $pdo->prepare("SELECT id, email, phone, name, oauth_provider FROM users WHERE email = ?");
             $stmt->execute([$email]);
             $user = $stmt->fetch();
 
             if ($user) {
-                // 소셜 로그인 사용자 체크
-                if (!empty($user['oauth_provider'])) {
+                // 소셜 로그인 사용자 체크 (oauth_provider가 NULL이거나 'email'이 아닌 경우)
+                if (!empty($user['oauth_provider']) && $user['oauth_provider'] !== 'email') {
                     $providerName = [
                         'google' => '구글',
                         'kakao' => '카카오',
@@ -34,9 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_email'])) {
                     ][$user['oauth_provider']] ?? $user['oauth_provider'];
 
                     $error = '해당 이메일은 ' . $providerName . ' 소셜 로그인으로 가입된 계정입니다. ' . $providerName . '로 로그인해주세요.';
+                } elseif (empty($user['phone'])) {
+                    $error = '가입 시 휴대전화번호를 등록하지 않아 비밀번호 찾기를 사용할 수 없습니다. 고객센터로 문의해주세요.';
                 } else {
                     $_SESSION['reset_user_id'] = $user['id'];
                     $_SESSION['reset_email'] = $user['email'];
+                    $_SESSION['reset_user_name'] = $user['name'];
                     $_SESSION['reset_phone_last4'] = substr($user['phone'], -4);
                     $step = 'verify';
                 }
@@ -113,9 +116,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
             // 세션 정리
             unset($_SESSION['reset_user_id']);
             unset($_SESSION['reset_email']);
+            unset($_SESSION['reset_user_name']);
             unset($_SESSION['reset_phone_last4']);
 
-            $_SESSION['auth_success'] = '비밀번호가 성공적으로 변경되었습니다. 새 비밀번호로 로그인해주세요.';
+            $_SESSION['auth_success'] = '✅ 비밀번호가 성공적으로 변경되었습니다. 새 비밀번호로 로그인해주세요.';
             header('Location: /pages/auth/login.php');
             exit;
 
@@ -147,9 +151,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
             <?php if ($step === 'email'): ?>
                 <!-- 1단계: 이메일 입력 -->
                 <form method="post" class="auth-form">
-                    <h2 style="text-align: center;">비밀번호 찾기</h2>
+                    <h2 style="text-align: center;">🔑 비밀번호 찾기</h2>
                     <p style="text-align: center; color: #666; margin-bottom: 1.5rem;">
-                        가입하신 이메일 주소를 입력해주세요.
+                        이메일로 가입하신 계정의 이메일 주소를 입력해주세요.<br>
+                        <small style="color: #999;">(소셜 로그인 계정은 해당 서비스에서 비밀번호를 재설정해주세요.)</small>
                     </p>
 
                     <?php if ($error): ?>
@@ -171,10 +176,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
             <?php elseif ($step === 'verify'): ?>
                 <!-- 2단계: 휴대전화번호 확인 -->
                 <form method="post" class="auth-form">
-                    <h2 style="text-align: center;">본인 확인</h2>
+                    <h2 style="text-align: center;">👤 본인 확인</h2>
+                    <p style="text-align: center; color: #666; margin-bottom: 0.5rem;">
+                        <strong><?= htmlspecialchars($_SESSION['reset_user_name'] ?? '') ?></strong>님, 안녕하세요!
+                    </p>
                     <p style="text-align: center; color: #666; margin-bottom: 1.5rem;">
                         가입하신 휴대전화번호를 입력해주세요.<br>
-                        <small style="color: #999;">(뒤 4자리: <?= htmlspecialchars($_SESSION['reset_phone_last4']) ?>)</small>
+                        <small style="color: #4CAF50; font-weight: 600;">힌트: 뒤 4자리는 <?= htmlspecialchars($_SESSION['reset_phone_last4']) ?>입니다</small>
                     </p>
 
                     <?php if ($error): ?>
@@ -196,9 +204,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
             <?php elseif ($step === 'reset'): ?>
                 <!-- 3단계: 새 비밀번호 설정 -->
                 <form method="post" class="auth-form">
-                    <h2 style="text-align: center;">새 비밀번호 설정</h2>
+                    <h2 style="text-align: center;">🔐 새 비밀번호 설정</h2>
                     <p style="text-align: center; color: #666; margin-bottom: 1.5rem;">
-                        새로운 비밀번호를 입력해주세요.
+                        <strong><?= htmlspecialchars($_SESSION['reset_user_name'] ?? '') ?></strong>님의 새로운 비밀번호를 입력해주세요.<br>
+                        <small style="color: #999;">비밀번호는 8자 이상, 영문과 숫자를 조합해주세요.</small>
                     </p>
 
                     <?php if ($error): ?>
@@ -206,16 +215,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
                     <?php endif; ?>
 
                     <div class="form-group">
-                        <label for="new_password">새 비밀번호 * (최소 6자)</label>
-                        <input type="password" id="new_password" name="new_password" required autofocus>
+                        <label for="new_password">새 비밀번호 * <span style="font-weight: normal; font-size: 0.85rem; color: #666;">(최소 8자)</span></label>
+                        <input type="password" id="new_password" name="new_password" required autofocus placeholder="영문, 숫자 조합 8자 이상">
                     </div>
 
                     <div class="form-group">
                         <label for="new_password_confirm">새 비밀번호 확인 *</label>
-                        <input type="password" id="new_password_confirm" name="new_password_confirm" required>
+                        <input type="password" id="new_password_confirm" name="new_password_confirm" required placeholder="비밀번호를 다시 입력하세요">
                     </div>
 
-                    <button type="submit" name="reset_password" class="btn btn-primary btn-full">비밀번호 변경</button>
+                    <button type="submit" name="reset_password" class="btn btn-primary btn-full">✓ 비밀번호 변경 완료</button>
+
+                    <div class="auth-links" style="margin-top: 1rem;">
+                        <a href="/pages/auth/forgot_password.php">처음부터 다시</a>
+                    </div>
                 </form>
             <?php endif; ?>
 
