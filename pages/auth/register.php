@@ -476,14 +476,6 @@ $socialLogin = new SocialLogin();
 
         // 이메일 회원가입 모달
         function openEmailRegisterModal() {
-            const termsAgree = document.getElementById('register_terms_agree').checked;
-            const privacyAgree = document.getElementById('register_privacy_agree').checked;
-
-            if (!termsAgree || !privacyAgree) {
-                alert('필수 약관에 동의해주세요.');
-                return false;
-            }
-
             document.getElementById('emailRegisterModal').style.display = 'block';
         }
 
