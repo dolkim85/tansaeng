@@ -23,6 +23,8 @@ CREATE TABLE users (
     name VARCHAR(50) NOT NULL,
     phone VARCHAR(20),
     address TEXT,
+    age_range VARCHAR(20) NULL COMMENT '연령대 (10대, 20대, 30대, 40대, 50대, 60대 이상)',
+    gender VARCHAR(10) NULL COMMENT '성별 (남성, 여성, 기타)',
     user_level TINYINT DEFAULT 1 COMMENT '1: General, 2: Plant Analysis, 9: Admin',
     plant_analysis_permission BOOLEAN DEFAULT FALSE,
     email_verified BOOLEAN DEFAULT FALSE,
