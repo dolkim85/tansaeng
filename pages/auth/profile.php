@@ -132,6 +132,7 @@ if ($dbConnected) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>내 정보 - 탄생</title>
     <link rel="stylesheet" href="/assets/css/main.css">
+    <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 </head>
 <body>
     <?php include '../../includes/header.php'; ?>
@@ -216,15 +217,28 @@ if ($dbConnected) {
                             <div class="form-grid">
                                 <div class="form-group">
                                     <label for="phone">연락처</label>
-                                    <input type="tel" id="phone" name="phone" 
+                                    <input type="tel" id="phone" name="phone"
                                            value="<?= htmlspecialchars($currentUser['phone'] ?? '') ?>">
                                 </div>
-                                
+
                                 <div class="form-group">
-                                    <label for="address">주소</label>
-                                    <input type="text" id="address" name="address" 
-                                           value="<?= htmlspecialchars($currentUser['address'] ?? '') ?>">
+                                    <label for="postcode">우편번호</label>
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <input type="text" id="postcode" name="postcode" readonly style="flex: 1; background: #f8f9fa;">
+                                        <button type="button" onclick="execDaumPostcode()" class="btn btn-outline" style="white-space: nowrap;">주소 찾기</button>
+                                    </div>
                                 </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="address">주소</label>
+                                <input type="text" id="address" name="address" readonly style="background: #f8f9fa;">
+                                <input type="hidden" id="fullAddress" name="fullAddress">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="detailAddress">상세주소</label>
+                                <input type="text" id="detailAddress" name="detailAddress">
                             </div>
 
                             <div class="form-actions">
@@ -404,6 +418,68 @@ if ($dbConnected) {
 
     <script src="/assets/js/main.js"></script>
     <script>
+        // Daum 우편번호 API
+        function execDaumPostcode() {
+            new daum.Postcode({
+                oncomplete: function(data) {
+                    var addr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
+
+                    document.getElementById('postcode').value = data.zonecode;
+                    document.getElementById('address').value = addr;
+                    document.getElementById('detailAddress').focus();
+                }
+            }).open();
+        }
+
+        // 폼 제출 전 주소 합치기
+        document.querySelector('#profile-info form').addEventListener('submit', function(e) {
+            const postcode = document.getElementById('postcode').value;
+            const address = document.getElementById('address').value;
+            const detailAddress = document.getElementById('detailAddress').value;
+
+            let fullAddress = '';
+            if (postcode) fullAddress += '[' + postcode + '] ';
+            if (address) fullAddress += address;
+            if (detailAddress) fullAddress += ' ' + detailAddress;
+
+            // 합쳐진 주소를 hidden 필드에 저장
+            document.getElementById('fullAddress').value = fullAddress.trim();
+
+            // address 필드의 name을 임시로 제거하고 fullAddress를 address로 설정
+            document.getElementById('address').removeAttribute('name');
+            document.getElementById('fullAddress').setAttribute('name', 'address');
+        });
+
+        // 페이지 로드 시 기존 주소 분리
+        window.addEventListener('DOMContentLoaded', function() {
+            const currentAddress = "<?= htmlspecialchars($currentUser['address'] ?? '') ?>";
+            if (currentAddress) {
+                // 주소 파싱: [우편번호] 주소 상세주소
+                const postcodeMatch = currentAddress.match(/\[(\d+)\]/);
+                if (postcodeMatch) {
+                    document.getElementById('postcode').value = postcodeMatch[1];
+                    let remainingAddress = currentAddress.replace(/\[\d+\]\s*/, '');
+
+                    // 상세주소는 마지막 공백 이후로 가정
+                    const parts = remainingAddress.split(' ');
+                    if (parts.length > 3) {
+                        const detailStartIndex = remainingAddress.lastIndexOf(' ', remainingAddress.length - 10);
+                        if (detailStartIndex > 0) {
+                            document.getElementById('address').value = remainingAddress.substring(0, detailStartIndex).trim();
+                            document.getElementById('detailAddress').value = remainingAddress.substring(detailStartIndex + 1).trim();
+                        } else {
+                            document.getElementById('address').value = remainingAddress;
+                        }
+                    } else {
+                        document.getElementById('address').value = remainingAddress;
+                    }
+                } else {
+                    // 우편번호가 없는 경우 전체를 주소로
+                    document.getElementById('address').value = currentAddress;
+                }
+            }
+        });
+
         function showTab(tabId, element) {
             // Hide all tab contents
             document.querySelectorAll('.tab-content').forEach(tab => {
