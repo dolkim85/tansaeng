@@ -65,12 +65,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_email'])) {
                     $headers = "From: noreply@tansaeng.com\r\n";
                     $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
 
-                    if (mail($to, $subject, $message, $headers)) {
+                    // 메일 전송 시도
+                    $mailResult = @mail($to, $subject, $message, $headers);
+
+                    if ($mailResult) {
+                        error_log('Password reset email sent successfully to: ' . $user['email']);
                         $success = '인증 코드가 이메일로 전송되었습니다. 이메일을 확인해주세요.';
                         $step = 'verify_code';
                     } else {
+                        $lastError = error_get_last();
+                        error_log('Email send failed for: ' . $user['email'] . ' | Error: ' . print_r($lastError, true));
                         $error = '이메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요.';
-                        error_log('Email send failed for: ' . $user['email']);
                     }
                 }
             } else {
@@ -152,10 +157,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_code'])) {
                 $headers = "From: noreply@tansaeng.com\r\n";
                 $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
 
-                if (mail($to, $subject, $message, $headers)) {
+                // 메일 재전송 시도
+                $mailResult = @mail($to, $subject, $message, $headers);
+
+                if ($mailResult) {
+                    error_log('Password reset email resent successfully to: ' . $user['email']);
                     $success = '인증 코드가 재전송되었습니다.';
                     $step = 'verify_code';
                 } else {
+                    $lastError = error_get_last();
+                    error_log('Email resend failed for: ' . $user['email'] . ' | Error: ' . print_r($lastError, true));
                     $error = '이메일 전송에 실패했습니다.';
                     $step = 'verify_code';
                 }
