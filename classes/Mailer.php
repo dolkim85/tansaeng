@@ -25,8 +25,16 @@ class Mailer {
             $this->mail->SMTPAuth = true;
             $this->mail->Username = env('SMTP_USERNAME');
             $this->mail->Password = env('SMTP_PASSWORD');
-            $this->mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $this->mail->Port = env('SMTP_PORT', 587);
+
+            // 네이버는 SSL(465) 사용
+            $smtpSecure = env('SMTP_SECURE', 'ssl');
+            if (strtolower($smtpSecure) === 'ssl') {
+                $this->mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+            } else {
+                $this->mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            }
+
+            $this->mail->Port = env('SMTP_PORT', 465);
             $this->mail->CharSet = 'UTF-8';
 
             // 발신자 정보
