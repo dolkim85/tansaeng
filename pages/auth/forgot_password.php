@@ -2,6 +2,7 @@
 session_start();
 
 require_once __DIR__ . '/../../classes/Database.php';
+require_once __DIR__ . '/../../classes/Mailer.php';
 
 $error = '';
 $success = '';
@@ -45,37 +46,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_email'])) {
                     $_SESSION['reset_verification_code'] = $verification_code;
                     $_SESSION['reset_code_time'] = time();
 
-                    // 이메일 발송
-                    $to = $user['email'];
-                    $subject = '[탄생] 비밀번호 재설정 인증 코드';
-                    $message = "
-                    안녕하세요, {$user['name']}님.
+                    // 이메일 발송 (PHPMailer 사용)
+                    try {
+                        $mailer = new Mailer();
+                        $mailResult = $mailer->sendPasswordResetEmail(
+                            $user['email'],
+                            $user['name'],
+                            $verification_code
+                        );
 
-                    비밀번호 재설정을 위한 인증 코드입니다.
-
-                    인증 코드: {$verification_code}
-
-                    이 코드는 5분간 유효합니다.
-                    본인이 요청하지 않았다면 이 메일을 무시하세요.
-
-                    감사합니다.
-                    탄생 스마트팜
-                    ";
-
-                    $headers = "From: noreply@tansaeng.com\r\n";
-                    $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-
-                    // 메일 전송 시도
-                    $mailResult = @mail($to, $subject, $message, $headers);
-
-                    if ($mailResult) {
-                        error_log('Password reset email sent successfully to: ' . $user['email']);
-                        $success = '인증 코드가 이메일로 전송되었습니다. 이메일을 확인해주세요.';
-                        $step = 'verify_code';
-                    } else {
-                        $lastError = error_get_last();
-                        error_log('Email send failed for: ' . $user['email'] . ' | Error: ' . print_r($lastError, true));
-                        $error = '이메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요.';
+                        if ($mailResult) {
+                            $success = '인증 코드가 이메일로 전송되었습니다. 이메일을 확인해주세요.';
+                            $step = 'verify_code';
+                        } else {
+                            $error = '이메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요.';
+                        }
+                    } catch (Exception $e) {
+                        error_log('Email send exception: ' . $e->getMessage());
+                        $error = '이메일 전송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
                     }
                 }
             } else {
@@ -137,37 +125,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_code'])) {
                 $_SESSION['reset_verification_code'] = $verification_code;
                 $_SESSION['reset_code_time'] = time();
 
-                // 이메일 발송
-                $to = $user['email'];
-                $subject = '[탄생] 비밀번호 재설정 인증 코드';
-                $message = "
-                안녕하세요, {$user['name']}님.
+                // 이메일 재발송 (PHPMailer 사용)
+                try {
+                    $mailer = new Mailer();
+                    $mailResult = $mailer->sendPasswordResetEmail(
+                        $user['email'],
+                        $user['name'],
+                        $verification_code
+                    );
 
-                비밀번호 재설정을 위한 인증 코드입니다.
-
-                인증 코드: {$verification_code}
-
-                이 코드는 5분간 유효합니다.
-                본인이 요청하지 않았다면 이 메일을 무시하세요.
-
-                감사합니다.
-                탄생 스마트팜
-                ";
-
-                $headers = "From: noreply@tansaeng.com\r\n";
-                $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-
-                // 메일 재전송 시도
-                $mailResult = @mail($to, $subject, $message, $headers);
-
-                if ($mailResult) {
-                    error_log('Password reset email resent successfully to: ' . $user['email']);
-                    $success = '인증 코드가 재전송되었습니다.';
-                    $step = 'verify_code';
-                } else {
-                    $lastError = error_get_last();
-                    error_log('Email resend failed for: ' . $user['email'] . ' | Error: ' . print_r($lastError, true));
-                    $error = '이메일 전송에 실패했습니다.';
+                    if ($mailResult) {
+                        $success = '인증 코드가 재전송되었습니다.';
+                        $step = 'verify_code';
+                    } else {
+                        $error = '이메일 전송에 실패했습니다.';
+                        $step = 'verify_code';
+                    }
+                } catch (Exception $e) {
+                    error_log('Email resend exception: ' . $e->getMessage());
+                    $error = '이메일 전송 중 오류가 발생했습니다.';
                     $step = 'verify_code';
                 }
             }
