@@ -3,7 +3,7 @@
 # 탄생(Tansaeng) 클라우드 자동 배포 스크립트 v11.0
 # 사용법: ./deploy_to_cloud.sh
 
-echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: latest_v51)..."
+echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: latest_v52)..."
 
 # 변수 설정
 CLOUD_SERVER="1.201.17.34"
@@ -11,7 +11,7 @@ CLOUD_USER="ubuntu"
 SSH_KEY="/home/spinmoll/.ssh/tansaeng.pem"
 CLOUD_PATH="/var/www/html"
 REPO_URL="https://github.com/dolkim85/tansaeng.git"
-DEPLOY_TAG="latest_v51"
+DEPLOY_TAG="latest_v52"
 DOMAIN="www.tansaeng.com"
 
 # Git 상태 확인
