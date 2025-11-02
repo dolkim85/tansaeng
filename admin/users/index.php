@@ -201,11 +201,46 @@ $totalPages = ceil($totalUsers / $limit);
     </div>
 
     <style>
+        .table-container {
+            overflow-x: auto;
+            width: 100%;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .admin-table {
+            min-width: 1400px;
+            font-size: 0.9rem;
+        }
+
+        .admin-table th {
+            white-space: nowrap;
+            padding: 0.75rem 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .admin-table td {
+            white-space: nowrap;
+            padding: 0.75rem 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .admin-table th:first-child,
+        .admin-table td:first-child {
+            padding-left: 1rem;
+        }
+
+        .admin-table th:last-child,
+        .admin-table td:last-child {
+            padding-right: 1rem;
+        }
+
         .info-badge {
             display: inline-block;
-            padding: 0.25rem 0.5rem;
+            padding: 0.2rem 0.4rem;
             border-radius: 4px;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             background: #e7f3ff;
             color: #0066cc;
             font-weight: 500;
@@ -213,9 +248,9 @@ $totalPages = ceil($totalUsers / $limit);
 
         .oauth-badge {
             display: inline-block;
-            padding: 0.25rem 0.5rem;
+            padding: 0.2rem 0.4rem;
             border-radius: 4px;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             font-weight: 500;
         }
 
@@ -239,12 +274,105 @@ $totalPages = ceil($totalUsers / $limit);
             color: white;
         }
 
-        .admin-table th {
-            white-space: nowrap;
+        .user-level {
+            display: inline-block;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
         }
 
-        .admin-table td {
-            white-space: nowrap;
+        .user-level.level-1 {
+            background: #e7f3ff;
+            color: #0066cc;
+        }
+
+        .user-level.level-2 {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .user-level.level-9 {
+            background: #dc3545;
+            color: white;
+        }
+
+        .permission-badge {
+            display: inline-block;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .permission-badge.granted {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .permission-badge.denied {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-badge.active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.3rem;
+            justify-content: center;
+        }
+
+        .btn-sm {
+            padding: 0.3rem 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        /* 스크롤바 스타일 */
+        .table-container::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* 반응형 처리 */
+        @media (max-width: 1400px) {
+            .admin-table {
+                font-size: 0.85rem;
+            }
+
+            .admin-table th,
+            .admin-table td {
+                padding: 0.6rem 0.4rem;
+            }
         }
     </style>
 
