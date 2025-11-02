@@ -114,7 +114,7 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                     <?= nl2br(htmlspecialchars($siteSettings['hero_description'] ?? '고품질 수경재배 배지와 AI 기반 식물분석 서비스로 여러분의 스마트팜을 더욱 스마트하게 만들어드립니다.')) ?>
                 </p>
                 <div class="hero-links">
-                    <a href="/pages/products/" class="hero-link">제품 보기</a>
+                    <a href="/pages/store/" class="hero-link">제품 보기</a>
                     <a href="/pages/plant-analysis/" class="hero-link">AI 식물분석</a>
                 </div>
             </div>
@@ -210,7 +210,7 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
         <div class="container">
             <div class="section-header">
                 <h2 class="section-title">🌱 지금 이 상품이 필요하신가요?</h2>
-                <a href="/pages/products/" class="section-link">전체 제품 보기 →</a>
+                <a href="/pages/store/" class="section-link">전체 제품 보기 →</a>
             </div>
 
             <div class="product-carousel-container">
