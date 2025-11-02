@@ -243,6 +243,7 @@ if (!$userData) {
                         <h1>👤 사용자 상세 정보</h1>
                         <div class="header-actions">
                             <a href="edit.php?id=<?= $userData['id'] ?>" class="btn btn-primary">✏️ 수정</a>
+                            <button onclick="deleteUser(<?= $userData['id'] ?>, '<?= htmlspecialchars($userData['name']) ?>')" class="btn btn-danger">🗑️ 사용자 탈퇴</button>
                             <a href="index.php" class="btn btn-secondary">← 목록으로</a>
                         </div>
                     </div>
@@ -362,5 +363,40 @@ if (!$userData) {
 
     <script src="/assets/js/main.js"></script>
     <script src="/assets/js/admin.js"></script>
+    <script>
+        async function deleteUser(userId, userName) {
+            // 확인 대화상자
+            if (!confirm(`정말로 "${userName}" 사용자를 탈퇴시키시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+                return;
+            }
+
+            // 추가 확인
+            if (!confirm('최종 확인: 사용자의 모든 정보가 삭제됩니다. 계속하시겠습니까?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/admin/api/delete_user.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: userId })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('사용자가 성공적으로 탈퇴 처리되었습니다.');
+                    window.location.href = 'index.php?success=' + encodeURIComponent('사용자가 탈퇴 처리되었습니다.');
+                } else {
+                    alert('탈퇴 처리 실패: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('탈퇴 처리 중 오류가 발생했습니다.');
+            }
+        }
+    </script>
 </body>
 </html>
