@@ -59,7 +59,7 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         sudo git reset --hard HEAD
 
         # 🛡️ Git clean에서 중요 파일 제외 (1단계)
-        sudo git clean -fd -e uploads -e .env -e uploads_backup_*
+        sudo git clean -fd -e uploads -e .env -e uploads_backup_* -e config/env.php -e vendor
 
         sudo git checkout tags/latest_v41
         sudo git pull origin main
