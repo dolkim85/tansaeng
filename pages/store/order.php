@@ -10,6 +10,7 @@ if (session_status() === PHP_SESSION_NONE) {
 try {
     require_once __DIR__ . '/../../classes/Auth.php';
     require_once __DIR__ . '/../../classes/Database.php';
+    require_once __DIR__ . '/../../config/env.php';
     $auth = Auth::getInstance();
     $currentUser = $auth->getCurrentUser();
 
@@ -48,6 +49,8 @@ $totalAmount = $subtotal + $shippingCost;
     <title>주문/결제 - 탄생</title>
     <link rel="stylesheet" href="../../assets/css/main.css?v=<?= date('YmdHis') ?>">
     <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+    <!-- 나이스페이먼츠 JavaScript SDK -->
+    <script src="https://pay.nicepay.co.kr/v1/js/"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Noto Sans KR', sans-serif; background: #f8f9fa; }
@@ -1043,7 +1046,7 @@ $totalAmount = $subtotal + $shippingCost;
                 return;
             }
 
-            // 주문 처리 API 호출
+            // 1. 먼저 주문 생성 (pending 상태)
             try {
                 const response = await fetch('/api/order.php?action=create', {
                     method: 'POST',
@@ -1053,16 +1056,56 @@ $totalAmount = $subtotal + $shippingCost;
 
                 const data = await response.json();
 
-                if (data.success) {
-                    // 주문 완료 페이지로 이동
-                    window.location.href = '/pages/store/order_complete.php?order_id=' + data.data.order_id;
-                } else {
-                    alert('주문 처리 중 오류가 발생했습니다: ' + data.message);
+                if (!data.success) {
+                    alert('주문 생성 중 오류가 발생했습니다: ' + data.message);
+                    return;
+                }
+
+                const orderId = data.data.order_id;
+                const orderNumber = data.data.order_number;
+
+                // 2. 결제 수단에 따라 처리
+                if (paymentMethod.value === 'card') {
+                    // 신용카드 - 나이스페이먼츠 결제창 호출
+                    requestNicePayment(orderNumber, orderData.total_amount, address);
+                } else if (paymentMethod.value === 'transfer') {
+                    // 무통장 입금 - 바로 완료 페이지로
+                    window.location.href = '/pages/store/order_complete.php?order_id=' + orderId + '&payment=transfer';
+                } else if (paymentMethod.value === 'kakao') {
+                    alert('카카오페이는 준비 중입니다.');
+                } else if (paymentMethod.value === 'naver') {
+                    alert('네이버페이는 준비 중입니다.');
                 }
             } catch (error) {
                 console.error('Order error:', error);
                 alert('주문 처리 중 오류가 발생했습니다.');
             }
+        }
+
+        // 나이스페이먼츠 결제창 호출
+        function requestNicePayment(orderNumber, amount, address) {
+            // 나이스페이먼츠 결제창 호출
+            NICEPAY.requestPay({
+                clientId: '<?= env("NICEPAY_CLIENT_ID") ?>',
+                method: 'card',
+                orderId: orderNumber,
+                amount: amount,
+                goodsName: '탄생 스마트팜 상품',
+                returnUrl: 'https://www.tansaeng.com/api/payment/nicepay_callback.php',
+
+                // 구매자 정보
+                buyerName: address.name,
+                buyerTel: address.phone,
+                buyerEmail: '<?= $currentUser['email'] ?>',
+
+                // 결제 수단
+                payMethod: 'CARD',
+
+                fnError: function(result) {
+                    console.error('결제 오류:', result);
+                    alert('결제 처리 중 오류가 발생했습니다.\n' + (result.errorMsg || result.msg || '알 수 없는 오류'));
+                }
+            });
         }
 
         // 모달 외부 클릭 시 닫기
