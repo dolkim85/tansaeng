@@ -49,7 +49,7 @@ try {
     }
 
     // 자기 자신은 삭제 불가
-    $currentUser = $auth->getUser();
+    $currentUser = $auth->getCurrentUser();
     if ($userId == $currentUser['id']) {
         throw new Exception('자기 자신은 탈퇴시킬 수 없습니다.');
     }
