@@ -49,8 +49,8 @@ $totalAmount = $subtotal + $shippingCost;
     <title>주문/결제 - 탄생</title>
     <link rel="stylesheet" href="../../assets/css/main.css?v=<?= date('YmdHis') ?>">
     <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-    <!-- 나이스페이먼츠 JavaScript SDK -->
-    <script src="https://pay.nicepay.co.kr/v1/js/"></script>
+    <!-- 나이스페이먼츠 JavaScript SDK (서버승인 방식) -->
+    <script src="https://web.nicepay.co.kr/v3/webstd/js/nicepay-3.0.js" type="text/javascript"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Noto Sans KR', sans-serif; background: #f8f9fa; }
@@ -1082,30 +1082,62 @@ $totalAmount = $subtotal + $shippingCost;
             }
         }
 
-        // 나이스페이먼츠 결제창 호출
+        // 나이스페이먼츠 결제창 호출 (v3 서버승인 방식)
         function requestNicePayment(orderNumber, amount, address) {
-            // 나이스페이먼츠 결제창 호출
-            NICEPAY.requestPay({
-                clientId: '<?= env("NICEPAY_CLIENT_ID") ?>',
-                method: 'card',
-                orderId: orderNumber,
-                amount: amount,
-                goodsName: '탄생 스마트팜 상품',
-                returnUrl: 'https://www.tansaeng.com/api/payment/nicepay_callback.php',
+            // 나이스페이먼츠 Form 생성
+            const form = document.createElement('form');
+            form.name = 'payForm';
+            form.method = 'post';
+            form.action = 'https://web.nicepay.co.kr/v3/v3Payment.jsp';
+            form.acceptCharset = 'euc-kr';
 
-                // 구매자 정보
-                buyerName: address.name,
-                buyerTel: address.phone,
-                buyerEmail: '<?= $currentUser['email'] ?>',
+            // 필수 파라미터
+            const params = {
+                'PayMethod': 'CARD',                                    // 결제수단 (CARD:신용카드)
+                'GoodsName': '탄생 스마트팜 상품',                       // 상품명
+                'Amt': amount,                                          // 결제금액
+                'MID': '<?= env("NICEPAY_MERCHANT_ID") ?>',            // 가맹점 ID
+                'Moid': orderNumber,                                    // 주문번호
+                'BuyerName': address.name,                              // 구매자명
+                'BuyerEmail': '<?= $currentUser['email'] ?>',          // 구매자 이메일
+                'BuyerTel': address.phone,                              // 구매자 연락처
+                'ReturnURL': 'https://www.tansaeng.com/api/payment/nicepay_callback.php',  // 결제결과 수신 URL
+                'CharSet': 'utf-8',                                     // 인코딩
+                'EdiDate': getCurrentDateTime(),                        // 전문생성일시 (YYYYMMDDhhmmss)
+                'SignData': ''                                          // 위변조 검증데이터 (선택)
+            };
 
-                // 결제 수단
-                payMethod: 'CARD',
+            // Form에 파라미터 추가
+            for (const [key, value] of Object.entries(params)) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                form.appendChild(input);
+            }
 
-                fnError: function(result) {
-                    console.error('결제 오류:', result);
-                    alert('결제 처리 중 오류가 발생했습니다.\n' + (result.errorMsg || result.msg || '알 수 없는 오류'));
-                }
-            });
+            document.body.appendChild(form);
+
+            // 결제창 호출
+            try {
+                goPay(form);
+            } catch (error) {
+                console.error('결제창 호출 오류:', error);
+                alert('결제창 호출 중 오류가 발생했습니다.');
+                document.body.removeChild(form);
+            }
+        }
+
+        // 현재 날짜시간 생성 (YYYYMMDDhhmmss)
+        function getCurrentDateTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            return year + month + day + hours + minutes + seconds;
         }
 
         // 모달 외부 클릭 시 닫기

@@ -25,83 +25,60 @@ function logPayment($message, $data = null) {
 }
 
 try {
-    // POST 데이터 받기
-    $authResultCode = $_POST['authResultCode'] ?? '';
-    $authResultMsg = $_POST['authResultMsg'] ?? '';
-    $tid = $_POST['tid'] ?? '';
-    $clientId = $_POST['clientId'] ?? '';
-    $orderId = $_POST['orderId'] ?? '';
-    $amount = $_POST['amount'] ?? 0;
-    $mallReserved = $_POST['mallReserved'] ?? '';
-    $authToken = $_POST['authToken'] ?? '';
-    $signature = $_POST['signature'] ?? '';
+    // 나이스페이먼츠 v3 POST 데이터 받기
+    $resultCode = $_POST['ResultCode'] ?? '';
+    $resultMsg = $_POST['ResultMsg'] ?? '';
+    $tid = $_POST['TID'] ?? '';
+    $moid = $_POST['Moid'] ?? '';  // 주문번호
+    $amt = $_POST['Amt'] ?? 0;
+    $authDate = $_POST['AuthDate'] ?? '';
+    $authCode = $_POST['AuthCode'] ?? '';
+    $payMethod = $_POST['PayMethod'] ?? '';
+    $cardName = $_POST['CardName'] ?? '';
+    $cardNum = $_POST['CardQuota'] ?? '';
 
-    logPayment('결제 콜백 수신', $_POST);
+    logPayment('결제 콜백 수신 (v3)', $_POST);
 
-    // 인증 실패 체크
-    if ($authResultCode !== '0000') {
-        logPayment('결제 인증 실패', ['code' => $authResultCode, 'msg' => $authResultMsg]);
-        throw new Exception($authResultMsg ?: '결제 인증에 실패했습니다.');
+    // 결제 실패 체크
+    if ($resultCode !== '3001') {  // 3001 = 결제 성공
+        logPayment('결제 실패', ['code' => $resultCode, 'msg' => $resultMsg]);
+        throw new Exception($resultMsg ?: '결제에 실패했습니다.');
     }
 
-    // tid가 없으면 오류
+    // TID가 없으면 오류
     if (empty($tid)) {
-        throw new Exception('거래 ID(tid)가 없습니다.');
+        throw new Exception('거래 ID(TID)가 없습니다.');
     }
 
-    // 결제 승인 요청
-    $payment = new Payment();
-    $approveResult = $payment->approve($tid, $amount);
-
-    logPayment('결제 승인 결과', $approveResult);
-
-    if (!$approveResult['success']) {
-        throw new Exception($approveResult['message'] ?? '결제 승인에 실패했습니다.');
-    }
-
-    // 승인 성공 - DB에 저장
-    $paymentData = $approveResult['data'];
+    // v3는 결제창에서 이미 승인 완료된 상태
+    // DB에 결제 정보만 저장하면 됨
 
     // 주문 조회 (order_number로)
     $order = new Order();
-    $orderInfo = $order->getOrderByNumber($orderId);
+    $orderInfo = $order->getOrderByNumber($moid);
 
     if (!$orderInfo) {
-        // 테스트 주문인 경우 임시 주문 생성
-        logPayment('주문 정보 없음 - 테스트 주문 생성', ['orderId' => $orderId]);
-
-        $db = Database::getInstance();
-        $pdo = $db->getConnection();
-
-        // 간단한 테스트 주문 생성
-        $stmt = $pdo->prepare("
-            INSERT INTO orders (
-                user_id, order_number, customer_name, customer_email,
-                total_amount, payment_method, payment_status, order_status
-            ) VALUES (1, ?, '테스트', 'test@test.com', ?, 'card', 'pending', 'pending')
-        ");
-        $stmt->execute([$orderId, $amount]);
-        $orderDbId = $pdo->lastInsertId();
-
-        logPayment('테스트 주문 생성 완료', ['order_id' => $orderDbId]);
-    } else {
-        $orderDbId = $orderInfo['id'];
+        // 주문 정보 없음
+        logPayment('주문 정보 없음', ['moid' => $moid]);
+        throw new Exception('주문 정보를 찾을 수 없습니다.');
     }
+
+    $orderDbId = $orderInfo['id'];
 
     // 결제 정보 저장
     $savePaymentData = [
         'tid' => $tid,
-        'method' => $paymentData['payMethod'] ?? 'CARD',
-        'amount' => $amount,
+        'method' => $payMethod,
+        'amount' => $amt,
         'status' => 'approved',
-        'result_code' => $paymentData['resultCode'] ?? '0000',
-        'result_message' => $paymentData['resultMsg'] ?? '승인 성공',
-        'card_company' => $paymentData['cardName'] ?? null,
-        'card_number' => $paymentData['cardNum'] ?? null,
-        'installment' => $paymentData['installment'] ?? 0,
-        'approve_no' => $paymentData['authCode'] ?? null,
+        'result_code' => $resultCode,
+        'result_message' => $resultMsg,
+        'card_company' => $cardName,
+        'card_number' => $cardNum,
+        'installment' => 0,
+        'approve_no' => $authCode,
         'paid_at' => date('Y-m-d H:i:s'),
-        'pg_raw_data' => json_encode($paymentData, JSON_UNESCAPED_UNICODE)
+        'pg_raw_data' => json_encode($_POST, JSON_UNESCAPED_UNICODE)
     ];
 
     $saveResult = $order->savePayment($orderDbId, $savePaymentData);
@@ -115,7 +92,7 @@ try {
     }
 
     // 성공 페이지로 리다이렉트
-    header('Location: /pages/payment/result.php?success=1&orderId=' . urlencode($orderId) . '&amount=' . $amount);
+    header('Location: /pages/payment/result.php?success=1&orderId=' . urlencode($moid) . '&amount=' . $amt);
     exit;
 
 } catch (Exception $e) {
