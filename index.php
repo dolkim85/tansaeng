@@ -251,9 +251,6 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                                     </div>
                                     <div class="product-info">
                                         <h3><?= htmlspecialchars($productName) ?></h3>
-                                        <?php if (!empty($productDescription)): ?>
-                                        <p class="product-description"><?= nl2br(htmlspecialchars($productDescription)) ?></p>
-                                        <?php endif; ?>
                                         <div class="product-price-wrap">
                                             <?php if ($discountPercent > 0): ?>
                                                 <span class="product-price-original"><?= number_format($productPrice) ?>원</span>
@@ -267,7 +264,6 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                                             <span class="review-stars"><?= str_repeat('⭐', (int)round($ratingScore)) ?></span>
                                             <span class="review-count">(<?= number_format($reviewCount) ?>)</span>
                                         </div>
-                                        <div class="product-delivery"><?= htmlspecialchars($deliveryInfo) ?></div>
                                     </div>
                                 </a>
                             <?php endforeach; ?>

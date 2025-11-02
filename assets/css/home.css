@@ -196,30 +196,21 @@
 }
 
 .product-carousel-wrapper {
-    overflow-x: hidden;
-    overflow-y: visible;
+    overflow: visible;
     position: relative;
-    margin: 0 60px;
-    min-height: 450px;
+    margin: 0 auto;
+    max-width: 1200px;
 }
 
 .product-carousel-scroller {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 20px;
-    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 10px 0;
-    min-height: 420px;
+    padding: 20px 0;
 }
 
 .product-carousel-controls {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    pointer-events: none;
-    z-index: 10;
+    display: none;
 }
 
 .carousel-btn {
@@ -258,14 +249,11 @@
     overflow: hidden;
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
-    min-width: 320px;
-    max-width: 350px;
-    height: auto;
-    flex-shrink: 0;
     text-decoration: none;
     color: inherit;
     display: flex;
     flex-direction: column;
+    height: 100%;
 }
 
 .product-card:hover {
@@ -310,34 +298,27 @@
 }
 
 .product-info {
-    padding: 1.5rem;
+    padding: 1.2rem;
     flex: 1;
     display: flex;
     flex-direction: column;
+    gap: 0.6rem;
 }
 
 .product-info h3 {
     color: #333;
-    margin-bottom: 0.5rem;
-    font-size: 1.15rem;
+    margin: 0;
+    font-size: 1.05rem;
     font-weight: 600;
     line-height: 1.4;
-}
-
-.product-description {
-    color: #666;
-    font-size: 0.9rem;
-    line-height: 1.5;
-    margin-bottom: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .product-price-wrap {
-    margin-bottom: 0.8rem;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -380,18 +361,6 @@
 .review-count {
     color: #666;
     font-size: 0.9rem;
-}
-
-.product-delivery {
-    color: #4CAF50;
-    font-size: 0.9rem;
-    font-weight: 500;
-}
-
-.product-info p {
-    color: #666;
-    margin-bottom: 1.5rem;
-    line-height: 1.6;
 }
 
 /* Analysis Section */
@@ -889,43 +858,35 @@
 
     .product-carousel-container {
         margin: 0;
-        padding: 0;
+        padding: 0 15px;
+    }
+
+    .product-carousel-wrapper {
+        margin: 0;
     }
 
     .product-carousel-scroller {
-        display: flex;
-        gap: 12px;
-        overflow-x: auto;
-        overflow-y: visible;
-        scroll-snap-type: x mandatory;
-        -webkit-overflow-scrolling: touch;
-        padding: 10px 15px;
-        min-height: 380px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+        padding: 15px 0;
     }
 
     .product-card {
-        min-width: 260px;
-        max-width: 280px;
         height: auto;
-        flex-shrink: 0;
-        scroll-snap-align: start;
     }
 
     .product-image-wrap {
         height: 180px;
-        flex-shrink: 0;
     }
 
     .product-info {
         padding: 1rem;
-        flex: 1;
-        display: flex !important;
-        flex-direction: column;
+        gap: 0.5rem;
     }
 
     .product-info h3 {
-        font-size: 1rem;
-        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
     }
 
     .product-price {
@@ -946,10 +907,6 @@
     }
 
     .review-count {
-        font-size: 0.85rem;
-    }
-
-    .product-delivery {
         font-size: 0.85rem;
     }
 
@@ -1130,22 +1087,23 @@
         max-height: 250px;
     }
 
+    .product-carousel-scroller {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 10px 0;
+    }
+
     .product-card {
-        min-width: 220px;
-        max-width: 240px;
         height: auto;
     }
 
     .product-image-wrap {
         height: 160px;
-        flex-shrink: 0;
     }
 
     .product-info {
         padding: 0.8rem;
-        flex: 1;
-        display: flex !important;
-        flex-direction: column;
+        gap: 0.4rem;
     }
 
     .product-info h3 {
