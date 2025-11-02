@@ -21,25 +21,25 @@ class Mailer {
         try {
             // SMTP 설정
             $this->mail->isSMTP();
-            $this->mail->Host = env('SMTP_HOST', 'smtp.naver.com');
+            $this->mail->Host = env('SMTP_HOST', 'smtp.gmail.com');
             $this->mail->SMTPAuth = true;
             $this->mail->Username = env('SMTP_USERNAME');
             $this->mail->Password = env('SMTP_PASSWORD');
 
-            // 네이버는 SSL(465) 사용
-            $smtpSecure = env('SMTP_SECURE', 'ssl');
+            // TLS(587) 또는 SSL(465) 설정
+            $smtpSecure = env('SMTP_SECURE', 'tls');
             if (strtolower($smtpSecure) === 'ssl') {
                 $this->mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
             } else {
                 $this->mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             }
 
-            $this->mail->Port = env('SMTP_PORT', 465);
+            $this->mail->Port = env('SMTP_PORT', 587);
             $this->mail->CharSet = 'UTF-8';
 
             // 발신자 정보
             $this->mail->setFrom(
-                env('SMTP_FROM_EMAIL', 'korea_tansaeng@naver.com'),
+                env('SMTP_FROM_EMAIL', 'superjun1985@gmail.com'),
                 env('SMTP_FROM_NAME', '탄생 스마트팜')
             );
 

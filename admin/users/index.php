@@ -39,6 +39,7 @@ $totalPages = ceil($totalUsers / $limit);
                         <p>등록된 사용자 목록을 관리하고 권한을 설정할 수 있습니다</p>
                     </div>
                     <div class="page-actions">
+                        <a href="send_email.php" class="btn btn-primary">📧 이메일 발송</a>
                         <a href="permissions.php" class="btn btn-secondary">권한 관리</a>
                         <a href="export.php" class="btn btn-outline">📊 데이터 내보내기</a>
                     </div>
