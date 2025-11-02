@@ -30,7 +30,7 @@ try {
 
     // Get featured products first (priority to featured products)
     $stmt = $pdo->query(
-        "SELECT p.id, p.name, p.price, p.image_url, p.discount_percentage,
+        "SELECT p.id, p.name, p.description, p.price, p.image_url, p.discount_percentage,
                 p.rating_score, p.review_count, p.delivery_info, p.updated_at,
                 c.name as category_name
          FROM products p
@@ -50,7 +50,7 @@ try {
         $excludeClause = !empty($excludeIds) ? 'AND p.id NOT IN (' . implode(',', $excludeIds) . ')' : '';
 
         $stmt = $pdo->query(
-            "SELECT p.id, p.name, p.price, p.image_url, p.discount_percentage,
+            "SELECT p.id, p.name, p.description, p.price, p.image_url, p.discount_percentage,
                     p.rating_score, p.review_count, p.delivery_info, p.updated_at,
                     c.name as category_name
              FROM products p
@@ -228,6 +228,7 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                                 // 기본값 설정
                                 $productId = $product['id'] ?? 0;
                                 $productName = $product['name'] ?? '상품명 없음';
+                                $productDescription = $product['description'] ?? '';
                                 $productPrice = $product['price'] ?? 0;
                                 $discountPercent = $product['discount_percentage'] ?? 0;
                                 $ratingScore = $product['rating_score'] ?? 4.5;
@@ -250,6 +251,9 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                                     </div>
                                     <div class="product-info">
                                         <h3><?= htmlspecialchars($productName) ?></h3>
+                                        <?php if (!empty($productDescription)): ?>
+                                        <p class="product-description"><?= nl2br(htmlspecialchars($productDescription)) ?></p>
+                                        <?php endif; ?>
                                         <div class="product-price-wrap">
                                             <?php if ($discountPercent > 0): ?>
                                                 <span class="product-price-original"><?= number_format($productPrice) ?>원</span>
