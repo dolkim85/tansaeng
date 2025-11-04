@@ -318,6 +318,137 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-bottom: 20px;
             font-size: 14px;
         }
+
+        .toggle-emoji {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .toggle-emoji:hover {
+            background: #e9ecef;
+        }
+
+        .emoji-panel {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .emoji-category {
+            margin-bottom: 10px;
+        }
+
+        .emoji-category h4 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+            gap: 5px;
+        }
+
+        .emoji-btn {
+            background: none;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            padding: 5px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+        }
+
+        .emoji-btn:hover {
+            background: #e9ecef;
+            border-color: #dee2e6;
+        }
+
+        .file-upload {
+            border: 2px dashed #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .file-upload:hover {
+            border-color: #007bff;
+            background: #f0f8ff;
+        }
+
+        .file-upload.dragover {
+            border-color: #007bff;
+            background: #e3f2fd;
+        }
+
+        .file-list {
+            margin-top: 10px;
+        }
+
+        .new-file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 10px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 5px;
+        }
+
+        .new-file-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-remove {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .file-remove:hover {
+            background: #c82333;
+        }
+
+        @media (max-width: 768px) {
+            .edit-container {
+                padding: 0 15px;
+            }
+
+            .edit-form {
+                padding: 15px;
+            }
+
+            .edit-title {
+                font-size: 1.5rem;
+            }
+
+            .emoji-grid {
+                grid-template-columns: repeat(auto-fill, minmax(35px, 1fr));
+            }
+
+            .emoji-btn {
+                font-size: 18px;
+                padding: 3px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -368,6 +499,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="form-group">
                 <label class="form-label">내용 *</label>
+
+                <div class="toggle-emoji" onclick="toggleEmoji()">
+                    😊 이모티콘 패널 열기/닫기
+                </div>
+
+                <div id="emoji-panel" class="emoji-panel" style="display: none;">
+                    <div class="emoji-category">
+                        <h4>표정</h4>
+                        <div class="emoji-grid">
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('😊')">😊</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('😂')">😂</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('😍')">😍</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🥰')">🥰</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('😎')">😎</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🤔')">🤔</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('😢')">😢</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('😭')">😭</button>
+                        </div>
+                    </div>
+
+                    <div class="emoji-category">
+                        <h4>식물 & 자연</h4>
+                        <div class="emoji-grid">
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🌱')">🌱</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🌿')">🌿</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🍃')">🍃</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🌳')">🌳</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🌻')">🌻</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🌹')">🌹</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🌺')">🌺</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🌸')">🌸</button>
+                        </div>
+                    </div>
+
+                    <div class="emoji-category">
+                        <h4>음식</h4>
+                        <div class="emoji-grid">
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🥬')">🥬</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🥒')">🥒</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🍅')">🍅</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🥕')">🥕</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🌽')">🌽</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🍓')">🍓</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🥝')">🥝</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🍇')">🍇</button>
+                        </div>
+                    </div>
+
+                    <div class="emoji-category">
+                        <h4>기타</h4>
+                        <div class="emoji-grid">
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('👍')">👍</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('👏')">👏</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('❤️')">❤️</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('💚')">💚</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('⭐')">⭐</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🎉')">🎉</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('🔥')">🔥</button>
+                            <button type="button" class="emoji-btn" onclick="insertEmoji('💯')">💯</button>
+                        </div>
+                    </div>
+                </div>
+
                 <textarea name="content" class="form-input content-editor" required><?= htmlspecialchars($post['content']) ?></textarea>
             </div>
 
@@ -397,8 +591,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="form-group">
                 <label class="form-label">새 첨부파일</label>
-                <input type="file" name="attachments[]" multiple accept="image/*,video/*" class="form-input">
-                <small style="color: #666;">이미지 및 동영상 파일만 업로드 가능합니다 (최대 10MB)</small>
+                <div class="file-upload" id="fileUpload">
+                    <input type="file" name="attachments[]" multiple accept="image/*,video/*"
+                           id="fileInput" style="display: none;">
+                    <div class="upload-text">
+                        <p>파일을 드래그하여 업로드하거나 <strong>클릭</strong>하여 선택하세요</p>
+                        <small style="color: #666;">이미지 및 동영상 파일만 업로드 가능합니다 (최대 10MB)</small>
+                    </div>
+                </div>
+                <div class="file-list" id="fileList"></div>
             </div>
 
             <div class="form-actions">
@@ -410,5 +611,110 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <?php include '../../includes/footer.php'; ?>
     <script src="/assets/js/main.js"></script>
+    <script>
+        // Emoji panel toggle
+        function toggleEmoji() {
+            const panel = document.getElementById('emoji-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Insert emoji at cursor position
+        function insertEmoji(emoji) {
+            const textarea = document.querySelector('textarea[name="content"]');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const value = textarea.value;
+
+            textarea.value = value.substring(0, start) + emoji + value.substring(end);
+            textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+            textarea.focus();
+        }
+
+        // File upload handling
+        const fileUpload = document.getElementById('fileUpload');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        let selectedFiles = [];
+
+        fileUpload.addEventListener('click', () => fileInput.click());
+
+        fileUpload.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUpload.classList.add('dragover');
+        });
+
+        fileUpload.addEventListener('dragleave', () => {
+            fileUpload.classList.remove('dragover');
+        });
+
+        fileUpload.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUpload.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            for (let file of files) {
+                if (file.size > 10 * 1024 * 1024) {
+                    alert(`${file.name} 파일이 10MB를 초과합니다.`);
+                    continue;
+                }
+
+                if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+                    alert(`${file.name} 파일은 이미지 또는 동영상 파일이 아닙니다.`);
+                    continue;
+                }
+
+                selectedFiles.push(file);
+                displayFile(file);
+            }
+            updateFileInput();
+        }
+
+        function displayFile(file) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'new-file-item';
+
+            const fileInfo = document.createElement('div');
+            fileInfo.className = 'new-file-info';
+
+            const icon = file.type.startsWith('image/') ? '🖼️' : '🎬';
+            fileInfo.innerHTML = `<span>${icon}</span><span>${file.name} (${formatFileSize(file.size)})</span>`;
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'file-remove';
+            removeBtn.textContent = '삭제';
+            removeBtn.type = 'button';
+            removeBtn.onclick = () => removeFile(file, fileItem);
+
+            fileItem.appendChild(fileInfo);
+            fileItem.appendChild(removeBtn);
+            fileList.appendChild(fileItem);
+        }
+
+        function removeFile(file, element) {
+            selectedFiles = selectedFiles.filter(f => f !== file);
+            element.remove();
+            updateFileInput();
+        }
+
+        function updateFileInput() {
+            const dt = new DataTransfer();
+            selectedFiles.forEach(file => dt.items.add(file));
+            fileInput.files = dt.files;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+    </script>
 </body>
 </html>
