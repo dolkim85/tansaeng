@@ -20,7 +20,7 @@ try {
     $params = [];
 
     if ($filter === 'published') {
-        $where_conditions[] = "b.status = 'active'";
+        $where_conditions[] = "b.status = 'published'";
     } elseif ($filter === 'draft') {
         $where_conditions[] = "b.status = 'draft'";
     } elseif ($filter === 'deleted') {
@@ -37,7 +37,7 @@ try {
 
     $where_clause = empty($where_conditions) ? '' : 'WHERE ' . implode(' AND ', $where_conditions);
 
-    $count_sql = "SELECT COUNT(*) FROM board_posts b
+    $count_sql = "SELECT COUNT(*) FROM boards b
                   LEFT JOIN users u ON b.user_id = u.id
                   $where_clause";
     $stmt = $pdo->prepare($count_sql);
@@ -49,10 +49,12 @@ try {
     // Fix LIMIT/OFFSET binding issue
     $per_page = (int) $per_page;
     $offset = (int) $offset;
-    $sql = "SELECT b.id, b.title, b.views, b.status, b.created_at, b.category,
+    $sql = "SELECT b.id, b.title, b.views, b.status, b.created_at,
+                   bc.name as category,
                    u.name as author
-            FROM board_posts b
+            FROM boards b
             LEFT JOIN users u ON b.user_id = u.id
+            LEFT JOIN board_categories bc ON b.category_id = bc.id
             $where_clause
             ORDER BY b.created_at DESC
             LIMIT $per_page OFFSET $offset";
@@ -79,17 +81,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             switch ($action) {
                 case 'delete':
-                    $sql = "UPDATE board_posts SET status = 'deleted' WHERE id IN ($placeholders)";
+                    $sql = "UPDATE boards SET status = 'deleted' WHERE id IN ($placeholders)";
                     break;
                 case 'restore':
-                    $sql = "UPDATE board_posts SET status = 'active' WHERE id IN ($placeholders)";
+                    $sql = "UPDATE boards SET status = 'published' WHERE id IN ($placeholders)";
                     break;
                 case 'notice_on':
-                    // board_posts 테이블에는 is_notice 컬럼이 없을 수 있으므로 스킵
-                    continue 2;
+                    $sql = "UPDATE boards SET is_notice = 1 WHERE id IN ($placeholders)";
+                    break;
                 case 'notice_off':
-                    // board_posts 테이블에는 is_notice 컬럼이 없을 수 있으므로 스킵
-                    continue 2;
+                    $sql = "UPDATE boards SET is_notice = 0 WHERE id IN ($placeholders)";
+                    break;
             }
             
             $stmt = $pdo->prepare($sql);
@@ -208,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                     <td><?= number_format($post['views']) ?></td>
                                                     <td>
                                                         <span class="status-badge status-<?= $post['status'] ?>">
-                                                            <?= $post['status'] === 'active' ? '게시됨' : ($post['status'] === 'draft' ? '임시저장' : '삭제됨') ?>
+                                                            <?= $post['status'] === 'published' ? '게시됨' : ($post['status'] === 'draft' ? '임시저장' : '삭제됨') ?>
                                                         </span>
                                                     </td>
                                                     <td><?= date('m-d H:i', strtotime($post['created_at'])) ?></td>
@@ -216,7 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                         <div class="action-buttons">
                                                             <a href="/pages/board/view.php?id=<?= $post['id'] ?>" target="_blank"
                                                                class="btn btn-sm btn-outline" title="보기">👁️</a>
-                                                            <?php if ($post['status'] === 'active'): ?>
+                                                            <?php if ($post['status'] === 'published'): ?>
                                                                 <a href="delete_post.php?id=<?= $post['id'] ?>"
                                                                    class="btn btn-sm btn-danger" title="삭제"
                                                                    onclick="return confirm('정말 삭제하시겠습니까?')">🗑️</a>
@@ -361,11 +363,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-weight: bold;
         }
         
-        .status-active {
+        .status-published {
             background: #d4edda;
             color: #155724;
         }
-        
+
+        .status-draft {
+            background: #fff3cd;
+            color: #856404;
+        }
+
         .status-deleted {
             background: #f8d7da;
             color: #721c24;
