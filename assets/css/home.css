@@ -246,14 +246,14 @@
 .product-card {
     background: white;
     border-radius: 12px;
-    overflow: visible;
+    overflow: hidden;
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     text-decoration: none;
     color: inherit;
     display: flex;
     flex-direction: column;
-    min-height: 380px;
+    min-height: 350px;
 }
 
 .product-card:hover {
@@ -262,12 +262,11 @@
 }
 
 .product-image-wrap {
-    height: 200px;
+    height: 220px;
     overflow: hidden;
     position: relative;
     background: #f8f9fa;
     flex-shrink: 0;
-    border-radius: 12px 12px 0 0;
 }
 
 .product-image {
@@ -299,76 +298,59 @@
 }
 
 .product-info {
-    padding: 1.2rem;
+    padding: 15px;
     flex: 1;
-    display: flex !important;
+    display: flex;
     flex-direction: column;
-    gap: 0.6rem;
-    visibility: visible !important;
-    opacity: 1 !important;
+    justify-content: space-between;
     background: white;
 }
 
 .product-info h3 {
-    color: #333 !important;
-    margin: 0;
-    font-size: 1.05rem;
+    color: #333;
+    margin: 0 0 8px 0;
+    font-size: 1rem;
     font-weight: 600;
     line-height: 1.4;
     overflow: hidden;
     text-overflow: ellipsis;
-    display: -webkit-box !important;
+    display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
-    visibility: visible !important;
+    min-height: 42px;
 }
 
 .product-price-wrap {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: baseline;
+    gap: 6px;
     flex-wrap: wrap;
+    margin-top: auto;
 }
 
 .product-price-original {
     color: #999;
     text-decoration: line-through;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 .product-price {
-    color: #2E7D32 !important;
-    font-size: 1.3rem;
+    color: #2E7D32;
+    font-size: 1.25rem;
     font-weight: 700;
-    visibility: visible !important;
 }
 
 .product-discount {
     background: #FF5722;
     color: white;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 0.85rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.75rem;
     font-weight: 600;
 }
 
 .product-review {
-    display: flex !important;
-    align-items: center;
-    gap: 6px;
-    visibility: visible !important;
-}
-
-.review-stars {
-    color: #FFC107 !important;
-    font-size: 0.95rem;
-    visibility: visible !important;
-}
-
-.review-count {
-    color: #666 !important;
-    font-size: 0.9rem;
-    visibility: visible !important;
+    display: none;
 }
 
 /* Analysis Section */
@@ -881,42 +863,35 @@
     }
 
     .product-card {
-        height: auto;
-        min-height: auto;
+        min-height: 300px;
     }
 
     .product-image-wrap {
-        height: 160px;
+        height: 180px;
     }
 
     .product-info {
-        padding: 1rem;
-        gap: 0.5rem;
+        padding: 12px;
     }
 
     .product-info h3 {
-        font-size: 0.95rem;
+        font-size: 0.9rem;
+        min-height: 38px;
+        -webkit-line-clamp: 2;
+        margin-bottom: 6px;
     }
 
     .product-price {
-        font-size: 1.2rem;
+        font-size: 1.15rem;
     }
 
     .product-price-original {
-        font-size: 0.85rem;
+        font-size: 0.8rem;
     }
 
     .product-discount {
-        font-size: 0.8rem;
-        padding: 2px 6px;
-    }
-
-    .review-stars {
-        font-size: 0.9rem;
-    }
-
-    .review-count {
-        font-size: 0.85rem;
+        font-size: 0.7rem;
+        padding: 2px 5px;
     }
 
     /* About Section */
@@ -1103,25 +1078,26 @@
     }
 
     .product-card {
-        height: auto;
-        min-height: auto;
+        min-height: 280px;
     }
 
     .product-image-wrap {
-        height: 150px;
+        height: 160px;
     }
 
     .product-info {
-        padding: 0.8rem;
-        gap: 0.4rem;
+        padding: 10px;
     }
 
     .product-info h3 {
-        font-size: 0.9rem;
+        font-size: 0.85rem;
+        min-height: 36px;
+        -webkit-line-clamp: 2;
+        margin-bottom: 5px;
     }
 
     .product-price {
-        font-size: 1.1rem;
+        font-size: 1.05rem;
     }
 
     .section-title {
