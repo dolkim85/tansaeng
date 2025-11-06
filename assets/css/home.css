@@ -882,10 +882,11 @@
 
     .product-card {
         height: auto;
+        min-height: auto;
     }
 
     .product-image-wrap {
-        height: 180px;
+        height: 160px;
     }
 
     .product-info {
@@ -1103,10 +1104,11 @@
 
     .product-card {
         height: auto;
+        min-height: auto;
     }
 
     .product-image-wrap {
-        height: 160px;
+        height: 150px;
     }
 
     .product-info {
