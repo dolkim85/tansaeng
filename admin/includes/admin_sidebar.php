@@ -31,9 +31,15 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="/admin/orders/" class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/orders/') === 0 ? 'active' : '' ?>">
+                    <a href="/admin/orders/" class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/orders/') === 0 && basename($_SERVER['PHP_SELF']) !== 'shipping.php' ? 'active' : '' ?>">
                         <span class="nav-icon">🛒</span>
                         <span class="nav-text">주문 관리</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/admin/orders/shipping.php" class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'shipping.php' ? 'active' : '' ?>">
+                        <span class="nav-icon">🚚</span>
+                        <span class="nav-text">배송 관리</span>
                     </a>
                 </li>
                 <li class="nav-item">
@@ -45,9 +51,15 @@
                 
                 <li class="nav-section">게시판 관리</li>
                 <li class="nav-item">
-                    <a href="/admin/board/" class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/board/') === 0 ? 'active' : '' ?>">
+                    <a href="/admin/board/" class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/board/') === 0 && basename($_SERVER['PHP_SELF']) !== 'categories.php' ? 'active' : '' ?>">
                         <span class="nav-icon">📝</span>
                         <span class="nav-text">게시글 관리</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/admin/board/categories.php" class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'categories.php' ? 'active' : '' ?>">
+                        <span class="nav-icon">🏷️</span>
+                        <span class="nav-text">카테고리 관리</span>
                     </a>
                 </li>
                 
@@ -108,6 +120,24 @@
                     <a href="/admin/settings/footer.php" class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/settings/footer') === 0 ? 'active' : '' ?>">
                         <span class="nav-icon">🦶</span>
                         <span class="nav-text">푸터 관리</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/admin/settings/seo.php" class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'seo.php' ? 'active' : '' ?>">
+                        <span class="nav-icon">🔍</span>
+                        <span class="nav-text">SEO 설정</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/admin/settings/email.php" class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'email.php' ? 'active' : '' ?>">
+                        <span class="nav-icon">📧</span>
+                        <span class="nav-text">이메일 설정</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/admin/settings/backup.php" class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'backup.php' ? 'active' : '' ?>">
+                        <span class="nav-icon">💾</span>
+                        <span class="nav-text">백업 관리</span>
                     </a>
                 </li>
                 <li class="nav-item">
