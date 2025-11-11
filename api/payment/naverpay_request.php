@@ -15,14 +15,22 @@ try {
     require_once __DIR__ . '/../../classes/NaverPay.php';
     require_once __DIR__ . '/../../classes/Database.php';
 
-    // POST 데이터 받기
+    // POST 데이터 또는 세션에서 주문 정보 가져오기
     $input = json_decode(file_get_contents('php://input'), true);
+    $items = null;
 
-    if (!isset($input['items']) || empty($input['items'])) {
-        throw new Exception('주문 상품 정보가 없습니다.');
+    // 1. POST 데이터에서 items 확인
+    if (isset($input['items']) && !empty($input['items'])) {
+        $items = $input['items'];
+    }
+    // 2. 세션에서 order_items 확인 (바로구매용)
+    elseif (isset($_SESSION['order_items']) && !empty($_SESSION['order_items'])) {
+        $items = $_SESSION['order_items'];
     }
 
-    $items = $input['items'];
+    if (empty($items)) {
+        throw new Exception('주문 상품 정보가 없습니다.');
+    }
 
     // 총 금액 계산
     $totalAmount = 0;
