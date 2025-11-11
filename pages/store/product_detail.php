@@ -159,7 +159,6 @@ try {
                         </div>
                     </div>
                     
-                    <?php if ($currentUser): ?>
                     <div class="product-actions">
                         <div class="quantity-selector">
                             <label for="quantity">수량:</label>
@@ -169,28 +168,56 @@ try {
                                 <button type="button" onclick="changeQuantity(1)">+</button>
                             </div>
                         </div>
-                        
-                        <div class="action-buttons">
-                            <button onclick="addToCart(<?= $product['id'] ?>)" class="btn btn-primary btn-lg">
-                                장바구니 담기
+
+                        <div class="total-price-display">
+                            <span class="total-label">총 상품금액</span>
+                            <span class="total-amount" id="totalAmount"><?= number_format($basePrice) ?>원</span>
+                        </div>
+
+                        <?php if ($currentUser): ?>
+                        <!-- 회원: 위시리스트 / 장바구니 / 바로구매 버튼 -->
+                        <div class="action-buttons-row">
+                            <button onclick="toggleWishlist(<?= $product['id'] ?>)" class="btn btn-outline-primary btn-action">
+                                <span class="btn-icon">♡</span>
+                                <span class="btn-text">위시리스트</span>
                             </button>
-                            <button onclick="buyNow(<?= $product['id'] ?>)" class="btn btn-success btn-lg">
-                                바로 구매
+                            <button onclick="addToCart(<?= $product['id'] ?>)" class="btn btn-outline-primary btn-action">
+                                <span class="btn-icon">🛒</span>
+                                <span class="btn-text">장바구니</span>
+                            </button>
+                            <button onclick="buyNow(<?= $product['id'] ?>)" class="btn btn-dark btn-action">
+                                <span class="btn-text">바로구매</span>
                             </button>
                         </div>
-                        
-                        <button onclick="toggleWishlist(<?= $product['id'] ?>)" class="btn btn-outline wishlist-btn">
-                            ♡ 찜하기
-                        </button>
-                    </div>
-                    <?php else: ?>
-                    <div class="product-actions">
-                        <div class="login-prompt">
-                            <p>로그인 후 구매할 수 있습니다</p>
-                            <a href="/pages/auth/login.php" class="btn btn-primary btn-lg">로그인</a>
+                        <?php else: ?>
+                        <!-- 비회원: 장바구니 / 바로구매 버튼 (로그인 필요) -->
+                        <div class="action-buttons-row">
+                            <button onclick="alert('로그인이 필요합니다.'); location.href='/pages/auth/login.php';" class="btn btn-outline-primary btn-action">
+                                <span class="btn-icon">🛒</span>
+                                <span class="btn-text">장바구니</span>
+                            </button>
+                            <button onclick="alert('로그인이 필요합니다.'); location.href='/pages/auth/login.php';" class="btn btn-dark btn-action">
+                                <span class="btn-text">바로구매</span>
+                            </button>
+                        </div>
+                        <?php endif; ?>
+
+                        <!-- 네이버페이 구매 (회원/비회원 모두) -->
+                        <div class="naverpay-section">
+                            <div class="naverpay-header">
+                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2303C75A'%3E%3Ctext x='2' y='18' font-size='16' font-weight='bold' fill='%2303C75A'%3EN%3C/text%3E%3C/svg%3E" alt="N" class="naverpay-logo">
+                                <span class="naverpay-text">네이버페이로 간편하게</span>
+                                <span class="naverpay-brand">네이버페이</span>
+                            </div>
+                            <button onclick="buyWithNaverPay(<?= $product['id'] ?>)" class="btn-naverpay">
+                                <span class="naverpay-pay-text">pay</span>
+                                <span class="naverpay-buy-text">구매</span>
+                            </button>
+                            <?php if (!$currentUser): ?>
+                            <p class="naverpay-info">로그인 없이 빠른 구매</p>
+                            <?php endif; ?>
                         </div>
                     </div>
-                    <?php endif; ?>
                 </div>
             </div>
             
@@ -557,12 +584,24 @@ try {
             // 화면 업데이트
             document.getElementById('displayPrice').textContent = formatPrice(productTotal) + '원';
 
+            // 총 상품금액 업데이트 (새로운 UI)
+            const totalAmountElement = document.getElementById('totalAmount');
+            if (totalAmountElement) {
+                totalAmountElement.textContent = formatPrice(totalPrice) + '원';
+            }
+
             if (shippingCost > 0) {
                 const shippingTimes = Math.ceil(quantity / shippingUnitCount);
-                document.getElementById('shippingCostLabel').textContent =
-                    `배송비: ${formatPrice(shippingCost)}원 (${shippingUnitCount}개당) x ${shippingTimes}회 = ${formatPrice(calculatedShippingCost)}원`;
-                document.getElementById('totalPriceLabel').textContent =
-                    `총 결제금액: ${formatPrice(totalPrice)}원`;
+                const shippingLabel = document.getElementById('shippingCostLabel');
+                const totalLabel = document.getElementById('totalPriceLabel');
+
+                if (shippingLabel) {
+                    shippingLabel.textContent =
+                        `배송비: ${formatPrice(shippingCost)}원 (${shippingUnitCount}개당) x ${shippingTimes}회 = ${formatPrice(calculatedShippingCost)}원`;
+                }
+                if (totalLabel) {
+                    totalLabel.textContent = `총 결제금액: ${formatPrice(totalPrice)}원`;
+                }
             }
         }
 
@@ -616,11 +655,86 @@ try {
         // 바로 구매
         function buyNow(productId) {
             const quantity = parseInt(document.getElementById('quantity').value) || 1;
-            // 임시로 장바구니에 추가 후 장바구니 페이지로 이동
-            addToCart(productId);
-            setTimeout(() => {
-                location.href = '/pages/store/cart.php';
-            }, 1000);
+
+            // 바로구매 API로 주문 페이지 이동
+            fetch('/api/cart.php?action=buy_now', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    product_id: productId,
+                    quantity: quantity
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.href = '/pages/store/order.php';
+                } else {
+                    alert(data.message || '바로구매 실패');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('오류가 발생했습니다');
+            });
+        }
+
+        // 네이버페이로 바로 구매 (비회원 가능)
+        function buyWithNaverPay(productId) {
+            const quantity = parseInt(document.getElementById('quantity').value) || 1;
+
+            if (quantity < 1) {
+                alert('수량을 확인해주세요.');
+                return;
+            }
+
+            // 버튼 비활성화
+            const btn = event.target.closest('.btn-naverpay');
+            btn.disabled = true;
+            btn.style.opacity = '0.6';
+            btn.innerHTML = '<span style="color: white;">처리 중...</span>';
+
+            // 상품 정보 가져오기
+            const productData = {
+                product_id: productId,
+                quantity: quantity,
+                name: '<?= addslashes($product['name']) ?>',
+                price: <?= $product['price'] ?>,
+                shipping_cost: <?= $product['shipping_cost'] ?? 0 ?>,
+                shipping_unit_count: <?= $product['shipping_unit_count'] ?? 1 ?>
+            };
+
+            // 네이버페이 결제 요청
+            fetch('/api/payment/naverpay_request.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    items: [productData]
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 네이버페이 결제창으로 이동
+                    window.location.href = data.payment_url;
+                } else {
+                    alert('네이버페이 결제 요청 실패: ' + data.message);
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.innerHTML = '<span class="naverpay-pay-text">pay</span><span class="naverpay-buy-text">구매</span>';
+                }
+            })
+            .catch(error => {
+                console.error('NaverPay error:', error);
+                alert('네트워크 오류가 발생했습니다: ' + error.message);
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.innerHTML = '<span class="naverpay-pay-text">pay</span><span class="naverpay-buy-text">구매</span>';
+            });
         }
         
         // 찜하기 (추후 구현)
@@ -1416,6 +1530,190 @@ try {
         
         .rich-content s {
             text-decoration: line-through;
+        }
+
+        /* 새로운 버튼 레이아웃 */
+        .total-price-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+            border: 2px solid #e0e0e0;
+        }
+
+        .total-label {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .total-amount {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #007bff;
+        }
+
+        .action-buttons-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 2fr;
+            gap: 10px;
+            margin: 1rem 0;
+        }
+
+        .btn-action {
+            padding: 15px 20px;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            border: 2px solid #ddd;
+            background: white;
+        }
+
+        .btn-outline-primary {
+            border-color: #007bff;
+            color: #007bff;
+        }
+
+        .btn-outline-primary:hover {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-dark {
+            background: #000;
+            color: white;
+            border-color: #000;
+        }
+
+        .btn-dark:hover {
+            background: #333;
+        }
+
+        .btn-icon {
+            font-size: 1.3rem;
+        }
+
+        .btn-text {
+            font-size: 0.9rem;
+        }
+
+        /* 네이버페이 섹션 */
+        .naverpay-section {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid #03C75A;
+        }
+
+        .naverpay-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .naverpay-logo {
+            width: 24px;
+            height: 24px;
+        }
+
+        .naverpay-text {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .naverpay-brand {
+            font-weight: 700;
+            color: #03C75A;
+            font-size: 0.9rem;
+        }
+
+        .btn-naverpay {
+            width: 100%;
+            padding: 16px;
+            background: #03C75A;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(3, 199, 90, 0.3);
+        }
+
+        .btn-naverpay:hover {
+            background: #02b350;
+            box-shadow: 0 4px 12px rgba(3, 199, 90, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .naverpay-pay-text {
+            color: white;
+            font-size: 1.3rem;
+            font-weight: 700;
+            font-style: italic;
+        }
+
+        .naverpay-buy-text {
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .naverpay-info {
+            text-align: center;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        /* 모바일 반응형 */
+        @media (max-width: 768px) {
+            .action-buttons-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+
+            .action-buttons-row button:last-child {
+                grid-column: 1 / -1;
+            }
+
+            .total-price-display {
+                padding: 1rem;
+            }
+
+            .total-label {
+                font-size: 0.95rem;
+            }
+
+            .total-amount {
+                font-size: 1.4rem;
+            }
+
+            .btn-action {
+                padding: 12px 15px;
+            }
+
+            .btn-icon {
+                font-size: 1.1rem;
+            }
+
+            .btn-text {
+                font-size: 0.8rem;
+            }
         }
     </style>
 </body>

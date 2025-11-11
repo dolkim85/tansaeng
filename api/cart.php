@@ -103,7 +103,7 @@ function handleGet($cart, $action) {
     }
 }
 
-// POST 요청 처리 (상품 추가, 주문 준비)
+// POST 요청 처리 (상품 추가, 주문 준비, 바로구매)
 function handlePost($cart, $action) {
     switch ($action) {
         case 'add':
@@ -111,6 +111,9 @@ function handlePost($cart, $action) {
             break;
         case 'prepare_order':
             handlePrepareOrder();
+            break;
+        case 'buy_now':
+            handleBuyNow();
             break;
         default:
             sendError('잘못된 액션입니다.');
@@ -238,5 +241,63 @@ function handlePrepareOrder() {
     $_SESSION['order_items'] = $items;
 
     sendResponse(true, ['item_count' => count($items)], '주문 준비가 완료되었습니다.', 200);
+}
+
+// 바로구매 처리 (장바구니 거치지 않고 바로 주문)
+function handleBuyNow() {
+    require_once __DIR__ . '/../classes/Database.php';
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $productId = $input['product_id'] ?? null;
+    $quantity = (int)($input['quantity'] ?? 1);
+
+    if (!$productId) {
+        sendError('상품 ID가 필요합니다.');
+    }
+
+    if ($quantity < 1) {
+        sendError('수량은 1개 이상이어야 합니다.');
+    }
+
+    try {
+        // 상품 정보 조회
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare("
+            SELECT id, name, price, shipping_cost, shipping_unit_count, stock, image_url
+            FROM products
+            WHERE id = ? AND status = 'active'
+        ");
+        $stmt->execute([$productId]);
+        $product = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$product) {
+            sendError('상품을 찾을 수 없습니다.');
+        }
+
+        // 재고 확인
+        if ($product['stock'] < $quantity) {
+            sendError('재고가 부족합니다.');
+        }
+
+        // 주문 아이템 생성
+        $orderItem = [
+            'product_id' => $product['id'],
+            'name' => $product['name'],
+            'price' => $product['price'],
+            'quantity' => $quantity,
+            'shipping_cost' => $product['shipping_cost'] ?? 0,
+            'shipping_unit_count' => $product['shipping_unit_count'] ?? 1,
+            'image' => $product['image_url'] ?? ''
+        ];
+
+        // 세션에 저장 (주문 페이지에서 사용)
+        $_SESSION['order_items'] = [$orderItem];
+
+        sendResponse(true, ['product_id' => $productId, 'quantity' => $quantity], '바로구매 준비가 완료되었습니다.', 200);
+
+    } catch (Exception $e) {
+        error_log("Buy Now Error: " . $e->getMessage());
+        sendError('바로구매 처리 중 오류가 발생했습니다.');
+    }
 }
 ?>

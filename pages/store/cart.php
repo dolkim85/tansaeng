@@ -319,30 +319,87 @@ try {
         .checkout-btn:hover { background: #0056b3; }
         .checkout-btn:disabled { background: #6c757d; cursor: not-allowed; }
 
+        /* 네이버페이 섹션 (장바구니용) */
+        .naverpay-cart-section {
+            margin-top: 1.5rem;
+            padding: 1.2rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid #03C75A;
+        }
+
+        .naverpay-cart-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .naverpay-cart-logo {
+            width: 22px;
+            height: 22px;
+        }
+
+        .naverpay-cart-text {
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .naverpay-cart-brand {
+            font-weight: 700;
+            color: #03C75A;
+            font-size: 0.85rem;
+        }
+
         .naverpay-checkout-btn {
             width: 100%;
             background: #03C75A;
             color: white;
-            padding: 14px;
+            padding: 15px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            margin-top: 10px;
             transition: all 0.2s;
             box-shadow: 0 2px 8px rgba(3, 199, 90, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
         }
 
         .naverpay-checkout-btn:hover {
             background: #02b350;
             box-shadow: 0 4px 12px rgba(3, 199, 90, 0.4);
+            transform: translateY(-2px);
         }
 
         .naverpay-checkout-btn:disabled {
             background: #6c757d;
             cursor: not-allowed;
             box-shadow: none;
+            transform: none;
+        }
+
+        .naverpay-pay {
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 700;
+            font-style: italic;
+        }
+
+        .naverpay-purchase {
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .naverpay-cart-info {
+            text-align: center;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: #666;
         }
 
         .loading { text-align: center; padding: 30px; color: #666; font-size: 0.9rem; }
@@ -638,13 +695,20 @@ try {
                     <?php endif; ?>
 
                     <!-- 네이버페이 구매 (회원/비회원 모두) -->
-                    <button class="naverpay-checkout-btn" id="naverPayBtn" onclick="checkoutWithNaverPay()">
-                        <span style="color: #03C75A; font-weight: 700; font-size: 1.1rem;">N</span>
-                        <span style="margin-left: 5px;">네이버페이로 구매</span>
+                    <div class="naverpay-cart-section">
+                        <div class="naverpay-cart-header">
+                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2303C75A'%3E%3Ctext x='2' y='18' font-size='16' font-weight='bold' fill='%2303C75A'%3EN%3C/text%3E%3C/svg%3E" alt="N" class="naverpay-cart-logo">
+                            <span class="naverpay-cart-text">네이버페이로 간편하게</span>
+                            <span class="naverpay-cart-brand">네이버페이</span>
+                        </div>
+                        <button class="naverpay-checkout-btn" id="naverPayBtn" onclick="checkoutWithNaverPay()">
+                            <span class="naverpay-pay">pay</span>
+                            <span class="naverpay-purchase">구매</span>
+                        </button>
                         <?php if (!$currentUser): ?>
-                        <small style="display: block; margin-top: 5px; font-size: 0.8rem; opacity: 0.9;">로그인 없이 빠른 구매</small>
+                        <p class="naverpay-cart-info">로그인 없이 빠른 구매</p>
                         <?php endif; ?>
-                    </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1005,13 +1069,13 @@ try {
                 } else {
                     alert('네이버페이 결제 요청 실패: ' + data.message);
                     btn.disabled = false;
-                    btn.innerHTML = '<span style="color: #03C75A; font-weight: 700; font-size: 1.1rem;">N</span><span style="margin-left: 5px;">네이버페이로 구매</span>';
+                    btn.innerHTML = '<span class="naverpay-pay">pay</span><span class="naverpay-purchase">구매</span>';
                 }
             } catch (error) {
                 console.error('NaverPay checkout error:', error);
                 alert('네트워크 오류가 발생했습니다: ' + error.message);
                 btn.disabled = false;
-                btn.innerHTML = '<span style="color: #03C75A; font-weight: 700; font-size: 1.1rem;">N</span><span style="margin-left: 5px;">네이버페이로 구매</span>';
+                btn.innerHTML = '<span class="naverpay-pay">pay</span><span class="naverpay-purchase">구매</span>';
             }
         }
 
