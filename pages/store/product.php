@@ -994,9 +994,47 @@ $shippingCost = $product['shipping_cost'] ?? 0;
         }
 
         function buyNow() {
-            const quantity = document.getElementById('quantityInput').value;
-            alert(`${quantity}개 바로구매 기능은 준비 중입니다.`);
-            // TODO: Implement actual purchase functionality
+            const productId = <?= $product['id'] ?>;
+            const quantity = parseInt(document.getElementById('quantityInput').value);
+            const isLoggedIn = <?= $currentUser ? 'true' : 'false' ?>;
+
+            if (!quantity || quantity < 1) {
+                alert('수량을 확인해주세요.');
+                return;
+            }
+
+            // 로그인 확인
+            if (!isLoggedIn) {
+                if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
+                    window.location.href = '/pages/auth/login.php?redirect=' + encodeURIComponent(window.location.href);
+                }
+                return;
+            }
+
+            // 로그인 되어 있으면 buy_now API 호출 후 order.php로 이동
+            fetch(`/api/cart.php?action=buy_now`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    product_id: productId,
+                    quantity: quantity
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 세션에 저장 완료, 주문 페이지로 이동
+                    window.location.href = '/pages/store/order.php';
+                } else {
+                    alert(data.message || '바로구매 처리 중 오류가 발생했습니다.');
+                }
+            })
+            .catch(error => {
+                console.error('바로구매 오류:', error);
+                alert('바로구매 중 오류가 발생했습니다.');
+            });
         }
 
         // 네이버페이로 바로 구매
