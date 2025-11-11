@@ -263,7 +263,7 @@ function handleBuyNow() {
         // 상품 정보 조회
         $db = Database::getInstance()->getConnection();
         $stmt = $db->prepare("
-            SELECT id, name, price, shipping_cost, shipping_unit_count, stock, image_url
+            SELECT id, name, price, shipping_cost, shipping_unit_count, stock_quantity, stock, image_url
             FROM products
             WHERE id = ? AND status = 'active'
         ");
@@ -274,9 +274,11 @@ function handleBuyNow() {
             sendError('상품을 찾을 수 없습니다.');
         }
 
-        // 재고 확인
-        if ($product['stock'] < $quantity) {
-            sendError('재고가 부족합니다.');
+        // 재고 확인 (stock_quantity 우선, 없으면 stock 사용)
+        $stockQuantity = $product['stock_quantity'] ?? $product['stock'] ?? 0;
+
+        if ($stockQuantity < $quantity) {
+            sendError('재고가 부족합니다. 현재 재고: ' . $stockQuantity . '개');
         }
 
         // 주문 아이템 생성

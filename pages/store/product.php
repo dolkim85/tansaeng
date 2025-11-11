@@ -298,7 +298,7 @@ $shippingCost = $product['shipping_cost'] ?? 0;
                             <span class="naverpay-brand">네이버페이</span>
                         </div>
                         <button onclick="buyWithNaverPay(<?= $product['id'] ?>)" class="btn-naverpay">
-                            <span class="naverpay-pay-text">pay</span>
+                            <span class="naverpay-pay-text">N pay</span>
                             <span class="naverpay-buy-text">구매</span>
                         </button>
                         <?php if (!$currentUser): ?>

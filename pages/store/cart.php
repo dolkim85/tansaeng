@@ -702,7 +702,7 @@ try {
                             <span class="naverpay-cart-brand">네이버페이</span>
                         </div>
                         <button class="naverpay-checkout-btn" id="naverPayBtn" onclick="checkoutWithNaverPay()">
-                            <span class="naverpay-pay">pay</span>
+                            <span class="naverpay-pay">N pay</span>
                             <span class="naverpay-purchase">구매</span>
                         </button>
                         <?php if (!$currentUser): ?>
@@ -1069,13 +1069,13 @@ try {
                 } else {
                     alert('네이버페이 결제 요청 실패: ' + data.message);
                     btn.disabled = false;
-                    btn.innerHTML = '<span class="naverpay-pay">pay</span><span class="naverpay-purchase">구매</span>';
+                    btn.innerHTML = '<span class="naverpay-pay">N pay</span><span class="naverpay-purchase">구매</span>';
                 }
             } catch (error) {
                 console.error('NaverPay checkout error:', error);
                 alert('네트워크 오류가 발생했습니다: ' + error.message);
                 btn.disabled = false;
-                btn.innerHTML = '<span class="naverpay-pay">pay</span><span class="naverpay-purchase">구매</span>';
+                btn.innerHTML = '<span class="naverpay-pay">N pay</span><span class="naverpay-purchase">구매</span>';
             }
         }
 
