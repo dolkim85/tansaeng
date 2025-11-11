@@ -228,7 +228,7 @@ $shippingCost = $product['shipping_cost'] ?? 0;
                 <!-- Quantity and Shipping Section -->
                 <div class="quantity-shipping-wrapper">
                     <div class="quantity-section">
-                        <label class="quantity-label">수량</label>
+                        <label for="quantityInput" class="quantity-label">수량</label>
                         <div class="quantity-controls">
                             <button class="quantity-btn" onclick="changeQuantity(-1)" id="decreaseBtn">-</button>
                             <input type="number" class="quantity-input" id="quantityInput" value="1" min="1" max="<?= $stockQuantity ?>">
@@ -237,7 +237,7 @@ $shippingCost = $product['shipping_cost'] ?? 0;
                     </div>
 
                     <div class="shipping-cost-info">
-                        <label class="shipping-label">📦 배송비</label>
+                        <span class="shipping-label">📦 배송비</span>
                         <div class="shipping-cost-amount">
                             <?php if ($shippingCost > 0): ?>
                                 <?= number_format($shippingCost) ?>원
