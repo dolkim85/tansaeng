@@ -1022,15 +1022,29 @@ $shippingCost = $product['shipping_cost'] ?? 0;
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // 네이버페이 결제 요청 페이지로 이동
-                    window.location.href = `/api/payment/naverpay_request.php?product_id=${productId}&quantity=${quantity}`;
+                    // 세션에 저장 완료, 이제 네이버페이 결제 요청
+                    return fetch('/api/payment/naverpay_request.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
                 } else {
-                    alert(data.message || '네이버페이 구매 준비 중 오류가 발생했습니다.');
+                    throw new Error(data.message || '네이버페이 구매 준비 중 오류가 발생했습니다.');
+                }
+            })
+            .then(response => response.json())
+            .then(naverpayData => {
+                if (naverpayData.success) {
+                    // 네이버페이 결제창으로 이동
+                    window.location.href = naverpayData.payment_url;
+                } else {
+                    alert(naverpayData.message || '네이버페이 결제 요청에 실패했습니다.');
                 }
             })
             .catch(error => {
                 console.error('네이버페이 구매 오류:', error);
-                alert('네이버페이 구매 중 오류가 발생했습니다.');
+                alert(error.message || '네이버페이 구매 중 오류가 발생했습니다.');
             });
         }
 
