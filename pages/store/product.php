@@ -289,6 +289,22 @@ $shippingCost = $product['shipping_cost'] ?? 0;
                         </button>
                     <?php endif; ?>
                     </div>
+
+                    <!-- 네이버페이 구매 섹션 -->
+                    <div class="naverpay-section">
+                        <div class="naverpay-header">
+                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2303C75A'%3E%3Ctext x='2' y='18' font-size='16' font-weight='bold' fill='%2303C75A'%3EN%3C/text%3E%3C/svg%3E" alt="N" class="naverpay-logo">
+                            <span class="naverpay-text">네이버페이로 간편하게</span>
+                            <span class="naverpay-brand">네이버페이</span>
+                        </div>
+                        <button onclick="buyWithNaverPay(<?= $product['id'] ?>)" class="btn-naverpay">
+                            <span class="naverpay-pay-text">pay</span>
+                            <span class="naverpay-buy-text">구매</span>
+                        </button>
+                        <?php if (!$currentUser): ?>
+                        <p class="naverpay-info">로그인 없이 빠른 구매</p>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
@@ -614,6 +630,78 @@ $shippingCost = $product['shipping_cost'] ?? 0;
             font-size: 14px;
         }
 
+        /* 네이버페이 섹션 */
+        .naverpay-section {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid #03C75A;
+        }
+
+        .naverpay-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .naverpay-logo {
+            width: 24px;
+            height: 24px;
+        }
+
+        .naverpay-text {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .naverpay-brand {
+            font-weight: 700;
+            color: #03C75A;
+            font-size: 0.9rem;
+        }
+
+        .btn-naverpay {
+            width: 100%;
+            padding: 16px;
+            background: #03C75A;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-naverpay:hover {
+            background: #02b350;
+            box-shadow: 0 4px 12px rgba(3, 199, 90, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .naverpay-pay-text {
+            color: white;
+            font-size: 1.3rem;
+            font-weight: 700;
+            font-style: italic;
+        }
+
+        .naverpay-buy-text {
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .naverpay-info {
+            text-align: center;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
         /* 모바일 최적화 */
         @media (max-width: 768px) {
             /* Product Main - 세로 배치 */
@@ -909,6 +997,41 @@ $shippingCost = $product['shipping_cost'] ?? 0;
             const quantity = document.getElementById('quantityInput').value;
             alert(`${quantity}개 바로구매 기능은 준비 중입니다.`);
             // TODO: Implement actual purchase functionality
+        }
+
+        // 네이버페이로 바로 구매
+        function buyWithNaverPay(productId) {
+            const quantity = parseInt(document.getElementById('quantityInput').value);
+
+            if (!quantity || quantity < 1) {
+                alert('수량을 확인해주세요.');
+                return;
+            }
+
+            // 네이버페이 결제 페이지로 이동
+            fetch(`/api/cart.php?action=buy_now`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    product_id: productId,
+                    quantity: quantity
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 네이버페이 결제 요청 페이지로 이동
+                    window.location.href = `/api/payment/naverpay_request.php?product_id=${productId}&quantity=${quantity}`;
+                } else {
+                    alert(data.message || '네이버페이 구매 준비 중 오류가 발생했습니다.');
+                }
+            })
+            .catch(error => {
+                console.error('네이버페이 구매 오류:', error);
+                alert('네이버페이 구매 중 오류가 발생했습니다.');
+            });
         }
 
         // 서버에서 현재 재고 정보 조회하여 업데이트
