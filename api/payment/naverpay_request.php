@@ -14,6 +14,14 @@ if (session_status() === PHP_SESSION_NONE) {
 try {
     require_once __DIR__ . '/../../classes/NaverPay.php';
     require_once __DIR__ . '/../../classes/Database.php';
+    require_once __DIR__ . '/../../classes/Auth.php';
+
+    // 로그인 상태 확인 (회원/비회원 구분용)
+    $auth = Auth::getInstance();
+    $currentUser = $auth->getCurrentUser();
+    $userId = $currentUser['id'] ?? null;
+
+    error_log("NaverPay Request - User ID: " . ($userId ?? 'guest'));
 
     // POST 데이터 또는 세션에서 주문 정보 가져오기
     $input = json_decode(file_get_contents('php://input'), true);
@@ -59,13 +67,19 @@ try {
             'merchant_pay_key' => $result['merchant_pay_key'],
             'items' => $items,
             'total_amount' => $totalAmount,
+            'user_id' => $userId, // 로그인 사용자 ID (비회원은 null)
+            'user_info' => $currentUser, // 회원 정보 (비회원은 null)
+            'is_member' => !empty($userId), // 회원 여부
             'created_at' => time()
         ];
+
+        error_log("NaverPay 세션 저장 완료 - 회원: " . ($userId ? 'Yes' : 'No'));
 
         echo json_encode([
             'success' => true,
             'payment_url' => $result['payment_url'],
-            'merchant_pay_key' => $result['merchant_pay_key']
+            'merchant_pay_key' => $result['merchant_pay_key'],
+            'is_member' => !empty($userId)
         ], JSON_UNESCAPED_UNICODE);
     } else {
         throw new Exception($result['message'] ?? '결제 요청에 실패했습니다.');

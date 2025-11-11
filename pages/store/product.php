@@ -1037,16 +1037,23 @@ $shippingCost = $product['shipping_cost'] ?? 0;
             });
         }
 
-        // 네이버페이로 바로 구매
+        // 네이버페이로 바로 구매 (회원/비회원 모두 가능)
         function buyWithNaverPay(productId) {
             const quantity = parseInt(document.getElementById('quantityInput').value);
+            const isLoggedIn = <?= $currentUser ? 'true' : 'false' ?>;
 
             if (!quantity || quantity < 1) {
                 alert('수량을 확인해주세요.');
                 return;
             }
 
-            // 네이버페이 결제 페이지로 이동
+            console.log('네이버페이 구매 시작:', {
+                productId: productId,
+                quantity: quantity,
+                isLoggedIn: isLoggedIn
+            });
+
+            // 세션에 주문 정보 저장 (buy_now API 사용)
             fetch(`/api/cart.php?action=buy_now`, {
                 method: 'POST',
                 headers: {

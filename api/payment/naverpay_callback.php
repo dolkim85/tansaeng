@@ -49,10 +49,11 @@ try {
     // 데이터베이스 연결
     $db = Database::getInstance()->getConnection();
 
-    // 현재 사용자 확인 (로그인 여부)
-    $auth = Auth::getInstance();
-    $currentUser = $auth->getCurrentUser();
-    $userId = $currentUser ? $currentUser['id'] : null;
+    // 사용자 정보 가져오기 (세션에 저장된 정보 우선 사용)
+    $userId = $tempOrder['user_id'] ?? null; // 회원 ID (비회원은 null)
+    $isMember = $tempOrder['is_member'] ?? false;
+
+    error_log("NaverPay Callback - User ID: " . ($userId ?? 'guest') . ", Member: " . ($isMember ? 'Yes' : 'No'));
 
     // 주문 생성
     $orderNumber = $merchantPayKey;
