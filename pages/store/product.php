@@ -302,7 +302,9 @@ $shippingCost = $product['shipping_cost'] ?? 0;
                             <span class="naverpay-buy-text">구매</span>
                         </button>
                         <?php if (!$currentUser): ?>
-                        <p class="naverpay-info">로그인 없이 빠른 구매</p>
+                        <p class="naverpay-info">로그인 없이 빠른 구매 (비회원)</p>
+                        <?php else: ?>
+                        <p class="naverpay-info">회원 로그인 상태</p>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1041,17 +1043,35 @@ $shippingCost = $product['shipping_cost'] ?? 0;
         function buyWithNaverPay(productId) {
             const quantity = parseInt(document.getElementById('quantityInput').value);
             const isLoggedIn = <?= $currentUser ? 'true' : 'false' ?>;
+            const userInfo = {
+                isLoggedIn: isLoggedIn,
+                <?php if ($currentUser): ?>
+                userId: <?= $currentUser['id'] ?>,
+                userName: '<?= addslashes($currentUser['name'] ?? '') ?>',
+                userEmail: '<?= addslashes($currentUser['email'] ?? '') ?>'
+                <?php endif; ?>
+            };
 
             if (!quantity || quantity < 1) {
                 alert('수량을 확인해주세요.');
                 return;
             }
 
-            console.log('네이버페이 구매 시작:', {
+            // 로그인 상태 명확히 표시
+            console.log('=== 네이버페이 구매 시작 ===');
+            console.log('로그인 여부:', isLoggedIn ? '로그인됨 (회원)' : '로그인 안됨 (비회원)');
+            console.log('사용자 정보:', userInfo);
+            console.log('상품 정보:', {
                 productId: productId,
-                quantity: quantity,
-                isLoggedIn: isLoggedIn
+                quantity: quantity
             });
+
+            // 사용자에게 상태 확인 메시지
+            if (!isLoggedIn) {
+                console.log('>> 비회원 구매 진행');
+            } else {
+                console.log('>> 회원 구매 진행');
+            }
 
             // 세션에 주문 정보 저장 (buy_now API 사용)
             fetch(`/api/cart.php?action=buy_now`, {
@@ -1175,6 +1195,20 @@ $shippingCost = $product['shipping_cost'] ?? 0;
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
+            // 로그인 상태 확인 (페이지 로드 시)
+            const isLoggedIn = <?= $currentUser ? 'true' : 'false' ?>;
+            console.log('=== 페이지 로드 완료 ===');
+            console.log('현재 로그인 상태:', isLoggedIn ? '로그인됨' : '로그인 안됨');
+            <?php if ($currentUser): ?>
+            console.log('로그인 사용자:', {
+                id: <?= $currentUser['id'] ?>,
+                name: '<?= addslashes($currentUser['name'] ?? '') ?>',
+                email: '<?= addslashes($currentUser['email'] ?? '') ?>'
+            });
+            <?php else: ?>
+            console.log('비회원 상태입니다. 네이버페이로만 구매 가능합니다.');
+            <?php endif; ?>
+
             // 초기 재고 상태 표시
             const initialStock = <?= $stockQuantity ?>;
             updateStockDisplay(initialStock);
