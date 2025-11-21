@@ -260,45 +260,309 @@ try {
                 </div>
             </div>
 
-            <!-- Environmental Control -->
+            <!-- Environmental Control System -->
             <div class="control-section">
-                <h3>🎛️ 환경 제어 시스템</h3>
-                <div class="control-grid">
-                    <div class="control-item">
-                        <h4>🌡️ 온도 제어</h4>
-                        <div class="control-buttons">
-                            <button onclick="controlDevice('heater', 'on')" class="btn btn-outline">히터 ON</button>
-                            <button onclick="controlDevice('heater', 'off')" class="btn btn-outline">히터 OFF</button>
-                            <button onclick="controlDevice('fan', 'on')" class="btn btn-outline">팬 ON</button>
-                            <button onclick="controlDevice('fan', 'off')" class="btn btn-outline">팬 OFF</button>
+                <h3>🎛️ 스마트팜 환경 제어 시스템</h3>
+
+                <!-- Fan Controls -->
+                <div class="control-category">
+                    <h4>🌀 팬 제어</h4>
+                    <div class="control-grid-fans">
+                        <div class="control-item">
+                            <div class="control-header">
+                                <span class="control-icon">🌀</span>
+                                <span class="control-name">내부팬 앞</span>
+                                <span class="control-status" id="status-fan-front">OFF</span>
+                            </div>
+                            <div class="control-buttons">
+                                <button onclick="controlDevice('fan_front', 'on')" class="btn btn-success">ON</button>
+                                <button onclick="controlDevice('fan_front', 'off')" class="btn btn-secondary">OFF</button>
+                            </div>
+                        </div>
+
+                        <div class="control-item">
+                            <div class="control-header">
+                                <span class="control-icon">🌀</span>
+                                <span class="control-name">내부팬 뒤</span>
+                                <span class="control-status" id="status-fan-rear">OFF</span>
+                            </div>
+                            <div class="control-buttons">
+                                <button onclick="controlDevice('fan_rear', 'on')" class="btn btn-success">ON</button>
+                                <button onclick="controlDevice('fan_rear', 'off')" class="btn btn-secondary">OFF</button>
+                            </div>
+                        </div>
+
+                        <div class="control-item">
+                            <div class="control-header">
+                                <span class="control-icon">🌀</span>
+                                <span class="control-name">천장팬</span>
+                                <span class="control-status" id="status-fan-ceiling">OFF</span>
+                            </div>
+                            <div class="control-buttons">
+                                <button onclick="controlDevice('fan_ceiling', 'on')" class="btn btn-success">ON</button>
+                                <button onclick="controlDevice('fan_ceiling', 'off')" class="btn btn-secondary">OFF</button>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="control-item">
-                        <h4>💧 습도 제어</h4>
-                        <div class="control-buttons">
-                            <button onclick="controlDevice('humidifier', 'on')" class="btn btn-outline">가습기 ON</button>
-                            <button onclick="controlDevice('humidifier', 'off')" class="btn btn-outline">가습기 OFF</button>
-                            <button onclick="controlDevice('dehumidifier', 'on')" class="btn btn-outline">제습기 ON</button>
-                            <button onclick="controlDevice('dehumidifier', 'off')" class="btn btn-outline">제습기 OFF</button>
+                </div>
+
+                <!-- Window Opener Controls -->
+                <div class="control-category">
+                    <h4>🪟 개폐기 제어</h4>
+                    <div class="control-grid-openers">
+                        <div class="control-item-slider">
+                            <div class="control-header">
+                                <span class="control-icon">🪟</span>
+                                <span class="control-name">측창개폐기 Left</span>
+                                <span class="control-value" id="value-side-left">0%</span>
+                            </div>
+                            <div class="slider-container">
+                                <input type="range" min="0" max="100" value="0"
+                                       class="opener-slider"
+                                       id="slider-side-left"
+                                       oninput="updateOpener('side_left', this.value)">
+                                <div class="slider-labels">
+                                    <span>닫힘 (0%)</span>
+                                    <span>열림 (100%)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="control-item-slider">
+                            <div class="control-header">
+                                <span class="control-icon">🪟</span>
+                                <span class="control-name">측창개폐기 Right</span>
+                                <span class="control-value" id="value-side-right">0%</span>
+                            </div>
+                            <div class="slider-container">
+                                <input type="range" min="0" max="100" value="0"
+                                       class="opener-slider"
+                                       id="slider-side-right"
+                                       oninput="updateOpener('side_right', this.value)">
+                                <div class="slider-labels">
+                                    <span>닫힘 (0%)</span>
+                                    <span>열림 (100%)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="control-item-slider">
+                            <div class="control-header">
+                                <span class="control-icon">🪟</span>
+                                <span class="control-name">천창개폐기 Left</span>
+                                <span class="control-value" id="value-roof-left">0%</span>
+                            </div>
+                            <div class="slider-container">
+                                <input type="range" min="0" max="100" value="0"
+                                       class="opener-slider"
+                                       id="slider-roof-left"
+                                       oninput="updateOpener('roof_left', this.value)">
+                                <div class="slider-labels">
+                                    <span>닫힘 (0%)</span>
+                                    <span>열림 (100%)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="control-item-slider">
+                            <div class="control-header">
+                                <span class="control-icon">🪟</span>
+                                <span class="control-name">천창개폐기 Right</span>
+                                <span class="control-value" id="value-roof-right">0%</span>
+                            </div>
+                            <div class="slider-container">
+                                <input type="range" min="0" max="100" value="0"
+                                       class="opener-slider"
+                                       id="slider-roof-right"
+                                       oninput="updateOpener('roof_right', this.value)">
+                                <div class="slider-labels">
+                                    <span>닫힘 (0%)</span>
+                                    <span>열림 (100%)</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="control-item">
-                        <h4>💡 조명 제어</h4>
-                        <div class="control-buttons">
-                            <button onclick="controlDevice('led', 'on')" class="btn btn-outline">LED ON</button>
-                            <button onclick="controlDevice('led', 'off')" class="btn btn-outline">LED OFF</button>
-                            <input type="range" min="0" max="100" value="80" onchange="controlDevice('led', 'brightness', this.value)">
-                            <span>밝기 조절</span>
+                </div>
+
+                <!-- Pump Controls -->
+                <div class="control-category">
+                    <h4>💧 펌프 제어</h4>
+                    <div class="control-grid-pumps">
+                        <div class="control-item">
+                            <div class="control-header">
+                                <span class="control-icon">💧</span>
+                                <span class="control-name">양액탱크 급수펌프</span>
+                                <span class="control-status" id="status-pump-nutrient">OFF</span>
+                            </div>
+                            <div class="control-buttons">
+                                <button onclick="controlDevice('pump_nutrient', 'on')" class="btn btn-success">ON</button>
+                                <button onclick="controlDevice('pump_nutrient', 'off')" class="btn btn-secondary">OFF</button>
+                            </div>
+                        </div>
+
+                        <div class="control-item">
+                            <div class="control-header">
+                                <span class="control-icon">💧</span>
+                                <span class="control-name">수막펌프</span>
+                                <span class="control-status" id="status-pump-curtain">OFF</span>
+                            </div>
+                            <div class="control-buttons">
+                                <button onclick="controlDevice('pump_curtain', 'on')" class="btn btn-success">ON</button>
+                                <button onclick="controlDevice('pump_curtain', 'off')" class="btn btn-secondary">OFF</button>
+                            </div>
+                        </div>
+
+                        <div class="control-item">
+                            <div class="control-header">
+                                <span class="control-icon">💧</span>
+                                <span class="control-name">히팅탱크 급수펌프</span>
+                                <span class="control-status" id="status-pump-heating">OFF</span>
+                            </div>
+                            <div class="control-buttons">
+                                <button onclick="controlDevice('pump_heating', 'on')" class="btn btn-success">ON</button>
+                                <button onclick="controlDevice('pump_heating', 'off')" class="btn btn-secondary">OFF</button>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="control-item">
-                        <h4>💧 관수 제어</h4>
-                        <div class="control-buttons">
-                            <button onclick="controlDevice('pump', 'on')" class="btn btn-primary">즉시 관수</button>
-                            <button onclick="controlDevice('pump', 'schedule')" class="btn btn-outline">스케줄 설정</button>
+                </div>
+
+                <!-- Misting System Control -->
+                <div class="control-category">
+                    <h4>🌫️ 분무수경 시스템</h4>
+                    <div class="misting-control">
+                        <div class="control-item">
+                            <div class="control-header">
+                                <span class="control-icon">🌫️</span>
+                                <span class="control-name">분무수경 밸브</span>
+                                <span class="control-status" id="status-mist-valve">OFF</span>
+                            </div>
+                            <div class="control-buttons">
+                                <button onclick="controlDevice('mist_valve', 'on')" class="btn btn-success">ON</button>
+                                <button onclick="controlDevice('mist_valve', 'off')" class="btn btn-secondary">OFF</button>
+                                <button onclick="openMistingSchedule()" class="btn btn-primary">📅 스케줄 설정</button>
+                            </div>
+                        </div>
+
+                        <div class="misting-schedule" id="misting-schedule" style="display: none;">
+                            <h5>분무 스케줄 설정</h5>
+                            <div class="schedule-config">
+                                <div class="schedule-row">
+                                    <label>운영 모드:</label>
+                                    <select id="mist-mode" class="schedule-input">
+                                        <option value="day">주간</option>
+                                        <option value="night">야간</option>
+                                        <option value="both">주간+야간</option>
+                                        <option value="custom">시간 지정</option>
+                                    </select>
+                                </div>
+                                <div class="schedule-row" id="custom-time-row" style="display: none;">
+                                    <label>시작 시간:</label>
+                                    <input type="time" id="mist-start" class="schedule-input">
+                                    <label>종료 시간:</label>
+                                    <input type="time" id="mist-end" class="schedule-input">
+                                </div>
+                                <div class="schedule-row">
+                                    <label>작동 시간:</label>
+                                    <input type="number" id="mist-duration" class="schedule-input" min="1" max="300" value="10">
+                                    <span>초</span>
+                                </div>
+                                <div class="schedule-row">
+                                    <label>쉬는 시간:</label>
+                                    <input type="number" id="mist-interval" class="schedule-input" min="1" max="3600" value="300">
+                                    <span>초</span>
+                                </div>
+                                <div class="schedule-buttons">
+                                    <button onclick="saveMistingSchedule()" class="btn btn-primary">저장</button>
+                                    <button onclick="closeMistingSchedule()" class="btn btn-secondary">취소</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Camera System -->
+                <div class="control-category">
+                    <h4>📷 카메라 모니터링</h4>
+                    <div class="camera-grid">
+                        <div class="camera-group">
+                            <h5>카메라 1번 - 외부</h5>
+                            <div class="camera-views">
+                                <div class="camera-view" onclick="openCamera('cam1_1')">
+                                    <div class="camera-placeholder">
+                                        <span class="camera-icon">📹</span>
+                                        <span class="camera-label">외부1</span>
+                                    </div>
+                                </div>
+                                <div class="camera-view" onclick="openCamera('cam1_2')">
+                                    <div class="camera-placeholder">
+                                        <span class="camera-icon">📹</span>
+                                        <span class="camera-label">외부2</span>
+                                    </div>
+                                </div>
+                                <div class="camera-view" onclick="openCamera('cam1_3')">
+                                    <div class="camera-placeholder">
+                                        <span class="camera-icon">📹</span>
+                                        <span class="camera-label">외부3</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="camera-group">
+                            <h5>카메라 2번 - 배드</h5>
+                            <div class="camera-views">
+                                <div class="camera-view" onclick="openCamera('cam2_a')">
+                                    <div class="camera-placeholder">
+                                        <span class="camera-icon">📹</span>
+                                        <span class="camera-label">배드A</span>
+                                    </div>
+                                </div>
+                                <div class="camera-view" onclick="openCamera('cam2_b')">
+                                    <div class="camera-placeholder">
+                                        <span class="camera-icon">📹</span>
+                                        <span class="camera-label">배드B</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="camera-group">
+                            <h5>카메라 3번 - 육묘실</h5>
+                            <div class="camera-views">
+                                <div class="camera-view" onclick="openCamera('cam3')">
+                                    <div class="camera-placeholder">
+                                        <span class="camera-icon">📹</span>
+                                        <span class="camera-label">육묘실</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="camera-group">
+                            <h5>카메라 4번 - 펌프실</h5>
+                            <div class="camera-views">
+                                <div class="camera-view" onclick="openCamera('cam4')">
+                                    <div class="camera-placeholder">
+                                        <span class="camera-icon">📹</span>
+                                        <span class="camera-label">펌프실</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Device Connection Status -->
+                <div class="control-category">
+                    <h4>🔗 디바이스 연결 상태</h4>
+                    <div class="device-connection">
+                        <div class="connection-status">
+                            <span class="status-indicator" id="mqtt-status">⚫</span>
+                            <span>MQTT 브로커 연결: <span id="mqtt-status-text">연결 대기중</span></span>
+                        </div>
+                        <div class="connection-actions">
+                            <button onclick="openDeviceSetup()" class="btn btn-primary">⚙️ 디바이스 설정</button>
+                            <button onclick="reconnectMQTT()" class="btn btn-outline">🔄 재연결</button>
                         </div>
                     </div>
                 </div>
@@ -483,26 +747,198 @@ try {
         location.reload();
     }
 
-    function controlDevice(device, action, value = null) {
-        let message = `${device} ${action}`;
-        if (value) message += ` (${value})`;
-        
+    // MQTT Connection variables
+    let mqttClient = null;
+    let deviceStates = {};
+
+    // Control Device Function
+    function controlDevice(device, action) {
         const btn = event.target;
         const originalText = btn.textContent;
         btn.textContent = '실행 중...';
         btn.disabled = true;
-        
-        // Simulate device control
-        setTimeout(() => {
-            btn.textContent = '완료!';
+
+        // Send MQTT command
+        publishMQTTCommand(device, action);
+
+        // Update UI status
+        const statusElement = document.getElementById(`status-${device}`);
+        if (statusElement) {
+            setTimeout(() => {
+                statusElement.textContent = action.toUpperCase();
+                statusElement.className = 'control-status ' + (action === 'on' ? 'status-on' : 'status-off');
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }, 500);
+        } else {
             setTimeout(() => {
                 btn.textContent = originalText;
                 btn.disabled = false;
-            }, 1000);
-            
-            alert(`${message} 명령이 실행되었습니다.`);
-        }, 1500);
+            }, 500);
+        }
     }
+
+    // Update Opener Position
+    function updateOpener(opener, value) {
+        document.getElementById(`value-${opener}`).textContent = value + '%';
+        publishMQTTCommand(opener, 'position', value);
+    }
+
+    // Misting Schedule Functions
+    function openMistingSchedule() {
+        document.getElementById('misting-schedule').style.display = 'block';
+    }
+
+    function closeMistingSchedule() {
+        document.getElementById('misting-schedule').style.display = 'none';
+    }
+
+    document.getElementById('mist-mode').addEventListener('change', function() {
+        const customTimeRow = document.getElementById('custom-time-row');
+        customTimeRow.style.display = this.value === 'custom' ? 'flex' : 'none';
+    });
+
+    function saveMistingSchedule() {
+        const mode = document.getElementById('mist-mode').value;
+        const duration = document.getElementById('mist-duration').value;
+        const interval = document.getElementById('mist-interval').value;
+
+        const schedule = {
+            mode: mode,
+            duration: parseInt(duration),
+            interval: parseInt(interval)
+        };
+
+        if (mode === 'custom') {
+            schedule.start_time = document.getElementById('mist-start').value;
+            schedule.end_time = document.getElementById('mist-end').value;
+        }
+
+        // Send schedule to server
+        fetch('/api/smartfarm/schedule.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                device: 'misting_system',
+                schedule: schedule
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('분무 스케줄이 저장되었습니다.');
+                closeMistingSchedule();
+                publishMQTTCommand('mist_schedule', 'update', schedule);
+            } else {
+                alert('스케줄 저장에 실패했습니다: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('스케줄 저장 중 오류가 발생했습니다.');
+        });
+    }
+
+    // Camera Functions
+    function openCamera(cameraId) {
+        // Open camera feed in modal or new window
+        window.open(`/api/smartfarm/camera.php?id=${cameraId}`, 'camera_' + cameraId, 'width=800,height=600');
+    }
+
+    // Device Setup Function
+    function openDeviceSetup() {
+        window.location.href = '/pages/plant_analysis/device_setup.php';
+    }
+
+    // MQTT Functions
+    function connectMQTT() {
+        // MQTT.js connection will be implemented here
+        // For now, simulate connection
+        updateMQTTStatus('connecting');
+
+        fetch('/api/smartfarm/mqtt_config.php')
+            .then(response => response.json())
+            .then(config => {
+                if (config.success && config.broker_url) {
+                    // Load MQTT.js and connect
+                    initMQTTConnection(config);
+                } else {
+                    updateMQTTStatus('disconnected');
+                }
+            })
+            .catch(error => {
+                console.error('MQTT config error:', error);
+                updateMQTTStatus('disconnected');
+            });
+    }
+
+    function initMQTTConnection(config) {
+        // This will be expanded with actual MQTT.js implementation
+        console.log('Initializing MQTT with config:', config);
+
+        // Simulate connection for now
+        setTimeout(() => {
+            updateMQTTStatus('connected');
+        }, 1000);
+    }
+
+    function updateMQTTStatus(status) {
+        const indicator = document.getElementById('mqtt-status');
+        const text = document.getElementById('mqtt-status-text');
+
+        switch(status) {
+            case 'connected':
+                indicator.textContent = '🟢';
+                text.textContent = '연결됨';
+                break;
+            case 'connecting':
+                indicator.textContent = '🟡';
+                text.textContent = '연결 중...';
+                break;
+            case 'disconnected':
+                indicator.textContent = '🔴';
+                text.textContent = '연결 끊김';
+                break;
+            default:
+                indicator.textContent = '⚫';
+                text.textContent = '연결 대기중';
+        }
+    }
+
+    function reconnectMQTT() {
+        connectMQTT();
+    }
+
+    function publishMQTTCommand(device, action, value = null) {
+        const command = {
+            device: device,
+            action: action,
+            value: value,
+            timestamp: Date.now()
+        };
+
+        // Send via MQTT (to be implemented)
+        console.log('Publishing MQTT command:', command);
+
+        // Also save to database via API
+        fetch('/api/smartfarm/control.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(command)
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Command sent:', data);
+        })
+        .catch(error => {
+            console.error('Error sending command:', error);
+        });
+    }
+
+    // Initialize MQTT connection on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        connectMQTT();
+    });
     </script>
 </body>
 </html>
