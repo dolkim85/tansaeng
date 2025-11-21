@@ -267,41 +267,32 @@ try {
                 <!-- Fan Controls -->
                 <div class="control-category">
                     <h4>🌀 팬 제어</h4>
-                    <div class="control-grid-fans">
-                        <div class="control-item">
-                            <div class="control-header">
-                                <span class="control-icon">🌀</span>
-                                <span class="control-name">내부팬 앞</span>
-                                <span class="control-status" id="status-fan-front">OFF</span>
-                            </div>
-                            <div class="control-buttons">
-                                <button onclick="controlDevice('fan_front', 'on')" class="btn btn-success">ON</button>
-                                <button onclick="controlDevice('fan_front', 'off')" class="btn btn-secondary">OFF</button>
-                            </div>
+                    <div class="control-grid-compact">
+                        <div class="control-item-compact">
+                            <span class="control-icon">🌀</span>
+                            <span class="control-name">내부팬 앞</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-fan-front" onchange="toggleDevice('fan_front', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
                         </div>
 
-                        <div class="control-item">
-                            <div class="control-header">
-                                <span class="control-icon">🌀</span>
-                                <span class="control-name">내부팬 뒤</span>
-                                <span class="control-status" id="status-fan-rear">OFF</span>
-                            </div>
-                            <div class="control-buttons">
-                                <button onclick="controlDevice('fan_rear', 'on')" class="btn btn-success">ON</button>
-                                <button onclick="controlDevice('fan_rear', 'off')" class="btn btn-secondary">OFF</button>
-                            </div>
+                        <div class="control-item-compact">
+                            <span class="control-icon">🌀</span>
+                            <span class="control-name">내부팬 뒤</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-fan-rear" onchange="toggleDevice('fan_rear', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
                         </div>
 
-                        <div class="control-item">
-                            <div class="control-header">
-                                <span class="control-icon">🌀</span>
-                                <span class="control-name">천장팬</span>
-                                <span class="control-status" id="status-fan-ceiling">OFF</span>
-                            </div>
-                            <div class="control-buttons">
-                                <button onclick="controlDevice('fan_ceiling', 'on')" class="btn btn-success">ON</button>
-                                <button onclick="controlDevice('fan_ceiling', 'off')" class="btn btn-secondary">OFF</button>
-                            </div>
+                        <div class="control-item-compact">
+                            <span class="control-icon">🌀</span>
+                            <span class="control-name">천장팬</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-fan-ceiling" onchange="toggleDevice('fan_ceiling', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -387,41 +378,32 @@ try {
                 <!-- Pump Controls -->
                 <div class="control-category">
                     <h4>💧 펌프 제어</h4>
-                    <div class="control-grid-pumps">
-                        <div class="control-item">
-                            <div class="control-header">
-                                <span class="control-icon">💧</span>
-                                <span class="control-name">양액탱크 급수펌프</span>
-                                <span class="control-status" id="status-pump-nutrient">OFF</span>
-                            </div>
-                            <div class="control-buttons">
-                                <button onclick="controlDevice('pump_nutrient', 'on')" class="btn btn-success">ON</button>
-                                <button onclick="controlDevice('pump_nutrient', 'off')" class="btn btn-secondary">OFF</button>
-                            </div>
+                    <div class="control-grid-compact">
+                        <div class="control-item-compact">
+                            <span class="control-icon">💧</span>
+                            <span class="control-name">양액탱크 급수펌프</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-pump-nutrient" onchange="toggleDevice('pump_nutrient', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
                         </div>
 
-                        <div class="control-item">
-                            <div class="control-header">
-                                <span class="control-icon">💧</span>
-                                <span class="control-name">수막펌프</span>
-                                <span class="control-status" id="status-pump-curtain">OFF</span>
-                            </div>
-                            <div class="control-buttons">
-                                <button onclick="controlDevice('pump_curtain', 'on')" class="btn btn-success">ON</button>
-                                <button onclick="controlDevice('pump_curtain', 'off')" class="btn btn-secondary">OFF</button>
-                            </div>
+                        <div class="control-item-compact">
+                            <span class="control-icon">💧</span>
+                            <span class="control-name">수막펌프</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-pump-curtain" onchange="toggleDevice('pump_curtain', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
                         </div>
 
-                        <div class="control-item">
-                            <div class="control-header">
-                                <span class="control-icon">💧</span>
-                                <span class="control-name">히팅탱크 급수펌프</span>
-                                <span class="control-status" id="status-pump-heating">OFF</span>
-                            </div>
-                            <div class="control-buttons">
-                                <button onclick="controlDevice('pump_heating', 'on')" class="btn btn-success">ON</button>
-                                <button onclick="controlDevice('pump_heating', 'off')" class="btn btn-secondary">OFF</button>
-                            </div>
+                        <div class="control-item-compact">
+                            <span class="control-icon">💧</span>
+                            <span class="control-name">히팅탱크 급수펌프</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-pump-heating" onchange="toggleDevice('pump_heating', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -430,17 +412,14 @@ try {
                 <div class="control-category">
                     <h4>🌫️ 분무수경 시스템</h4>
                     <div class="misting-control">
-                        <div class="control-item">
-                            <div class="control-header">
-                                <span class="control-icon">🌫️</span>
-                                <span class="control-name">분무수경 밸브</span>
-                                <span class="control-status" id="status-mist-valve">OFF</span>
-                            </div>
-                            <div class="control-buttons">
-                                <button onclick="controlDevice('mist_valve', 'on')" class="btn btn-success">ON</button>
-                                <button onclick="controlDevice('mist_valve', 'off')" class="btn btn-secondary">OFF</button>
-                                <button onclick="openMistingSchedule()" class="btn btn-primary">📅 스케줄 설정</button>
-                            </div>
+                        <div class="control-item-compact" style="max-width: 600px; margin: 0 auto;">
+                            <span class="control-icon">🌫️</span>
+                            <span class="control-name">분무수경 밸브</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-mist-valve" onchange="toggleDevice('mist_valve', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <button onclick="openMistingSchedule()" class="btn btn-primary btn-sm" style="margin-left: 1rem;">📅 스케줄</button>
                         </div>
 
                         <div class="misting-schedule" id="misting-schedule" style="display: none;">
@@ -483,69 +462,116 @@ try {
                 <!-- Camera System -->
                 <div class="control-category">
                     <h4>📷 카메라 모니터링</h4>
-                    <div class="camera-grid">
-                        <div class="camera-group">
-                            <h5>카메라 1번 - 외부</h5>
-                            <div class="camera-views">
-                                <div class="camera-view" onclick="openCamera('cam1_1')">
-                                    <div class="camera-placeholder">
-                                        <span class="camera-icon">📹</span>
-                                        <span class="camera-label">외부1</span>
-                                    </div>
-                                </div>
-                                <div class="camera-view" onclick="openCamera('cam1_2')">
-                                    <div class="camera-placeholder">
-                                        <span class="camera-icon">📹</span>
-                                        <span class="camera-label">외부2</span>
-                                    </div>
-                                </div>
-                                <div class="camera-view" onclick="openCamera('cam1_3')">
-                                    <div class="camera-placeholder">
-                                        <span class="camera-icon">📹</span>
-                                        <span class="camera-label">외부3</span>
-                                    </div>
+                    <div class="camera-grid-live">
+                        <!-- 외부 카메라 -->
+                        <div class="camera-live-card">
+                            <div class="camera-live-header">
+                                <span>📹 외부1</span>
+                                <button onclick="fullscreenCamera('cam1_1')" class="btn-icon">⛶</button>
+                            </div>
+                            <div class="camera-feed" id="feed-cam1_1" onclick="openCameraModal('cam1_1', '외부1')">
+                                <div class="camera-loading">
+                                    <span class="loading-icon">📹</span>
+                                    <span>카메라 연결 대기중...</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="camera-group">
-                            <h5>카메라 2번 - 배드</h5>
-                            <div class="camera-views">
-                                <div class="camera-view" onclick="openCamera('cam2_a')">
-                                    <div class="camera-placeholder">
-                                        <span class="camera-icon">📹</span>
-                                        <span class="camera-label">배드A</span>
-                                    </div>
-                                </div>
-                                <div class="camera-view" onclick="openCamera('cam2_b')">
-                                    <div class="camera-placeholder">
-                                        <span class="camera-icon">📹</span>
-                                        <span class="camera-label">배드B</span>
-                                    </div>
+                        <div class="camera-live-card">
+                            <div class="camera-live-header">
+                                <span>📹 외부2</span>
+                                <button onclick="fullscreenCamera('cam1_2')" class="btn-icon">⛶</button>
+                            </div>
+                            <div class="camera-feed" id="feed-cam1_2" onclick="openCameraModal('cam1_2', '외부2')">
+                                <div class="camera-loading">
+                                    <span class="loading-icon">📹</span>
+                                    <span>카메라 연결 대기중...</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="camera-group">
-                            <h5>카메라 3번 - 육묘실</h5>
-                            <div class="camera-views">
-                                <div class="camera-view" onclick="openCamera('cam3')">
-                                    <div class="camera-placeholder">
-                                        <span class="camera-icon">📹</span>
-                                        <span class="camera-label">육묘실</span>
-                                    </div>
+                        <div class="camera-live-card">
+                            <div class="camera-live-header">
+                                <span>📹 외부3</span>
+                                <button onclick="fullscreenCamera('cam1_3')" class="btn-icon">⛶</button>
+                            </div>
+                            <div class="camera-feed" id="feed-cam1_3" onclick="openCameraModal('cam1_3', '외부3')">
+                                <div class="camera-loading">
+                                    <span class="loading-icon">📹</span>
+                                    <span>카메라 연결 대기중...</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="camera-group">
-                            <h5>카메라 4번 - 펌프실</h5>
-                            <div class="camera-views">
-                                <div class="camera-view" onclick="openCamera('cam4')">
-                                    <div class="camera-placeholder">
-                                        <span class="camera-icon">📹</span>
-                                        <span class="camera-label">펌프실</span>
-                                    </div>
+                        <!-- 배드 카메라 -->
+                        <div class="camera-live-card">
+                            <div class="camera-live-header">
+                                <span>📹 배드A</span>
+                                <button onclick="fullscreenCamera('cam2_a')" class="btn-icon">⛶</button>
+                            </div>
+                            <div class="camera-feed" id="feed-cam2_a" onclick="openCameraModal('cam2_a', '배드A')">
+                                <div class="camera-loading">
+                                    <span class="loading-icon">📹</span>
+                                    <span>카메라 연결 대기중...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="camera-live-card">
+                            <div class="camera-live-header">
+                                <span>📹 배드B</span>
+                                <button onclick="fullscreenCamera('cam2_b')" class="btn-icon">⛶</button>
+                            </div>
+                            <div class="camera-feed" id="feed-cam2_b" onclick="openCameraModal('cam2_b', '배드B')">
+                                <div class="camera-loading">
+                                    <span class="loading-icon">📹</span>
+                                    <span>카메라 연결 대기중...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 육묘실 카메라 -->
+                        <div class="camera-live-card">
+                            <div class="camera-live-header">
+                                <span>📹 육묘실</span>
+                                <button onclick="fullscreenCamera('cam3')" class="btn-icon">⛶</button>
+                            </div>
+                            <div class="camera-feed" id="feed-cam3" onclick="openCameraModal('cam3', '육묘실')">
+                                <div class="camera-loading">
+                                    <span class="loading-icon">📹</span>
+                                    <span>카메라 연결 대기중...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 펌프실 카메라 -->
+                        <div class="camera-live-card">
+                            <div class="camera-live-header">
+                                <span>📹 펌프실</span>
+                                <button onclick="fullscreenCamera('cam4')" class="btn-icon">⛶</button>
+                            </div>
+                            <div class="camera-feed" id="feed-cam4" onclick="openCameraModal('cam4', '펌프실')">
+                                <div class="camera-loading">
+                                    <span class="loading-icon">📹</span>
+                                    <span>카메라 연결 대기중...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Camera Modal -->
+                <div id="camera-modal" class="camera-modal" style="display: none;">
+                    <div class="camera-modal-content">
+                        <div class="camera-modal-header">
+                            <h3 id="camera-modal-title">카메라</h3>
+                            <button onclick="closeCameraModal()" class="btn-close">✕</button>
+                        </div>
+                        <div class="camera-modal-body">
+                            <div id="camera-modal-feed" class="camera-feed-large">
+                                <div class="camera-loading">
+                                    <span class="loading-icon">📹</span>
+                                    <span>카메라 로딩중...</span>
                                 </div>
                             </div>
                         </div>
@@ -751,31 +777,16 @@ try {
     let mqttClient = null;
     let deviceStates = {};
 
-    // Control Device Function
-    function controlDevice(device, action) {
-        const btn = event.target;
-        const originalText = btn.textContent;
-        btn.textContent = '실행 중...';
-        btn.disabled = true;
-
-        // Send MQTT command
+    // Toggle Device Function (for switches)
+    function toggleDevice(device, isOn) {
+        const action = isOn ? 'on' : 'off';
         publishMQTTCommand(device, action);
+        console.log(`Device ${device} turned ${action}`);
+    }
 
-        // Update UI status
-        const statusElement = document.getElementById(`status-${device}`);
-        if (statusElement) {
-            setTimeout(() => {
-                statusElement.textContent = action.toUpperCase();
-                statusElement.className = 'control-status ' + (action === 'on' ? 'status-on' : 'status-off');
-                btn.textContent = originalText;
-                btn.disabled = false;
-            }, 500);
-        } else {
-            setTimeout(() => {
-                btn.textContent = originalText;
-                btn.disabled = false;
-            }, 500);
-        }
+    // Control Device Function (legacy)
+    function controlDevice(device, action) {
+        publishMQTTCommand(device, action);
     }
 
     // Update Opener Position
@@ -844,6 +855,79 @@ try {
         // Open camera feed in modal or new window
         window.open(`/api/smartfarm/camera.php?id=${cameraId}`, 'camera_' + cameraId, 'width=800,height=600');
     }
+
+    function openCameraModal(cameraId, cameraName) {
+        const modal = document.getElementById('camera-modal');
+        const title = document.getElementById('camera-modal-title');
+        const feed = document.getElementById('camera-modal-feed');
+
+        title.textContent = '📹 ' + cameraName;
+        modal.style.display = 'flex';
+
+        // 실제 카메라 피드 로드 (설정된 URL이 있으면)
+        loadCameraFeed(cameraId, feed);
+    }
+
+    function closeCameraModal() {
+        const modal = document.getElementById('camera-modal');
+        modal.style.display = 'none';
+    }
+
+    function fullscreenCamera(cameraId) {
+        const feed = document.getElementById('feed-' + cameraId);
+        if (feed.requestFullscreen) {
+            feed.requestFullscreen();
+        }
+    }
+
+    function loadCameraFeed(cameraId, container) {
+        // API에서 카메라 설정 가져오기
+        fetch(`/api/smartfarm/get_camera.php?id=${cameraId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.stream_url) {
+                    // 카메라 스트림이 설정되어 있으면 표시
+                    container.innerHTML = `
+                        <img src="${data.stream_url}"
+                             alt="${cameraId}"
+                             style="width: 100%; height: 100%; object-fit: contain;"
+                             onerror="this.src='/assets/images/camera-offline.png'">
+                    `;
+                } else {
+                    // 설정되지 않은 경우
+                    container.innerHTML = `
+                        <div class="camera-loading">
+                            <span class="loading-icon">📹</span>
+                            <span>카메라가 설정되지 않았습니다</span>
+                            <button onclick="window.location.href='/pages/plant_analysis/device_setup.php'"
+                                    class="btn btn-primary btn-sm" style="margin-top: 1rem;">
+                                카메라 설정하기
+                            </button>
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Camera load error:', error);
+                container.innerHTML = `
+                    <div class="camera-loading">
+                        <span class="loading-icon">❌</span>
+                        <span>카메라 로드 실패</span>
+                    </div>
+                `;
+            });
+    }
+
+    // 페이지 로드 시 모든 카메라 피드 초기화
+    document.addEventListener('DOMContentLoaded', function() {
+        const cameraIds = ['cam1_1', 'cam1_2', 'cam1_3', 'cam2_a', 'cam2_b', 'cam3', 'cam4'];
+        cameraIds.forEach(id => {
+            const feed = document.getElementById('feed-' + id);
+            if (feed) {
+                loadCameraFeed(id, feed);
+            }
+        });
+    });
 
     // Device Setup Function
     function openDeviceSetup() {
