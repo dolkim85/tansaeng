@@ -265,34 +265,79 @@ try {
                 <h3>🎛️ 스마트팜 환경 제어 시스템</h3>
 
                 <!-- Fan Controls -->
-                <div class="control-category">
-                    <h4>🌀 팬 제어</h4>
-                    <div class="control-grid-compact">
-                        <div class="control-item-compact">
-                            <span class="control-icon">🌀</span>
-                            <span class="control-name">내부팬 앞</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="toggle-fan-front" onchange="toggleDevice('fan_front', this.checked)">
-                                <span class="toggle-slider"></span>
-                            </label>
+                <div class="control-category-enhanced">
+                    <div class="category-header">
+                        <div class="category-title">
+                            <span class="category-icon">🌀</span>
+                            <h4>팬 제어</h4>
+                        </div>
+                        <div class="category-info">총 3개 디바이스</div>
+                    </div>
+                    <div class="control-grid-enhanced">
+                        <div class="control-card">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <span class="device-icon">🌀</span>
+                                    <span class="device-name">내부팬 앞</span>
+                                </div>
+                                <span class="status-badge" id="badge-fan-front">OFF</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="toggle-control">
+                                    <span class="toggle-label">전원</span>
+                                    <label class="toggle-switch-large">
+                                        <input type="checkbox" id="toggle-fan-front" onchange="toggleDevice('fan_front', this.checked)">
+                                        <span class="toggle-slider-large"></span>
+                                    </label>
+                                </div>
+                                <div class="device-info">
+                                    <small>마지막 작동: <span id="last-fan-front">-</span></small>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="control-item-compact">
-                            <span class="control-icon">🌀</span>
-                            <span class="control-name">내부팬 뒤</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="toggle-fan-rear" onchange="toggleDevice('fan_rear', this.checked)">
-                                <span class="toggle-slider"></span>
-                            </label>
+                        <div class="control-card">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <span class="device-icon">🌀</span>
+                                    <span class="device-name">내부팬 뒤</span>
+                                </div>
+                                <span class="status-badge" id="badge-fan-rear">OFF</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="toggle-control">
+                                    <span class="toggle-label">전원</span>
+                                    <label class="toggle-switch-large">
+                                        <input type="checkbox" id="toggle-fan-rear" onchange="toggleDevice('fan_rear', this.checked)">
+                                        <span class="toggle-slider-large"></span>
+                                    </label>
+                                </div>
+                                <div class="device-info">
+                                    <small>마지막 작동: <span id="last-fan-rear">-</span></small>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="control-item-compact">
-                            <span class="control-icon">🌀</span>
-                            <span class="control-name">천장팬</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="toggle-fan-ceiling" onchange="toggleDevice('fan_ceiling', this.checked)">
-                                <span class="toggle-slider"></span>
-                            </label>
+                        <div class="control-card">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <span class="device-icon">🌀</span>
+                                    <span class="device-name">천장팬</span>
+                                </div>
+                                <span class="status-badge" id="badge-fan-ceiling">OFF</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="toggle-control">
+                                    <span class="toggle-label">전원</span>
+                                    <label class="toggle-switch-large">
+                                        <input type="checkbox" id="toggle-fan-ceiling" onchange="toggleDevice('fan_ceiling', this.checked)">
+                                        <span class="toggle-slider-large"></span>
+                                    </label>
+                                </div>
+                                <div class="device-info">
+                                    <small>마지막 작동: <span id="last-fan-ceiling">-</span></small>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -376,186 +421,353 @@ try {
                 </div>
 
                 <!-- Pump Controls -->
-                <div class="control-category">
-                    <h4>💧 펌프 제어</h4>
-                    <div class="control-grid-compact">
-                        <div class="control-item-compact">
-                            <span class="control-icon">💧</span>
-                            <span class="control-name">양액탱크 급수펌프</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="toggle-pump-nutrient" onchange="toggleDevice('pump_nutrient', this.checked)">
-                                <span class="toggle-slider"></span>
-                            </label>
+                <div class="control-category-enhanced">
+                    <div class="category-header">
+                        <div class="category-title">
+                            <span class="category-icon">💧</span>
+                            <h4>펌프 제어</h4>
+                        </div>
+                        <div class="category-info">총 3개 디바이스</div>
+                    </div>
+                    <div class="control-grid-enhanced">
+                        <div class="control-card">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <span class="device-icon">💧</span>
+                                    <span class="device-name">양액탱크 급수펌프</span>
+                                </div>
+                                <span class="status-badge" id="badge-pump-nutrient">OFF</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="toggle-control">
+                                    <span class="toggle-label">전원</span>
+                                    <label class="toggle-switch-large">
+                                        <input type="checkbox" id="toggle-pump-nutrient" onchange="toggleDevice('pump_nutrient', this.checked)">
+                                        <span class="toggle-slider-large"></span>
+                                    </label>
+                                </div>
+                                <div class="device-info">
+                                    <small>마지막 작동: <span id="last-pump-nutrient">-</span></small>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="control-item-compact">
-                            <span class="control-icon">💧</span>
-                            <span class="control-name">수막펌프</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="toggle-pump-curtain" onchange="toggleDevice('pump_curtain', this.checked)">
-                                <span class="toggle-slider"></span>
-                            </label>
+                        <div class="control-card">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <span class="device-icon">💧</span>
+                                    <span class="device-name">수막펌프</span>
+                                </div>
+                                <span class="status-badge" id="badge-pump-curtain">OFF</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="toggle-control">
+                                    <span class="toggle-label">전원</span>
+                                    <label class="toggle-switch-large">
+                                        <input type="checkbox" id="toggle-pump-curtain" onchange="toggleDevice('pump_curtain', this.checked)">
+                                        <span class="toggle-slider-large"></span>
+                                    </label>
+                                </div>
+                                <div class="device-info">
+                                    <small>마지막 작동: <span id="last-pump-curtain">-</span></small>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="control-item-compact">
-                            <span class="control-icon">💧</span>
-                            <span class="control-name">히팅탱크 급수펌프</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="toggle-pump-heating" onchange="toggleDevice('pump_heating', this.checked)">
-                                <span class="toggle-slider"></span>
-                            </label>
+                        <div class="control-card">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <span class="device-icon">💧</span>
+                                    <span class="device-name">히팅탱크 급수펌프</span>
+                                </div>
+                                <span class="status-badge" id="badge-pump-heating">OFF</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="toggle-control">
+                                    <span class="toggle-label">전원</span>
+                                    <label class="toggle-switch-large">
+                                        <input type="checkbox" id="toggle-pump-heating" onchange="toggleDevice('pump_heating', this.checked)">
+                                        <span class="toggle-slider-large"></span>
+                                    </label>
+                                </div>
+                                <div class="device-info">
+                                    <small>마지막 작동: <span id="last-pump-heating">-</span></small>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Misting System Control -->
-                <div class="control-category">
-                    <h4>🌫️ 분무수경 시스템</h4>
-                    <div class="misting-control">
-                        <div class="control-item-compact" style="max-width: 600px; margin: 0 auto;">
-                            <span class="control-icon">🌫️</span>
-                            <span class="control-name">분무수경 밸브</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="toggle-mist-valve" onchange="toggleDevice('mist_valve', this.checked)">
-                                <span class="toggle-slider"></span>
-                            </label>
-                            <button onclick="openMistingSchedule()" class="btn btn-primary btn-sm" style="margin-left: 1rem;">📅 스케줄</button>
+                <div class="control-category-enhanced">
+                    <div class="category-header">
+                        <div class="category-title">
+                            <span class="category-icon">🌫️</span>
+                            <h4>분무수경 시스템</h4>
+                        </div>
+                        <div class="category-info">자동 스케줄 관리</div>
+                    </div>
+                    <div class="misting-full-control">
+                        <div class="control-card-wide">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <span class="device-icon">🌫️</span>
+                                    <span class="device-name">분무수경 밸브</span>
+                                </div>
+                                <span class="status-badge" id="badge-mist-valve">OFF</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="toggle-control-wide">
+                                    <div class="manual-control">
+                                        <span class="toggle-label">수동 제어</span>
+                                        <label class="toggle-switch-large">
+                                            <input type="checkbox" id="toggle-mist-valve" onchange="toggleDevice('mist_valve', this.checked)">
+                                            <span class="toggle-slider-large"></span>
+                                        </label>
+                                    </div>
+                                    <div class="auto-control">
+                                        <span class="toggle-label">자동 스케줄</span>
+                                        <label class="toggle-switch-large">
+                                            <input type="checkbox" id="toggle-mist-auto" onchange="toggleAutoSchedule(this.checked)">
+                                            <span class="toggle-slider-large"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="misting-schedule" id="misting-schedule" style="display: none;">
-                            <h5>분무 스케줄 설정</h5>
-                            <div class="schedule-config">
-                                <div class="schedule-row">
-                                    <label>운영 모드:</label>
-                                    <select id="mist-mode" class="schedule-input">
-                                        <option value="day">주간</option>
-                                        <option value="night">야간</option>
-                                        <option value="both">주간+야간</option>
-                                        <option value="custom">시간 지정</option>
-                                    </select>
+                        <!-- Schedule Panel (항상 표시) -->
+                        <div class="schedule-panel">
+                            <h5>📅 자동 스케줄 설정</h5>
+                            <div class="schedule-config-enhanced">
+                                <div class="schedule-section">
+                                    <label class="schedule-label">
+                                        <span class="label-icon">⏰</span>
+                                        운영 모드 선택
+                                    </label>
+                                    <div class="mode-selector">
+                                        <label class="mode-option">
+                                            <input type="radio" name="mist-mode" value="day" checked onchange="switchMistMode('day')">
+                                            <span class="mode-label">
+                                                <span class="mode-icon">☀️</span>
+                                                주간
+                                            </span>
+                                        </label>
+                                        <label class="mode-option">
+                                            <input type="radio" name="mist-mode" value="night" onchange="switchMistMode('night')">
+                                            <span class="mode-label">
+                                                <span class="mode-icon">🌙</span>
+                                                야간
+                                            </span>
+                                        </label>
+                                        <label class="mode-option">
+                                            <input type="radio" name="mist-mode" value="both" onchange="switchMistMode('both')">
+                                            <span class="mode-label">
+                                                <span class="mode-icon">🔄</span>
+                                                24시간
+                                            </span>
+                                        </label>
+                                        <label class="mode-option">
+                                            <input type="radio" name="mist-mode" value="custom" onchange="switchMistMode('custom')">
+                                            <span class="mode-label">
+                                                <span class="mode-icon">⚙️</span>
+                                                사용자 지정
+                                            </span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div class="schedule-row" id="custom-time-row" style="display: none;">
-                                    <label>시작 시간:</label>
-                                    <input type="time" id="mist-start" class="schedule-input">
-                                    <label>종료 시간:</label>
-                                    <input type="time" id="mist-end" class="schedule-input">
+
+                                <!-- Day Mode Settings -->
+                                <div class="mode-settings" id="mode-day-settings">
+                                    <div class="mode-settings-header">
+                                        <h6>☀️ 주간 모드 설정 (6:00 - 18:00)</h6>
+                                    </div>
+                                    <div class="setting-row">
+                                        <label class="setting-label">무한 반복</label>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="day-repeat" checked>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="cycle-config">
+                                        <div class="cycle-item">
+                                            <label>분무 시간</label>
+                                            <div class="input-with-unit">
+                                                <input type="number" id="day-duration" min="1" max="300" value="10" onchange="updateCyclePreview('day')">
+                                                <span class="unit">초</span>
+                                            </div>
+                                        </div>
+                                        <span class="cycle-separator">→</span>
+                                        <div class="cycle-item">
+                                            <label>쉬는 시간</label>
+                                            <div class="input-with-unit">
+                                                <input type="number" id="day-interval" min="1" max="3600" value="300" onchange="updateCyclePreview('day')">
+                                                <span class="unit">초</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="cycle-preview" id="day-preview">
+                                        <small>💡 10초 분무 → 5분 대기 → 반복</small>
+                                    </div>
                                 </div>
-                                <div class="schedule-row">
-                                    <label>작동 시간:</label>
-                                    <input type="number" id="mist-duration" class="schedule-input" min="1" max="300" value="10">
-                                    <span>초</span>
+
+                                <!-- Night Mode Settings -->
+                                <div class="mode-settings" id="mode-night-settings" style="display: none;">
+                                    <div class="mode-settings-header">
+                                        <h6>🌙 야간 모드 설정 (18:00 - 6:00)</h6>
+                                    </div>
+                                    <div class="setting-row">
+                                        <label class="setting-label">무한 반복</label>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="night-repeat" checked>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="cycle-config">
+                                        <div class="cycle-item">
+                                            <label>분무 시간</label>
+                                            <div class="input-with-unit">
+                                                <input type="number" id="night-duration" min="1" max="300" value="10" onchange="updateCyclePreview('night')">
+                                                <span class="unit">초</span>
+                                            </div>
+                                        </div>
+                                        <span class="cycle-separator">→</span>
+                                        <div class="cycle-item">
+                                            <label>쉬는 시간</label>
+                                            <div class="input-with-unit">
+                                                <input type="number" id="night-interval" min="1" max="3600" value="600" onchange="updateCyclePreview('night')">
+                                                <span class="unit">초</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="cycle-preview" id="night-preview">
+                                        <small>💡 10초 분무 → 10분 대기 → 반복</small>
+                                    </div>
                                 </div>
-                                <div class="schedule-row">
-                                    <label>쉬는 시간:</label>
-                                    <input type="number" id="mist-interval" class="schedule-input" min="1" max="3600" value="300">
-                                    <span>초</span>
+
+                                <!-- 24h Mode Settings -->
+                                <div class="mode-settings" id="mode-both-settings" style="display: none;">
+                                    <div class="mode-settings-header">
+                                        <h6>🔄 24시간 모드 설정</h6>
+                                    </div>
+                                    <div class="setting-row">
+                                        <label class="setting-label">무한 반복</label>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="both-repeat" checked>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="cycle-config">
+                                        <div class="cycle-item">
+                                            <label>분무 시간</label>
+                                            <div class="input-with-unit">
+                                                <input type="number" id="both-duration" min="1" max="300" value="10" onchange="updateCyclePreview('both')">
+                                                <span class="unit">초</span>
+                                            </div>
+                                        </div>
+                                        <span class="cycle-separator">→</span>
+                                        <div class="cycle-item">
+                                            <label>쉬는 시간</label>
+                                            <div class="input-with-unit">
+                                                <input type="number" id="both-interval" min="1" max="3600" value="300" onchange="updateCyclePreview('both')">
+                                                <span class="unit">초</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="cycle-preview" id="both-preview">
+                                        <small>💡 10초 분무 → 5분 대기 → 반복</small>
+                                    </div>
                                 </div>
-                                <div class="schedule-buttons">
-                                    <button onclick="saveMistingSchedule()" class="btn btn-primary">저장</button>
-                                    <button onclick="closeMistingSchedule()" class="btn btn-secondary">취소</button>
+
+                                <!-- Custom Mode Settings -->
+                                <div class="mode-settings" id="mode-custom-settings" style="display: none;">
+                                    <div class="mode-settings-header">
+                                        <h6>⚙️ 사용자 지정 시간대</h6>
+                                        <button onclick="addCustomTimeSlot()" class="btn btn-sm btn-success">
+                                            ➕ 시간대 추가
+                                        </button>
+                                    </div>
+                                    <div id="custom-time-slots">
+                                        <!-- 시간대 목록이 여기에 동적으로 추가됨 -->
+                                    </div>
                                 </div>
+
+                                <div class="schedule-actions">
+                                    <button onclick="addMistingSchedule()" class="btn btn-primary btn-lg">
+                                        ➕ 스케줄 추가
+                                    </button>
+                                    <button onclick="testMisting()" class="btn btn-outline btn-lg">
+                                        🧪 테스트 실행
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Saved Schedules List -->
+                        <div class="saved-schedules-panel">
+                            <h5>📋 등록된 스케줄 목록</h5>
+                            <div id="saved-schedules-list">
+                                <!-- 스케줄 목록이 여기에 동적으로 추가됨 -->
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Camera System -->
-                <div class="control-category">
-                    <h4>📷 카메라 모니터링</h4>
-                    <div class="camera-grid-live">
-                        <!-- 외부 카메라 -->
-                        <div class="camera-live-card">
-                            <div class="camera-live-header">
-                                <span>📹 외부1</span>
-                                <button onclick="fullscreenCamera('cam1_1')" class="btn-icon">⛶</button>
+                <div class="control-category-enhanced">
+                    <div class="category-header">
+                        <div class="category-title">
+                            <span class="category-icon">📷</span>
+                            <h4>카메라 모니터링</h4>
+                        </div>
+                        <button onclick="openAddCameraModal()" class="btn btn-sm btn-success">
+                            ➕ 카메라 추가
+                        </button>
+                    </div>
+                    <div class="camera-grid-live" id="camera-grid">
+                        <!-- 카메라 목록이 동적으로 추가됨 -->
+                    </div>
+                </div>
+
+                <!-- Add Camera Modal -->
+                <div id="add-camera-modal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>📷 카메라 추가</h3>
+                            <span class="close" onclick="closeAddCameraModal()">&times;</span>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label>카메라 이름</label>
+                                <input type="text" id="camera-name" class="form-control" placeholder="예: 외부1, 배드A">
                             </div>
-                            <div class="camera-feed" id="feed-cam1_1" onclick="openCameraModal('cam1_1', '외부1')">
-                                <div class="camera-loading">
-                                    <span class="loading-icon">📹</span>
-                                    <span>카메라 연결 대기중...</span>
-                                </div>
+                            <div class="form-group">
+                                <label>스트림 타입</label>
+                                <select id="camera-stream-type" class="form-control">
+                                    <option value="rtsp">RTSP</option>
+                                    <option value="mjpeg">MJPEG</option>
+                                    <option value="hls">HLS</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>스트림 URL</label>
+                                <input type="text" id="camera-stream-url" class="form-control"
+                                       placeholder="rtsp://192.168.1.100:554/stream1">
+                                <small>예: rtsp://username:password@ip:port/path</small>
+                            </div>
+                            <div class="form-group">
+                                <label>카메라 아이콘</label>
+                                <select id="camera-icon" class="form-control">
+                                    <option value="📹">📹 기본</option>
+                                    <option value="🎥">🎥 비디오</option>
+                                    <option value="📸">📸 사진기</option>
+                                    <option value="🔍">🔍 감시</option>
+                                </select>
                             </div>
                         </div>
-
-                        <div class="camera-live-card">
-                            <div class="camera-live-header">
-                                <span>📹 외부2</span>
-                                <button onclick="fullscreenCamera('cam1_2')" class="btn-icon">⛶</button>
-                            </div>
-                            <div class="camera-feed" id="feed-cam1_2" onclick="openCameraModal('cam1_2', '외부2')">
-                                <div class="camera-loading">
-                                    <span class="loading-icon">📹</span>
-                                    <span>카메라 연결 대기중...</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="camera-live-card">
-                            <div class="camera-live-header">
-                                <span>📹 외부3</span>
-                                <button onclick="fullscreenCamera('cam1_3')" class="btn-icon">⛶</button>
-                            </div>
-                            <div class="camera-feed" id="feed-cam1_3" onclick="openCameraModal('cam1_3', '외부3')">
-                                <div class="camera-loading">
-                                    <span class="loading-icon">📹</span>
-                                    <span>카메라 연결 대기중...</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 배드 카메라 -->
-                        <div class="camera-live-card">
-                            <div class="camera-live-header">
-                                <span>📹 배드A</span>
-                                <button onclick="fullscreenCamera('cam2_a')" class="btn-icon">⛶</button>
-                            </div>
-                            <div class="camera-feed" id="feed-cam2_a" onclick="openCameraModal('cam2_a', '배드A')">
-                                <div class="camera-loading">
-                                    <span class="loading-icon">📹</span>
-                                    <span>카메라 연결 대기중...</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="camera-live-card">
-                            <div class="camera-live-header">
-                                <span>📹 배드B</span>
-                                <button onclick="fullscreenCamera('cam2_b')" class="btn-icon">⛶</button>
-                            </div>
-                            <div class="camera-feed" id="feed-cam2_b" onclick="openCameraModal('cam2_b', '배드B')">
-                                <div class="camera-loading">
-                                    <span class="loading-icon">📹</span>
-                                    <span>카메라 연결 대기중...</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 육묘실 카메라 -->
-                        <div class="camera-live-card">
-                            <div class="camera-live-header">
-                                <span>📹 육묘실</span>
-                                <button onclick="fullscreenCamera('cam3')" class="btn-icon">⛶</button>
-                            </div>
-                            <div class="camera-feed" id="feed-cam3" onclick="openCameraModal('cam3', '육묘실')">
-                                <div class="camera-loading">
-                                    <span class="loading-icon">📹</span>
-                                    <span>카메라 연결 대기중...</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 펌프실 카메라 -->
-                        <div class="camera-live-card">
-                            <div class="camera-live-header">
-                                <span>📹 펌프실</span>
-                                <button onclick="fullscreenCamera('cam4')" class="btn-icon">⛶</button>
-                            </div>
-                            <div class="camera-feed" id="feed-cam4" onclick="openCameraModal('cam4', '펌프실')">
-                                <div class="camera-loading">
-                                    <span class="loading-icon">📹</span>
-                                    <span>카메라 연결 대기중...</span>
-                                </div>
-                            </div>
+                        <div class="modal-footer">
+                            <button onclick="saveCamera()" class="btn btn-primary">➕ 추가</button>
+                            <button onclick="closeAddCameraModal()" class="btn btn-secondary">취소</button>
                         </div>
                     </div>
                 </div>
@@ -600,12 +812,6 @@ try {
 
     <script>
     let charts = {};
-    
-    // Initialize charts
-    document.addEventListener('DOMContentLoaded', function() {
-        initializeCharts();
-        loadChartData('24h');
-    });
 
     function initializeCharts() {
         // Temperature Chart
@@ -779,9 +985,70 @@ try {
 
     // Toggle Device Function (for switches)
     function toggleDevice(device, isOn) {
+        // 분무수경 밸브의 경우 자동 스케줄과 상호 배타적
+        if (device === 'mist_valve') {
+            if (isOn) {
+                // 수동 ON → 자동 스케줄 OFF
+                const autoToggle = document.getElementById('toggle-mist-auto');
+                if (autoToggle && autoToggle.checked) {
+                    autoToggle.checked = false;
+                    alert('⚠️ 수동 제어를 활성화하여 자동 스케줄이 중지되었습니다.');
+                }
+            }
+        }
+
         const action = isOn ? 'on' : 'off';
         publishMQTTCommand(device, action);
+
+        // Update status badge
+        const badge = document.getElementById(`badge-${device}`);
+        if (badge) {
+            badge.textContent = isOn ? 'ON' : 'OFF';
+            badge.className = 'status-badge ' + (isOn ? 'status-on' : 'status-off');
+        }
+
+        // Update last activity
+        const lastElement = document.getElementById(`last-${device}`);
+        if (lastElement) {
+            const now = new Date();
+            lastElement.textContent = now.toLocaleTimeString('ko-KR');
+        }
+
         console.log(`Device ${device} turned ${action}`);
+    }
+
+    // Toggle Auto Schedule (자동 스케줄 시작/멈춤)
+    function toggleAutoSchedule(isOn) {
+        if (isOn) {
+            // 자동 ON → 수동 밸브 OFF
+            const manualToggle = document.getElementById('toggle-mist-valve');
+            if (manualToggle && manualToggle.checked) {
+                manualToggle.checked = false;
+                // 수동 밸브 OFF 명령 전송
+                publishMQTTCommand('mist_valve', 'off');
+                const badge = document.getElementById('badge-mist-valve');
+                if (badge) {
+                    badge.textContent = 'OFF';
+                    badge.className = 'status-badge status-off';
+                }
+            }
+
+            // 스케줄 시작
+            publishMQTTCommand('mist_schedule', 'start');
+            alert('✅ 자동 스케줄이 시작되었습니다. 등록된 스케줄대로 자동 작동합니다.');
+        } else {
+            // 스케줄 중지
+            publishMQTTCommand('mist_schedule', 'stop');
+            alert('⏸️ 자동 스케줄이 중지되었습니다.');
+        }
+    }
+
+    // Test Misting
+    function testMisting() {
+        if (confirm('분무 테스트를 실행하시겠습니까? (10초간 작동)')) {
+            publishMQTTCommand('mist_valve', 'test', 10);
+            alert('테스트 분무가 시작되었습니다.');
+        }
     }
 
     // Control Device Function (legacy)
@@ -796,33 +1063,199 @@ try {
     }
 
     // Misting Schedule Functions
-    function openMistingSchedule() {
-        document.getElementById('misting-schedule').style.display = 'block';
+    let customTimeSlotCounter = 0;
+    let customTimeSlots = [];
+
+    // Switch Misting Mode
+    function switchMistMode(mode) {
+        // Hide all mode settings
+        document.getElementById('mode-day-settings').style.display = 'none';
+        document.getElementById('mode-night-settings').style.display = 'none';
+        document.getElementById('mode-both-settings').style.display = 'none';
+        document.getElementById('mode-custom-settings').style.display = 'none';
+
+        // Show selected mode settings
+        document.getElementById('mode-' + mode + '-settings').style.display = 'block';
+
+        // Initialize custom mode with one slot if empty
+        if (mode === 'custom' && customTimeSlots.length === 0) {
+            addCustomTimeSlot();
+        }
     }
 
-    function closeMistingSchedule() {
-        document.getElementById('misting-schedule').style.display = 'none';
+    // Update Cycle Preview for each mode
+    function updateCyclePreview(mode) {
+        const duration = document.getElementById(mode + '-duration').value;
+        const interval = document.getElementById(mode + '-interval').value;
+        const preview = document.getElementById(mode + '-preview');
+
+        const intervalMin = Math.floor(interval / 60);
+        const intervalSec = interval % 60;
+        const intervalText = intervalMin > 0 ? `${intervalMin}분 ${intervalSec}초` : `${intervalSec}초`;
+        preview.innerHTML = `<small>💡 ${duration}초 분무 → ${intervalText} 대기 → 반복</small>`;
     }
 
-    document.getElementById('mist-mode').addEventListener('change', function() {
-        const customTimeRow = document.getElementById('custom-time-row');
-        customTimeRow.style.display = this.value === 'custom' ? 'flex' : 'none';
-    });
+    // Add Custom Time Slot
+    function addCustomTimeSlot() {
+        const slotId = customTimeSlotCounter++;
+        const container = document.getElementById('custom-time-slots');
 
-    function saveMistingSchedule() {
-        const mode = document.getElementById('mist-mode').value;
-        const duration = document.getElementById('mist-duration').value;
-        const interval = document.getElementById('mist-interval').value;
+        const slotDiv = document.createElement('div');
+        slotDiv.className = 'time-slot-card';
+        slotDiv.id = 'slot-' + slotId;
+        slotDiv.innerHTML = `
+            <div class="time-slot-header">
+                <h6>시간대 ${slotId + 1}</h6>
+                <button onclick="removeCustomTimeSlot(${slotId})" class="btn btn-sm btn-danger">🗑️ 삭제</button>
+            </div>
+            <div class="time-slot-body">
+                <div class="time-range-input">
+                    <label>작동 시간</label>
+                    <div class="time-inputs">
+                        <input type="time" id="custom-start-${slotId}" class="time-input" value="08:00" onchange="validateTimeSlot(${slotId})">
+                        <span class="time-separator">~</span>
+                        <input type="time" id="custom-end-${slotId}" class="time-input" value="10:00" onchange="validateTimeSlot(${slotId})">
+                    </div>
+                    <small class="time-validation" id="validation-${slotId}"></small>
+                </div>
+                <div class="setting-row">
+                    <label class="setting-label">무한 반복</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="custom-repeat-${slotId}" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="cycle-config">
+                    <div class="cycle-item">
+                        <label>분무 시간</label>
+                        <div class="input-with-unit">
+                            <input type="number" id="custom-duration-${slotId}" min="1" max="300" value="10" onchange="updateCustomPreview(${slotId})">
+                            <span class="unit">초</span>
+                        </div>
+                    </div>
+                    <span class="cycle-separator">→</span>
+                    <div class="cycle-item">
+                        <label>쉬는 시간</label>
+                        <div class="input-with-unit">
+                            <input type="number" id="custom-interval-${slotId}" min="1" max="3600" value="300" onchange="updateCustomPreview(${slotId})">
+                            <span class="unit">초</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="cycle-preview" id="custom-preview-${slotId}">
+                    <small>💡 10초 분무 → 5분 대기 → 반복</small>
+                </div>
+            </div>
+        `;
 
-        const schedule = {
+        container.appendChild(slotDiv);
+        customTimeSlots.push(slotId);
+    }
+
+    // Remove Custom Time Slot
+    function removeCustomTimeSlot(slotId) {
+        const slot = document.getElementById('slot-' + slotId);
+        if (slot) {
+            slot.remove();
+            customTimeSlots = customTimeSlots.filter(id => id !== slotId);
+        }
+    }
+
+    // Update Custom Slot Preview
+    function updateCustomPreview(slotId) {
+        const duration = document.getElementById('custom-duration-' + slotId).value;
+        const interval = document.getElementById('custom-interval-' + slotId).value;
+        const preview = document.getElementById('custom-preview-' + slotId);
+
+        const intervalMin = Math.floor(interval / 60);
+        const intervalSec = interval % 60;
+        const intervalText = intervalMin > 0 ? `${intervalMin}분 ${intervalSec}초` : `${intervalSec}초`;
+        preview.innerHTML = `<small>💡 ${duration}초 분무 → ${intervalText} 대기 → 반복</small>`;
+    }
+
+    // Validate Time Slot (check overlaps)
+    function validateTimeSlot(slotId) {
+        const startTime = document.getElementById('custom-start-' + slotId).value;
+        const endTime = document.getElementById('custom-end-' + slotId).value;
+        const validation = document.getElementById('validation-' + slotId);
+
+        // Check if end time is after start time
+        if (startTime >= endTime) {
+            validation.textContent = '⚠️ 종료 시간은 시작 시간보다 늦어야 합니다.';
+            validation.style.color = '#f44336';
+            return false;
+        }
+
+        // Check overlaps with other slots
+        for (let otherId of customTimeSlots) {
+            if (otherId === slotId) continue;
+
+            const otherStart = document.getElementById('custom-start-' + otherId)?.value;
+            const otherEnd = document.getElementById('custom-end-' + otherId)?.value;
+
+            if (!otherStart || !otherEnd) continue;
+
+            // Check if times overlap
+            if ((startTime < otherEnd && endTime > otherStart)) {
+                validation.textContent = `⚠️ 시간대 ${otherId + 1}과(와) 겹칩니다.`;
+                validation.style.color = '#f44336';
+                return false;
+            }
+        }
+
+        validation.textContent = '✓ 유효한 시간대입니다.';
+        validation.style.color = '#4CAF50';
+        return true;
+    }
+
+    // Saved Schedules Management
+    let savedSchedules = [];
+    let scheduleIdCounter = 0;
+
+    // Add Misting Schedule
+    function addMistingSchedule() {
+        const mode = document.querySelector('input[name="mist-mode"]:checked').value;
+        let schedule = {
+            id: scheduleIdCounter++,
             mode: mode,
-            duration: parseInt(duration),
-            interval: parseInt(interval)
+            enabled: true,
+            created_at: new Date().toLocaleString('ko-KR')
         };
 
         if (mode === 'custom') {
-            schedule.start_time = document.getElementById('mist-start').value;
-            schedule.end_time = document.getElementById('mist-end').value;
+            // Validate all custom slots
+            const slots = [];
+
+            for (let slotId of customTimeSlots) {
+                if (!validateTimeSlot(slotId)) {
+                    alert('시간대 ' + (slotId + 1) + '에 오류가 있습니다. 확인해주세요.');
+                    return;
+                }
+
+                slots.push({
+                    start_time: document.getElementById('custom-start-' + slotId).value,
+                    end_time: document.getElementById('custom-end-' + slotId).value,
+                    repeat: document.getElementById('custom-repeat-' + slotId).checked,
+                    duration: parseInt(document.getElementById('custom-duration-' + slotId).value),
+                    interval: parseInt(document.getElementById('custom-interval-' + slotId).value)
+                });
+            }
+
+            if (slots.length === 0) {
+                alert('최소 하나의 시간대를 추가해주세요.');
+                return;
+            }
+
+            schedule.slots = slots;
+            schedule.name = `사용자 지정 (${slots.length}개 시간대)`;
+        } else {
+            // Standard modes (day, night, both)
+            schedule.repeat = document.getElementById(mode + '-repeat').checked;
+            schedule.duration = parseInt(document.getElementById(mode + '-duration').value);
+            schedule.interval = parseInt(document.getElementById(mode + '-interval').value);
+
+            const modeNames = { day: '☀️ 주간', night: '🌙 야간', both: '🔄 24시간' };
+            schedule.name = modeNames[mode];
         }
 
         // Send schedule to server
@@ -831,31 +1264,309 @@ try {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 device: 'misting_system',
+                action: 'add',
                 schedule: schedule
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('분무 스케줄이 저장되었습니다.');
-                closeMistingSchedule();
-                publishMQTTCommand('mist_schedule', 'update', schedule);
+                schedule.id = data.schedule_id || schedule.id;
+                savedSchedules.push(schedule);
+                renderSavedSchedules();
+                alert('✅ 스케줄이 추가되었습니다.');
+                publishMQTTCommand('mist_schedule', 'update', savedSchedules);
             } else {
-                alert('스케줄 저장에 실패했습니다: ' + data.message);
+                alert('❌ 스케줄 추가에 실패했습니다: ' + data.message);
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('스케줄 저장 중 오류가 발생했습니다.');
+            alert('❌ 스케줄 추가 중 오류가 발생했습니다.');
         });
     }
 
-    // Camera Functions
-    function openCamera(cameraId) {
-        // Open camera feed in modal or new window
-        window.open(`/api/smartfarm/camera.php?id=${cameraId}`, 'camera_' + cameraId, 'width=800,height=600');
+    // Render Saved Schedules
+    function renderSavedSchedules() {
+        const container = document.getElementById('saved-schedules-list');
+
+        if (savedSchedules.length === 0) {
+            container.innerHTML = `
+                <div class="empty-schedules">
+                    <p>📭 등록된 스케줄이 없습니다.</p>
+                    <small>위에서 스케줄을 설정하고 "➕ 스케줄 추가" 버튼을 눌러주세요.</small>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = savedSchedules.map(sch => {
+            let detailsHTML = '';
+
+            if (sch.mode === 'custom' && sch.slots) {
+                detailsHTML = sch.slots.map(slot =>
+                    `<div class="schedule-detail">⏰ ${slot.start_time} ~ ${slot.end_time} (${slot.duration}초 분무 / ${slot.interval}초 대기)</div>`
+                ).join('');
+            } else {
+                detailsHTML = `<div class="schedule-detail">⏱️ ${sch.duration}초 분무 → ${sch.interval}초 대기 (${sch.repeat ? '무한반복' : '1회'})</div>`;
+            }
+
+            return `
+                <div class="schedule-item ${sch.enabled ? 'enabled' : 'disabled'}">
+                    <div class="schedule-item-header">
+                        <div class="schedule-info">
+                            <h6>${sch.name}</h6>
+                            <small>등록: ${sch.created_at}</small>
+                        </div>
+                        <div class="schedule-controls">
+                            <label class="toggle-switch">
+                                <input type="checkbox" ${sch.enabled ? 'checked' : ''}
+                                       onchange="toggleSchedule(${sch.id}, this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <button onclick="deleteSchedule(${sch.id})" class="btn btn-sm btn-danger">
+                                🗑️ 삭제
+                            </button>
+                        </div>
+                    </div>
+                    <div class="schedule-item-body">
+                        ${detailsHTML}
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
+    // Toggle Schedule Enable/Disable
+    function toggleSchedule(scheduleId, enabled) {
+        const schedule = savedSchedules.find(s => s.id === scheduleId);
+        if (schedule) {
+            schedule.enabled = enabled;
+            renderSavedSchedules();
+
+            // Send update to server
+            fetch('/api/smartfarm/schedule.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    device: 'misting_system',
+                    action: 'toggle',
+                    schedule_id: scheduleId,
+                    enabled: enabled
+                })
+            });
+
+            publishMQTTCommand('mist_schedule', 'update', savedSchedules);
+            alert(enabled ? '✅ 스케줄이 활성화되었습니다.' : '⏸️ 스케줄이 비활성화되었습니다.');
+        }
+    }
+
+    // Delete Schedule
+    function deleteSchedule(scheduleId) {
+        if (!confirm('이 스케줄을 삭제하시겠습니까?')) return;
+
+        // Send delete to server
+        fetch('/api/smartfarm/schedule.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                device: 'misting_system',
+                action: 'delete',
+                schedule_id: scheduleId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                savedSchedules = savedSchedules.filter(s => s.id !== scheduleId);
+                renderSavedSchedules();
+                publishMQTTCommand('mist_schedule', 'update', savedSchedules);
+                alert('✅ 스케줄이 삭제되었습니다.');
+            } else {
+                alert('❌ 스케줄 삭제에 실패했습니다: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ 스케줄 삭제 중 오류가 발생했습니다.');
+        });
+    }
+
+    // Load Saved Schedules on page load
+    function loadSavedSchedules() {
+        fetch('/api/smartfarm/schedule.php?device=misting_system')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.schedules) {
+                    savedSchedules = data.schedules;
+                }
+                // 항상 렌더링 (데이터가 없어도 빈 메시지 표시)
+                renderSavedSchedules();
+            })
+            .catch(error => {
+                console.error('Error loading schedules:', error);
+                // 에러가 나도 빈 메시지 표시
+                renderSavedSchedules();
+            });
+    }
+
+    // Camera Management
+    let cameras = [];
+    let cameraIdCounter = 0;
+
+    // Load Cameras
+    function loadCameras() {
+        fetch('/api/smartfarm/get_camera.php?action=list')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.cameras) {
+                    cameras = data.cameras;
+                }
+                // 항상 렌더링 (데이터가 없어도 빈 메시지 표시)
+                renderCameras();
+            })
+            .catch(error => {
+                console.error('Error loading cameras:', error);
+                // 에러가 나도 빈 메시지 표시
+                renderCameras();
+            });
+    }
+
+    // Render Cameras
+    function renderCameras() {
+        const grid = document.getElementById('camera-grid');
+
+        if (cameras.length === 0) {
+            grid.innerHTML = `
+                <div class="empty-cameras">
+                    <p>📭 등록된 카메라가 없습니다.</p>
+                    <small>"➕ 카메라 추가" 버튼을 눌러 카메라를 등록하세요.</small>
+                </div>
+            `;
+            return;
+        }
+
+        grid.innerHTML = cameras.map(cam => `
+            <div class="camera-live-card">
+                <div class="camera-live-header">
+                    <span>${cam.icon || '📹'} ${cam.name}</span>
+                    <div class="camera-header-actions">
+                        <button onclick="fullscreenCamera('${cam.id}')" class="btn-icon">⛶</button>
+                        <button onclick="deleteCamera(${cam.id})" class="btn-icon btn-danger-icon">🗑️</button>
+                    </div>
+                </div>
+                <div class="camera-feed" id="feed-${cam.id}" onclick="openCameraModal('${cam.id}', '${cam.name}')">
+                    <div class="camera-loading">
+                        <span class="loading-icon">${cam.icon || '📹'}</span>
+                        <span>카메라 연결 대기중...</span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        // Load camera feeds
+        cameras.forEach(cam => {
+            if (cam.stream_url) {
+                loadCameraFeed(cam.id, document.getElementById('feed-' + cam.id));
+            }
+        });
+    }
+
+    // Open Add Camera Modal
+    function openAddCameraModal() {
+        document.getElementById('add-camera-modal').style.display = 'flex';
+    }
+
+    // Close Add Camera Modal
+    function closeAddCameraModal() {
+        document.getElementById('add-camera-modal').style.display = 'none';
+        // Reset form
+        document.getElementById('camera-name').value = '';
+        document.getElementById('camera-stream-url').value = '';
+        document.getElementById('camera-stream-type').value = 'rtsp';
+        document.getElementById('camera-icon').value = '📹';
+    }
+
+    // Save Camera
+    function saveCamera() {
+        const name = document.getElementById('camera-name').value.trim();
+        const streamUrl = document.getElementById('camera-stream-url').value.trim();
+        const streamType = document.getElementById('camera-stream-type').value;
+        const icon = document.getElementById('camera-icon').value;
+
+        if (!name) {
+            alert('카메라 이름을 입력해주세요.');
+            return;
+        }
+
+        if (!streamUrl) {
+            alert('스트림 URL을 입력해주세요.');
+            return;
+        }
+
+        const camera = {
+            name: name,
+            stream_url: streamUrl,
+            stream_type: streamType,
+            icon: icon,
+            enabled: true
+        };
+
+        fetch('/api/smartfarm/camera.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'add',
+                camera: camera
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                camera.id = data.camera_id || cameraIdCounter++;
+                cameras.push(camera);
+                renderCameras();
+                closeAddCameraModal();
+                alert('✅ 카메라가 추가되었습니다.');
+            } else {
+                alert('❌ 카메라 추가에 실패했습니다: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ 카메라 추가 중 오류가 발생했습니다.');
+        });
+    }
+
+    // Delete Camera
+    function deleteCamera(cameraId) {
+        if (!confirm('이 카메라를 삭제하시겠습니까?')) return;
+
+        fetch('/api/smartfarm/camera.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'delete',
+                camera_id: cameraId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                cameras = cameras.filter(c => c.id !== cameraId);
+                renderCameras();
+                alert('✅ 카메라가 삭제되었습니다.');
+            } else {
+                alert('❌ 카메라 삭제에 실패했습니다: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ 카메라 삭제 중 오류가 발생했습니다.');
+        });
+    }
+
+    // Open Camera Modal
     function openCameraModal(cameraId, cameraName) {
         const modal = document.getElementById('camera-modal');
         const title = document.getElementById('camera-modal-title');
@@ -864,18 +1575,23 @@ try {
         title.textContent = '📹 ' + cameraName;
         modal.style.display = 'flex';
 
-        // 실제 카메라 피드 로드 (설정된 URL이 있으면)
-        loadCameraFeed(cameraId, feed);
+        // Load camera feed
+        const camera = cameras.find(c => c.id == cameraId);
+        if (camera && camera.stream_url) {
+            loadCameraFeed(cameraId, feed);
+        }
     }
 
+    // Close Camera Modal
     function closeCameraModal() {
         const modal = document.getElementById('camera-modal');
         modal.style.display = 'none';
     }
 
+    // Fullscreen Camera
     function fullscreenCamera(cameraId) {
         const feed = document.getElementById('feed-' + cameraId);
-        if (feed.requestFullscreen) {
+        if (feed && feed.requestFullscreen) {
             feed.requestFullscreen();
         }
     }
@@ -917,17 +1633,6 @@ try {
                 `;
             });
     }
-
-    // 페이지 로드 시 모든 카메라 피드 초기화
-    document.addEventListener('DOMContentLoaded', function() {
-        const cameraIds = ['cam1_1', 'cam1_2', 'cam1_3', 'cam2_a', 'cam2_b', 'cam3', 'cam4'];
-        cameraIds.forEach(id => {
-            const feed = document.getElementById('feed-' + id);
-            if (feed) {
-                loadCameraFeed(id, feed);
-            }
-        });
-    });
 
     // Device Setup Function
     function openDeviceSetup() {
@@ -1019,9 +1724,25 @@ try {
         });
     }
 
-    // Initialize MQTT connection on page load
+    // ========== Page Initialization ==========
+    // 모든 초기화를 한 곳에서 처리
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Page initialization started...');
+
+        // 1. 차트 초기화
+        initializeCharts();
+        loadChartData('24h');
+
+        // 2. 스케줄 로드 및 렌더링
+        loadSavedSchedules();
+
+        // 3. 카메라 로드 및 렌더링
+        loadCameras();
+
+        // 4. MQTT 연결
         connectMQTT();
+
+        console.log('✅ Page initialization completed');
     });
     </script>
 </body>

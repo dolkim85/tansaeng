@@ -2496,12 +2496,876 @@
     object-fit: contain;
 }
 
+/* ========== Enhanced Control UI Styles ========== */
+
+/* Enhanced Control Category */
+.control-category-enhanced {
+    margin-bottom: 3rem;
+    padding: 0;
+    background: transparent;
+}
+
+.category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #2E7D32, #4CAF50);
+    border-radius: 12px 12px 0 0;
+    margin-bottom: 1.5rem;
+}
+
+.category-title {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.category-icon {
+    font-size: 1.8rem;
+}
+
+.category-title h4 {
+    color: white;
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.category-info {
+    color: rgba(255,255,255,0.9);
+    font-size: 0.9rem;
+    padding: 0.3rem 1rem;
+    background: rgba(255,255,255,0.2);
+    border-radius: 20px;
+}
+
+/* Enhanced Control Grid */
+.control-grid-enhanced {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+/* Control Card */
+.control-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.control-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    border-color: #4CAF50;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.2rem 1.5rem;
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border-bottom: 1px solid #dee2e6;
+}
+
+.card-title {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.device-icon {
+    font-size: 1.5rem;
+}
+
+.device-name {
+    font-weight: 600;
+    color: #2E7D32;
+    font-size: 1.1rem;
+}
+
+.status-badge {
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+}
+
+.status-badge.status-on {
+    background: #4CAF50;
+    color: white;
+    box-shadow: 0 0 15px rgba(76,175,80,0.4);
+}
+
+.status-badge.status-off {
+    background: #e0e0e0;
+    color: #666;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.toggle-control {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.toggle-label {
+    font-weight: 500;
+    color: #2E7D32;
+    font-size: 1rem;
+}
+
+/* Large Toggle Switch */
+.toggle-switch-large {
+    position: relative;
+    display: inline-block;
+    width: 80px;
+    height: 40px;
+}
+
+.toggle-switch-large input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider-large {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.4s;
+    border-radius: 40px;
+}
+
+.toggle-slider-large:before {
+    position: absolute;
+    content: "";
+    height: 32px;
+    width: 32px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: 0.4s;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.toggle-switch-large input:checked + .toggle-slider-large {
+    background-color: #4CAF50;
+}
+
+.toggle-switch-large input:checked + .toggle-slider-large:before {
+    transform: translateX(40px);
+}
+
+.toggle-switch-large input:focus + .toggle-slider-large {
+    box-shadow: 0 0 8px #4CAF50;
+}
+
+.toggle-switch-large:hover {
+    box-shadow: 0 0 8px rgba(76,175,80,0.3);
+}
+
+/* Device Info */
+.device-info {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+.device-info small {
+    color: #666;
+    font-size: 0.85rem;
+}
+
+.device-info span {
+    color: #2E7D32;
+    font-weight: 500;
+}
+
+/* Slider Control Card */
+.slider-control {
+    margin-bottom: 1rem;
+}
+
+.slider-value-display {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.8rem;
+}
+
+.slider-value-display .toggle-label {
+    margin: 0;
+}
+
+.slider-value {
+    padding: 0.3rem 0.8rem;
+    background: #E8F5E8;
+    color: #2E7D32;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.position-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 10px;
+    border-radius: 5px;
+    background: linear-gradient(to right, #e0e0e0, #e0e0e0);
+    outline: none;
+    margin: 0.5rem 0;
+}
+
+.position-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #4CAF50;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transition: all 0.2s ease;
+}
+
+.position-slider::-webkit-slider-thumb:hover {
+    background: #388E3C;
+    transform: scale(1.15);
+}
+
+.position-slider::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #4CAF50;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    border: none;
+}
+
+.slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 0.3rem;
+}
+
+/* Schedule Panel */
+.schedule-panel {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    margin-top: 2rem;
+}
+
+.schedule-panel h5 {
+    color: #2E7D32;
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.schedule-config-enhanced {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.schedule-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.schedule-label {
+    font-weight: 600;
+    color: #2E7D32;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.label-icon {
+    font-size: 1.2rem;
+}
+
+/* Mode Selector */
+.mode-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.mode-option {
+    position: relative;
+    cursor: pointer;
+}
+
+.mode-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.mode-label {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 1rem 1.5rem;
+    background: #f8f9fa;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.mode-icon {
+    font-size: 1.5rem;
+}
+
+.mode-option input[type="radio"]:checked + .mode-label {
+    background: linear-gradient(135deg, #E8F5E8, #C8E6C9);
+    border-color: #4CAF50;
+    color: #2E7D32;
+    box-shadow: 0 4px 12px rgba(76,175,80,0.2);
+}
+
+.mode-option:hover .mode-label {
+    border-color: #4CAF50;
+    transform: translateY(-2px);
+}
+
+/* Cycle Configuration */
+.cycle-config {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.cycle-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.cycle-item label {
+    font-weight: 500;
+    color: #2E7D32;
+    font-size: 0.9rem;
+}
+
+.input-with-unit {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: white;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+}
+
+.input-with-unit input {
+    border: none;
+    outline: none;
+    width: 80px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2E7D32;
+}
+
+.input-with-unit .unit {
+    color: #666;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.cycle-separator {
+    font-size: 1.5rem;
+    color: #4CAF50;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+/* Cycle Preview */
+.cycle-preview {
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #FFF9C4, #FFF59D);
+    border-left: 4px solid #FFC107;
+    border-radius: 8px;
+}
+
+.cycle-preview small {
+    color: #F57C00;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+/* Schedule Buttons */
+.schedule-buttons-enhanced {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    padding-top: 1rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+/* Custom Time Inputs */
+#custom-time-inputs {
+    display: none;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+    border: 2px solid #4CAF50;
+}
+
+#custom-time-inputs.active {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.time-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.time-input-group label {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.time-input-group input[type="time"] {
+    padding: 0.5rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+/* Mode Settings Panels */
+.mode-settings {
+    margin-top: 2rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, #f8f9fa, #ffffff);
+    border-radius: 12px;
+    border: 2px solid #e0e0e0;
+}
+
+.mode-settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.mode-settings-header h6 {
+    color: #2E7D32;
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    border: 2px solid #e0e0e0;
+}
+
+.setting-label {
+    font-weight: 600;
+    color: #2E7D32;
+    font-size: 1rem;
+}
+
+/* Time Slot Cards (Custom Mode) */
+.time-slot-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    margin-bottom: 1.5rem;
+    border: 2px solid #e0e0e0;
+    transition: all 0.3s ease;
+}
+
+.time-slot-card:hover {
+    border-color: #4CAF50;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+.time-slot-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #E8F5E8, #C8E6C9);
+    border-bottom: 2px solid #4CAF50;
+}
+
+.time-slot-header h6 {
+    margin: 0;
+    color: #2E7D32;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.time-slot-body {
+    padding: 1.5rem;
+}
+
+/* Time Range Input */
+.time-range-input {
+    margin-bottom: 1.5rem;
+}
+
+.time-range-input label {
+    display: block;
+    font-weight: 600;
+    color: #2E7D32;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.time-inputs {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.time-input {
+    flex: 1;
+    padding: 0.8rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #2E7D32;
+    transition: border-color 0.3s;
+}
+
+.time-input:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 3px rgba(76,175,80,0.1);
+}
+
+.time-separator {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #666;
+}
+
+.time-validation {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* Button Sizes */
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    border-radius: 6px;
+}
+
+.btn-danger {
+    background: #f44336;
+    color: white;
+    border: 2px solid #f44336;
+}
+
+.btn-danger:hover {
+    background: #d32f2f;
+    border-color: #d32f2f;
+}
+
+.btn-success {
+    background: #4CAF50;
+    color: white;
+    border: 2px solid #4CAF50;
+}
+
+.btn-success:hover {
+    background: #388E3C;
+    border-color: #388E3C;
+}
+
+.btn-outline {
+    background: transparent;
+    color: #4CAF50;
+    border: 2px solid #4CAF50;
+}
+
+.btn-outline:hover {
+    background: #4CAF50;
+    color: white;
+}
+
+/* Control Card Wide */
+.control-card-wide {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    overflow: hidden;
+    margin-bottom: 2rem;
+}
+
+.toggle-control-wide {
+    display: flex;
+    gap: 2rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.manual-control,
+.auto-control {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 2rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+/* Empty State for Custom Slots */
+#custom-time-slots:empty::before {
+    content: "➕ 시간대 추가 버튼을 눌러 작동 시간을 설정하세요";
+    display: block;
+    text-align: center;
+    padding: 3rem;
+    color: #666;
+    font-size: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 2px dashed #dee2e6;
+}
+
+/* Saved Schedules Panel */
+.saved-schedules-panel {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    margin-top: 2rem;
+}
+
+.saved-schedules-panel h5 {
+    color: #2E7D32;
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.empty-schedules {
+    text-align: center;
+    padding: 3rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 2px dashed #dee2e6;
+}
+
+.empty-schedules p {
+    color: #666;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.empty-schedules small {
+    color: #999;
+}
+
+/* Schedule Items */
+.schedule-item {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    margin-bottom: 1rem;
+    border: 2px solid #e0e0e0;
+    transition: all 0.3s ease;
+}
+
+.schedule-item.enabled {
+    border-color: #4CAF50;
+    background: linear-gradient(135deg, #ffffff, #f1f8f1);
+}
+
+.schedule-item.disabled {
+    opacity: 0.6;
+    background: #f8f9fa;
+}
+
+.schedule-item:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+.schedule-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.schedule-info h6 {
+    margin: 0 0 0.3rem 0;
+    color: #2E7D32;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.schedule-info small {
+    color: #666;
+    font-size: 0.85rem;
+}
+
+.schedule-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.schedule-item-body {
+    padding: 1rem 1.5rem;
+}
+
+.schedule-detail {
+    padding: 0.5rem 0;
+    color: #666;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Camera Management */
+.empty-cameras {
+    text-align: center;
+    padding: 4rem;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border: 2px dashed #dee2e6;
+}
+
+.empty-cameras p {
+    color: #666;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.empty-cameras small {
+    color: #999;
+}
+
+.camera-header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-danger-icon {
+    background: rgba(244, 67, 54, 0.1);
+    color: #f44336;
+}
+
+.btn-danger-icon:hover {
+    background: #f44336;
+    color: white;
+}
+
+/* Form Controls */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    color: #2E7D32;
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.8rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 3px rgba(76,175,80,0.1);
+}
+
+.form-group small {
+    display: block;
+    margin-top: 0.3rem;
+    color: #666;
+    font-size: 0.85rem;
+}
+
+/* Modal Footer */
+.modal-footer {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    padding: 1.5rem 2rem;
+    border-top: 1px solid #f0f0f0;
+}
+
+.modal-footer .btn {
+    min-width: 100px;
+}
+
 /* Responsive Design for Control System */
 @media (max-width: 768px) {
     .control-grid-fans,
     .control-grid-openers,
     .control-grid-pumps,
-    .control-grid-compact {
+    .control-grid-compact,
+    .control-grid-enhanced {
         grid-template-columns: 1fr;
     }
 
@@ -2534,5 +3398,61 @@
 
     .control-item-compact {
         padding: 0.8rem 1rem;
+    }
+
+    .mode-selector {
+        grid-template-columns: 1fr;
+    }
+
+    .cycle-config {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .cycle-separator {
+        transform: rotate(90deg);
+    }
+
+    .schedule-buttons-enhanced {
+        flex-direction: column;
+    }
+
+    .control-grid-enhanced {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .toggle-control-wide {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .manual-control,
+    .auto-control {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .mode-settings {
+        padding: 1rem;
+    }
+
+    .setting-row {
+        padding: 0.8rem;
+    }
+
+    .time-inputs {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .time-separator {
+        display: none;
+    }
+
+    .time-slot-header {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: stretch;
     }
 }
