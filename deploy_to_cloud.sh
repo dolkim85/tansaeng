@@ -3,7 +3,7 @@
 # 탄생(Tansaeng) 클라우드 자동 배포 스크립트 v11.0
 # 사용법: ./deploy_to_cloud.sh
 
-echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: 배포성공_v7_스마트팜환경제어개선)..."
+echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: 배포성공_v8_분무펌프상호배타성)..."
 
 # 변수 설정
 CLOUD_SERVER="1.201.17.34"
@@ -11,7 +11,7 @@ CLOUD_USER="ubuntu"
 SSH_KEY="/home/spinmoll/.ssh/tansaeng.pem"
 CLOUD_PATH="/var/www/html"
 REPO_URL="https://github.com/dolkim85/tansaeng.git"
-DEPLOY_TAG="배포성공_v7_스마트팜환경제어개선"
+DEPLOY_TAG="배포성공_v8_분무펌프상호배타성"
 DOMAIN="www.tansaeng.com"
 
 # Git 상태 확인
@@ -42,7 +42,7 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         sudo rm -rf *
         sudo git clone https://github.com/dolkim85/tansaeng.git .
         sudo git fetch --tags
-        sudo git checkout tags/배포성공_v7_스마트팜환경제어개선
+        sudo git checkout tags/배포성공_v8_분무펌프상호배타성
     else
         echo "🔄 최신 변경사항 가져오는 중..."
 
@@ -61,11 +61,11 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         # 🛡️ Git clean에서 중요 파일 제외 (1단계)
         sudo git clean -fd -e uploads -e .env -e uploads_backup_* -e config/env.php -e vendor
 
-        sudo git checkout tags/배포성공_v7_스마트팜환경제어개선
+        sudo git checkout tags/배포성공_v8_분무펌프상호배타성
         sudo git pull origin main
     fi
 
-    echo "✅ Version 배포성공_v7_스마트팜환경제어개선 체크아웃 완료"
+    echo "✅ Version 배포성공_v8_분무펌프상호배타성 체크아웃 완료"
 
     # 권한 설정
     echo "🔐 파일 권한 설정 중..."
@@ -150,7 +150,7 @@ echo "🎉 배포가 완료되었습니다!"
 echo "🌐 웹사이트: https://$DOMAIN"
 echo "👨‍💼 관리자: https://$DOMAIN/admin"
 echo "📊 서버 IP: $CLOUD_SERVER"
-echo "🏷️  버전: $DEPLOY_TAG"
+echo "🏷️  버전: 배포성공_v8_분무펌프상호배타성"
 echo ""
 echo "⚠️  배포 후 확인사항:"
 echo "1. 웹사이트 접속 확인"
