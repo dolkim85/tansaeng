@@ -987,6 +987,77 @@ try {
     let mqttClient = null;
     let deviceStates = {};
 
+    // ========== State Persistence (localStorage) ==========
+    function saveDeviceState(device, state) {
+        try {
+            const states = JSON.parse(localStorage.getItem('deviceStates') || '{}');
+            states[device] = {
+                state: state,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('deviceStates', JSON.stringify(states));
+            console.log(`💾 Saved state for ${device}: ${state}`);
+        } catch (error) {
+            console.error('Error saving device state:', error);
+        }
+    }
+
+    function loadDeviceState(device) {
+        try {
+            const states = JSON.parse(localStorage.getItem('deviceStates') || '{}');
+            return states[device]?.state || false;
+        } catch (error) {
+            console.error('Error loading device state:', error);
+            return false;
+        }
+    }
+
+    function restoreAllDeviceStates() {
+        console.log('🔄 Restoring device states from localStorage...');
+
+        // List of all controllable devices
+        const devices = [
+            'fan-front', 'fan-rear', 'fan-ceiling',
+            'pump-nutrient', 'pump-curtain', 'pump-heating',
+            'mist_valve'
+        ];
+
+        // Restore each device state
+        devices.forEach(device => {
+            const state = loadDeviceState(device);
+            const toggle = document.getElementById(`toggle-${device}`);
+            if (toggle) {
+                toggle.checked = state;
+                updateDeviceBadge(device, state);
+                if (state) {
+                    publishMQTTCommand(device, 'on');
+                }
+                console.log(`  ✓ ${device}: ${state ? 'ON' : 'OFF'}`);
+            }
+        });
+
+        // Restore auto schedule state
+        const autoScheduleState = loadDeviceState('mist_auto_schedule');
+        const autoScheduleToggle = document.getElementById('toggle-mist-auto');
+        if (autoScheduleToggle) {
+            autoScheduleToggle.checked = autoScheduleState;
+            if (autoScheduleState) {
+                publishMQTTCommand('mist_schedule', 'start');
+            }
+            console.log(`  ✓ mist_auto_schedule: ${autoScheduleState ? 'ON' : 'OFF'}`);
+        }
+
+        console.log('✅ All device states restored');
+    }
+
+    function updateDeviceBadge(device, isOn) {
+        const badge = document.getElementById(`badge-${device}`);
+        if (badge) {
+            badge.textContent = isOn ? 'ON' : 'OFF';
+            badge.className = 'status-badge ' + (isOn ? 'status-on' : 'status-off');
+        }
+    }
+
     // Toggle Device Function (for switches)
     function toggleDevice(device, isOn) {
         // 분무수경 밸브의 경우 자동 스케줄과 상호 배타적
@@ -996,6 +1067,7 @@ try {
                 const autoToggle = document.getElementById('toggle-mist-auto');
                 if (autoToggle && autoToggle.checked) {
                     autoToggle.checked = false;
+                    saveDeviceState('mist_auto_schedule', false);
                     alert('⚠️ 수동 제어를 활성화하여 자동 스케줄이 중지되었습니다.');
                 }
             }
@@ -1004,12 +1076,11 @@ try {
         const action = isOn ? 'on' : 'off';
         publishMQTTCommand(device, action);
 
+        // Save state to localStorage
+        saveDeviceState(device, isOn);
+
         // Update status badge
-        const badge = document.getElementById(`badge-${device}`);
-        if (badge) {
-            badge.textContent = isOn ? 'ON' : 'OFF';
-            badge.className = 'status-badge ' + (isOn ? 'status-on' : 'status-off');
-        }
+        updateDeviceBadge(device, isOn);
 
         // Update last activity
         const lastElement = document.getElementById(`last-${device}`);
@@ -1028,21 +1099,20 @@ try {
             const manualToggle = document.getElementById('toggle-mist-valve');
             if (manualToggle && manualToggle.checked) {
                 manualToggle.checked = false;
+                saveDeviceState('mist_valve', false);
                 // 수동 밸브 OFF 명령 전송
                 publishMQTTCommand('mist_valve', 'off');
-                const badge = document.getElementById('badge-mist-valve');
-                if (badge) {
-                    badge.textContent = 'OFF';
-                    badge.className = 'status-badge status-off';
-                }
+                updateDeviceBadge('mist_valve', false);
             }
 
             // 스케줄 시작
             publishMQTTCommand('mist_schedule', 'start');
+            saveDeviceState('mist_auto_schedule', true);
             alert('✅ 자동 스케줄이 시작되었습니다. 등록된 스케줄대로 자동 작동합니다.');
         } else {
             // 스케줄 중지
             publishMQTTCommand('mist_schedule', 'stop');
+            saveDeviceState('mist_auto_schedule', false);
             alert('⏸️ 자동 스케줄이 중지되었습니다.');
         }
     }
@@ -1820,7 +1890,12 @@ try {
         // 4. 분무 모드 초기화 (기본값: 주간)
         switchMistMode('day');
 
-        // 5. MQTT 연결
+        // 5. 장치 상태 복원 (localStorage에서 읽기)
+        setTimeout(() => {
+            restoreAllDeviceStates();
+        }, 1000); // MQTT 연결 후 1초 뒤에 상태 복원
+
+        // 6. MQTT 연결
         connectMQTT();
 
         console.log('✅ Page initialization completed');
