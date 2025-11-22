@@ -3198,6 +3198,37 @@
     font-weight: bold;
 }
 
+/* State Confirm Panel */
+.state-confirm-panel {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+    border-radius: 12px;
+    border: 2px solid #0ea5e9;
+    text-align: center;
+}
+
+.state-confirm-panel .btn {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+    transition: all 0.3s ease;
+}
+
+.state-confirm-panel .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(14, 165, 233, 0.4);
+}
+
+.state-confirm-panel .state-info {
+    display: block;
+    margin-top: 0.8rem;
+    color: #0c4a6e;
+    font-size: 0.9rem;
+}
+
 /* Empty State for Custom Slots */
 #custom-time-slots:empty::before {
     content: "➕ 시간대 추가 버튼을 눌러 작동 시간을 설정하세요";

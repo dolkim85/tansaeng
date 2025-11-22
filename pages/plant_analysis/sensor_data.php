@@ -60,8 +60,8 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>환경 데이터 - 식물분석 시스템</title>
-    <link rel="stylesheet" href="/assets/css/main.css">
-    <link rel="stylesheet" href="/assets/css/analysis.css">
+    <link rel="stylesheet" href="/assets/css/main.css?v=11">
+    <link rel="stylesheet" href="/assets/css/analysis.css?v=11">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -536,6 +536,12 @@ try {
                                             <span class="schedule-name-value" id="active-schedule-text">없음</span>
                                         </div>
                                     </div>
+                                </div>
+                                <div class="state-confirm-panel">
+                                    <button onclick="confirmAndSaveAllStates()" class="btn btn-success btn-lg">
+                                        💾 현재 상태 확정 및 저장
+                                    </button>
+                                    <small class="state-info">모든 장치의 현재 상태를 저장하고 페이지 새로고침 시에도 유지됩니다</small>
                                 </div>
                             </div>
                         </div>
@@ -1036,6 +1042,22 @@ try {
             }
         });
 
+        // Restore opener/window positions
+        const openers = ['roof-left', 'roof-right', 'window-side'];
+        openers.forEach(opener => {
+            const position = loadDeviceState(opener + '_position');
+            if (position) {
+                const slider = document.querySelector(`input[oninput*="${opener}"]`);
+                const valueDisplay = document.getElementById(`value-${opener}`);
+                if (slider && valueDisplay) {
+                    slider.value = position;
+                    valueDisplay.textContent = position + '%';
+                    publishMQTTCommand(opener, 'position', position);
+                    console.log(`  ✓ ${opener}: ${position}%`);
+                }
+            }
+        });
+
         // Restore auto schedule state
         const autoScheduleState = loadDeviceState('mist_auto_schedule');
         const autoScheduleToggle = document.getElementById('toggle-mist-auto');
@@ -1134,6 +1156,55 @@ try {
     function updateOpener(opener, value) {
         document.getElementById(`value-${opener}`).textContent = value + '%';
         publishMQTTCommand(opener, 'position', value);
+
+        // Save opener position to localStorage
+        saveDeviceState(opener + '_position', value);
+    }
+
+    // ========== Confirm and Save All States ==========
+    function confirmAndSaveAllStates() {
+        try {
+            let savedCount = 0;
+
+            // Save all device states
+            const devices = [
+                'fan-front', 'fan-rear', 'fan-ceiling',
+                'pump-nutrient', 'pump-curtain', 'pump-heating',
+                'mist_valve'
+            ];
+
+            devices.forEach(device => {
+                const toggle = document.getElementById(`toggle-${device}`);
+                if (toggle) {
+                    saveDeviceState(device, toggle.checked);
+                    savedCount++;
+                }
+            });
+
+            // Save opener positions
+            const openers = ['roof-left', 'roof-right', 'window-side'];
+            openers.forEach(opener => {
+                const slider = document.querySelector(`input[oninput*="${opener}"]`);
+                if (slider) {
+                    saveDeviceState(opener + '_position', slider.value);
+                    savedCount++;
+                }
+            });
+
+            // Save auto schedule
+            const autoToggle = document.getElementById('toggle-mist-auto');
+            if (autoToggle) {
+                saveDeviceState('mist_auto_schedule', autoToggle.checked);
+                savedCount++;
+            }
+
+            alert(`✅ 총 ${savedCount}개 장치의 상태가 저장되었습니다!\n\n페이지를 새로고침하거나 다시 방문해도\n현재 상태가 유지됩니다.`);
+            console.log(`💾 Saved ${savedCount} device states`);
+
+        } catch (error) {
+            console.error('Error saving states:', error);
+            alert('❌ 상태 저장 중 오류가 발생했습니다.');
+        }
     }
 
     // Misting Schedule Functions
