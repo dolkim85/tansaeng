@@ -1311,6 +1311,21 @@ try {
                 detailsHTML = `<div class="schedule-detail">⏱️ ${sch.duration}초 분무 → ${sch.interval}초 대기 (${sch.repeat ? '무한반복' : '1회'})</div>`;
             }
 
+            // 주간/야간/24시간 모드는 라디오 버튼처럼 동작 (하나만 선택)
+            // 커스텀 모드는 여러 개 활성화 가능
+            const isBasicMode = ['day', 'night', 'both'].includes(sch.mode);
+            const toggleHtml = isBasicMode
+                ? `<label class="toggle-switch">
+                       <input type="radio" name="basic-mode-schedule" ${sch.enabled ? 'checked' : ''}
+                              onchange="toggleSchedule(${sch.id}, this.checked, '${sch.mode}')">
+                       <span class="toggle-slider"></span>
+                   </label>`
+                : `<label class="toggle-switch">
+                       <input type="checkbox" ${sch.enabled ? 'checked' : ''}
+                              onchange="toggleSchedule(${sch.id}, this.checked, '${sch.mode}')">
+                       <span class="toggle-slider"></span>
+                   </label>`;
+
             return `
                 <div class="schedule-item ${sch.enabled ? 'enabled' : 'disabled'}">
                     <div class="schedule-item-header">
@@ -1319,11 +1334,7 @@ try {
                             <small>등록: ${sch.created_at}</small>
                         </div>
                         <div class="schedule-controls">
-                            <label class="toggle-switch">
-                                <input type="checkbox" ${sch.enabled ? 'checked' : ''}
-                                       onchange="toggleSchedule(${sch.id}, this.checked)">
-                                <span class="toggle-slider"></span>
-                            </label>
+                            ${toggleHtml}
                             <button onclick="deleteSchedule(${sch.id})" class="btn btn-sm btn-danger">
                                 🗑️ 삭제
                             </button>
@@ -1338,27 +1349,44 @@ try {
     }
 
     // Toggle Schedule Enable/Disable
-    function toggleSchedule(scheduleId, enabled) {
+    function toggleSchedule(scheduleId, enabled, mode) {
         const schedule = savedSchedules.find(s => s.id === scheduleId);
-        if (schedule) {
-            schedule.enabled = enabled;
-            renderSavedSchedules();
+        if (!schedule) return;
 
-            // Send update to server
-            fetch('/api/smartfarm/schedule.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    device: 'misting_system',
-                    action: 'toggle',
-                    schedule_id: scheduleId,
-                    enabled: enabled
-                })
+        // 주간/야간/24시간 모드는 상호 배타적 (하나만 활성화 가능)
+        const isBasicMode = ['day', 'night', 'both'].includes(mode);
+
+        if (isBasicMode && enabled) {
+            // 다른 주간/야간/24시간 모드 스케줄을 모두 비활성화
+            savedSchedules.forEach(s => {
+                if (['day', 'night', 'both'].includes(s.mode) && s.id !== scheduleId) {
+                    s.enabled = false;
+                }
             });
-
-            publishMQTTCommand('mist_schedule', 'update', savedSchedules);
+            schedule.enabled = true;
+            alert('✅ ' + schedule.name + ' 스케줄이 활성화되었습니다.\n다른 주간/야간/24시간 스케줄은 자동으로 비활성화되었습니다.');
+        } else {
+            // 커스텀 모드 또는 비활성화인 경우
+            schedule.enabled = enabled;
             alert(enabled ? '✅ 스케줄이 활성화되었습니다.' : '⏸️ 스케줄이 비활성화되었습니다.');
         }
+
+        renderSavedSchedules();
+
+        // Send update to server
+        fetch('/api/smartfarm/schedule.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                device: 'misting_system',
+                action: 'toggle',
+                schedule_id: scheduleId,
+                enabled: enabled,
+                mode: mode
+            })
+        });
+
+        publishMQTTCommand('mist_schedule', 'update', savedSchedules);
     }
 
     // Delete Schedule
