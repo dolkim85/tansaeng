@@ -1080,6 +1080,33 @@ try {
         }
     }
 
+    // Initialize all badges and gauges on page load
+    function initializeAllDisplays() {
+        console.log('🎨 Initializing all displays...');
+
+        // Initialize all device badges to OFF
+        const devices = [
+            'fan-front', 'fan-rear', 'fan-ceiling',
+            'pump-nutrient', 'pump-curtain', 'pump-heating',
+            'mist_valve'
+        ];
+
+        devices.forEach(device => {
+            updateDeviceBadge(device, false);
+        });
+
+        // Initialize all gauge displays to 0%
+        const gauges = ['side-left', 'side-right', 'roof-left', 'roof-right'];
+        gauges.forEach(gauge => {
+            const valueDisplay = document.getElementById(`value-${gauge}`);
+            if (valueDisplay) {
+                valueDisplay.textContent = '0%';
+            }
+        });
+
+        console.log('✅ All displays initialized');
+    }
+
     // Toggle Device Function (for switches)
     function toggleDevice(device, isOn) {
         // 분무수경 밸브의 경우 자동 스케줄과 상호 배타적
@@ -1154,7 +1181,14 @@ try {
 
     // Update Opener Position
     function updateOpener(opener, value) {
-        document.getElementById(`value-${opener}`).textContent = value + '%';
+        // Convert underscore to hyphen for HTML ID (side_left → side-left)
+        const displayId = opener.replace(/_/g, '-');
+        const valueDisplay = document.getElementById(`value-${displayId}`);
+
+        if (valueDisplay) {
+            valueDisplay.textContent = value + '%';
+        }
+
         publishMQTTCommand(opener, 'position', value);
 
         // Save opener position to localStorage
@@ -1164,42 +1198,60 @@ try {
     // ========== Confirm and Save All States ==========
     function confirmAndSaveAllStates() {
         try {
-            let savedCount = 0;
+            let details = [];
 
             // Save all device states
-            const devices = [
-                'fan-front', 'fan-rear', 'fan-ceiling',
-                'pump-nutrient', 'pump-curtain', 'pump-heating',
-                'mist_valve'
-            ];
+            const devices = {
+                'fan-front': '전면팬',
+                'fan-rear': '후면팬',
+                'fan-ceiling': '천장팬',
+                'pump-nutrient': '양액펌프',
+                'pump-curtain': '커튼펌프',
+                'pump-heating': '난방펌프',
+                'mist_valve': '분무수경 수동제어'
+            };
 
-            devices.forEach(device => {
+            Object.keys(devices).forEach(device => {
                 const toggle = document.getElementById(`toggle-${device}`);
                 if (toggle) {
-                    saveDeviceState(device, toggle.checked);
-                    savedCount++;
+                    const state = toggle.checked;
+                    saveDeviceState(device, state);
+                    details.push(`${devices[device]}: ${state ? 'ON' : 'OFF'}`);
                 }
             });
 
             // Save opener positions
-            const openers = ['roof-left', 'roof-right', 'window-side'];
-            openers.forEach(opener => {
+            const openers = {
+                'roof-left': '천창개폐기 Left',
+                'roof-right': '천창개폐기 Right',
+                'window-side': '측창개폐기'
+            };
+
+            Object.keys(openers).forEach(opener => {
                 const slider = document.querySelector(`input[oninput*="${opener}"]`);
                 if (slider) {
                     saveDeviceState(opener + '_position', slider.value);
-                    savedCount++;
+                    details.push(`${openers[opener]}: ${slider.value}%`);
                 }
             });
 
             // Save auto schedule
             const autoToggle = document.getElementById('toggle-mist-auto');
             if (autoToggle) {
-                saveDeviceState('mist_auto_schedule', autoToggle.checked);
-                savedCount++;
+                const state = autoToggle.checked;
+                saveDeviceState('mist_auto_schedule', state);
+                details.push(`분무수경 자동스케줄: ${state ? 'ON' : 'OFF'}`);
             }
 
-            alert(`✅ 총 ${savedCount}개 장치의 상태가 저장되었습니다!\n\n페이지를 새로고침하거나 다시 방문해도\n현재 상태가 유지됩니다.`);
-            console.log(`💾 Saved ${savedCount} device states`);
+            // Show detailed confirmation
+            const message = `✅ 총 ${details.length}개 장치/설정이 저장되었습니다!\n\n` +
+                          `━━━━━━━━━━━━━━━━━━\n` +
+                          details.join('\n') +
+                          `\n━━━━━━━━━━━━━━━━━━\n\n` +
+                          `페이지를 새로고침하거나 다시 방문해도\n현재 상태가 유지됩니다.`;
+
+            alert(message);
+            console.log(`💾 Saved ${details.length} device states:\n`, details);
 
         } catch (error) {
             console.error('Error saving states:', error);
@@ -1961,12 +2013,15 @@ try {
         // 4. 분무 모드 초기화 (기본값: 주간)
         switchMistMode('day');
 
-        // 5. 장치 상태 복원 (localStorage에서 읽기)
+        // 5. 모든 디스플레이 초기화 (배지와 게이지를 기본값으로 설정)
+        initializeAllDisplays();
+
+        // 6. 장치 상태 복원 (localStorage에서 읽기)
         setTimeout(() => {
             restoreAllDeviceStates();
         }, 1000); // MQTT 연결 후 1초 뒤에 상태 복원
 
-        // 6. MQTT 연결
+        // 7. MQTT 연결
         connectMQTT();
 
         console.log('✅ Page initialization completed');
