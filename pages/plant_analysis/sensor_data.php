@@ -526,11 +526,17 @@ try {
                                         </label>
                                     </div>
                                     <div class="auto-control">
-                                        <span class="toggle-label">자동 스케줄</span>
-                                        <label class="toggle-switch-large">
-                                            <input type="checkbox" id="toggle-mist-auto" onchange="toggleAutoSchedule(this.checked)">
-                                            <span class="toggle-slider-large"></span>
-                                        </label>
+                                        <div class="auto-control-header">
+                                            <span class="toggle-label">자동 스케줄</span>
+                                            <label class="toggle-switch-large">
+                                                <input type="checkbox" id="toggle-mist-auto" onchange="toggleAutoSchedule(this.checked)">
+                                                <span class="toggle-slider-large"></span>
+                                            </label>
+                                        </div>
+                                        <div class="active-schedule-display" id="active-schedule-name">
+                                            <span class="schedule-name-label">선택된 스케줄:</span>
+                                            <span class="schedule-name-value" id="active-schedule-text">없음</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1274,6 +1280,7 @@ try {
                 schedule.id = data.schedule_id || schedule.id;
                 savedSchedules.push(schedule);
                 renderSavedSchedules();
+                updateActiveScheduleDisplay(); // 활성화된 스케줄 이름 업데이트
                 alert('✅ 스케줄이 추가되었습니다.');
                 publishMQTTCommand('mist_schedule', 'update', savedSchedules);
             } else {
@@ -1348,6 +1355,24 @@ try {
         }).join('');
     }
 
+    // Update Active Schedule Display
+    function updateActiveScheduleDisplay() {
+        const activeSchedule = savedSchedules.find(s => s.enabled);
+        const displayElement = document.getElementById('active-schedule-text');
+
+        if (displayElement) {
+            if (activeSchedule) {
+                displayElement.textContent = activeSchedule.name;
+                displayElement.style.color = '#4CAF50';
+                displayElement.style.fontWeight = 'bold';
+            } else {
+                displayElement.textContent = '없음';
+                displayElement.style.color = '#999';
+                displayElement.style.fontWeight = 'normal';
+            }
+        }
+    }
+
     // Toggle Schedule Enable/Disable
     function toggleSchedule(scheduleId, enabled, mode) {
         const schedule = savedSchedules.find(s => s.id === scheduleId);
@@ -1372,6 +1397,7 @@ try {
         }
 
         renderSavedSchedules();
+        updateActiveScheduleDisplay(); // 활성화된 스케줄 이름 업데이트
 
         // Send update to server
         fetch('/api/smartfarm/schedule.php', {
@@ -1408,6 +1434,7 @@ try {
             if (data.success) {
                 savedSchedules = savedSchedules.filter(s => s.id !== scheduleId);
                 renderSavedSchedules();
+                updateActiveScheduleDisplay(); // 활성화된 스케줄 이름 업데이트
                 publishMQTTCommand('mist_schedule', 'update', savedSchedules);
                 alert('✅ 스케줄이 삭제되었습니다.');
             } else {
@@ -1430,11 +1457,13 @@ try {
                 }
                 // 항상 렌더링 (데이터가 없어도 빈 메시지 표시)
                 renderSavedSchedules();
+                updateActiveScheduleDisplay(); // 활성화된 스케줄 이름 업데이트
             })
             .catch(error => {
                 console.error('Error loading schedules:', error);
                 // 에러가 나도 빈 메시지 표시
                 renderSavedSchedules();
+                updateActiveScheduleDisplay(); // 에러 시에도 업데이트
             });
     }
 

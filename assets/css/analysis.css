@@ -3155,14 +3155,51 @@
     flex-wrap: wrap;
 }
 
-.manual-control,
-.auto-control {
+.manual-control {
     display: flex;
     align-items: center;
     gap: 1rem;
     padding: 1rem 2rem;
     background: #f8f9fa;
     border-radius: 8px;
+}
+
+.auto-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.auto-control-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.active-schedule-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: white;
+    border-radius: 6px;
+    border-left: 4px solid #4CAF50;
+    margin-top: 0.5rem;
+}
+
+.schedule-name-label {
+    font-size: 0.85rem;
+    color: #666;
+    font-weight: 500;
+}
+
+.schedule-name-value {
+    font-size: 0.95rem;
+    color: #4CAF50;
+    font-weight: bold;
 }
 
 /* Empty State for Custom Slots */
