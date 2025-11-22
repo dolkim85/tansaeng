@@ -526,13 +526,11 @@ try {
                                         </label>
                                     </div>
                                     <div class="auto-control">
-                                        <div class="auto-control-header">
-                                            <span class="toggle-label">자동 스케줄</span>
-                                            <label class="toggle-switch-large">
-                                                <input type="checkbox" id="toggle-mist-auto" onchange="toggleAutoSchedule(this.checked)">
-                                                <span class="toggle-slider-large"></span>
-                                            </label>
-                                        </div>
+                                        <span class="toggle-label">자동 스케줄</span>
+                                        <label class="toggle-switch-large">
+                                            <input type="checkbox" id="toggle-mist-auto" onchange="toggleAutoSchedule(this.checked)">
+                                            <span class="toggle-slider-large"></span>
+                                        </label>
                                         <div class="active-schedule-display" id="active-schedule-name">
                                             <span class="schedule-name-label">선택된 스케줄:</span>
                                             <span class="schedule-name-value" id="active-schedule-text">없음</span>
@@ -1086,6 +1084,29 @@ try {
         // Initialize custom mode with one slot if empty
         if (mode === 'custom' && customTimeSlots.length === 0) {
             addCustomTimeSlot();
+        }
+
+        // Update active schedule display with current selected mode
+        const modeNames = {
+            day: '☀️ 주간',
+            night: '🌙 야간',
+            both: '🔄 24시간',
+            custom: '⚙️ 사용자 지정'
+        };
+        const displayElement = document.getElementById('active-schedule-text');
+        if (displayElement) {
+            // Check if there's an active saved schedule
+            const activeSchedule = savedSchedules.find(s => s.enabled);
+            if (activeSchedule) {
+                // Show active saved schedule
+                displayElement.textContent = activeSchedule.name;
+                displayElement.style.color = '#4CAF50';
+            } else {
+                // Show currently selecting mode
+                displayElement.textContent = modeNames[mode] + ' (선택 중)';
+                displayElement.style.color = '#FF9800'; // Orange color for "selecting" state
+            }
+            displayElement.style.fontWeight = 'bold';
         }
     }
 
@@ -1796,7 +1817,10 @@ try {
         // 3. 카메라 로드 및 렌더링
         loadCameras();
 
-        // 4. MQTT 연결
+        // 4. 분무 모드 초기화 (기본값: 주간)
+        switchMistMode('day');
+
+        // 5. MQTT 연결
         connectMQTT();
 
         console.log('✅ Page initialization completed');

@@ -3166,17 +3166,12 @@
 
 .auto-control {
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 1rem;
     padding: 1rem 2rem;
     background: #f8f9fa;
     border-radius: 8px;
-}
-
-.auto-control-header {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+    flex-wrap: wrap;
 }
 
 .active-schedule-display {
@@ -3187,7 +3182,8 @@
     background: white;
     border-radius: 6px;
     border-left: 4px solid #4CAF50;
-    margin-top: 0.5rem;
+    margin-left: auto;
+    min-width: 200px;
 }
 
 .schedule-name-label {
