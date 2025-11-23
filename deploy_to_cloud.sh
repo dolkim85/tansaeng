@@ -167,7 +167,15 @@ ENVEOF'
             npm install 2>&1 | grep -E "added|removed|changed|audited" || echo "의존성 설치 진행 중..."
 
             echo "🔨 React 앱 빌드 중..."
-            npm run build 2>&1 | grep -E "built|error|warning" || echo "빌드 진행 중..."
+            BUILD_OUTPUT=$(npm run build 2>&1)
+            BUILD_EXIT_CODE=$?
+
+            echo "$BUILD_OUTPUT" | grep -E "built|error|warning|Error|Failed" || echo "빌드 진행 중..."
+
+            if [ $BUILD_EXIT_CODE -ne 0 ]; then
+                echo "❌ 빌드 에러 발생:"
+                echo "$BUILD_OUTPUT" | tail -20
+            fi
 
             # dist 폴더 권한 설정
             if [ -d "dist" ]; then
