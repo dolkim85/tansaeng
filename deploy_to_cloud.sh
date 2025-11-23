@@ -197,6 +197,16 @@ ENVEOF'
         echo "⚠️  smartfarm-ui 디렉토리가 없습니다. 스마트팜 빌드를 건너뜁니다."
     fi
 
+    # Apache Alias 설정 (smartfarm-admin -> smartfarm-ui/dist)
+    echo "🔧 Apache Alias 설정 확인 중..."
+    if ! grep -q "Alias /smartfarm-admin" /etc/apache2/sites-enabled/tansaeng.conf; then
+        echo "📝 Apache에 /smartfarm-admin Alias 추가 중..."
+        sudo sed -i '/<\/VirtualHost>/i \    # React 스마트팜 Alias\n    Alias /smartfarm-admin /var/www/html/smartfarm-ui/dist\n\n    <Directory /var/www/html/smartfarm-ui/dist>\n        Options -Indexes +FollowSymLinks\n        AllowOverride None\n        Require all granted\n    </Directory>\n' /etc/apache2/sites-enabled/tansaeng.conf
+        echo "✅ Alias 추가 완료"
+    else
+        echo "✅ Alias 이미 존재함"
+    fi
+
     # 웹서버 재시작
     echo "🔄 웹서버 재시작 중..."
     sudo systemctl reload apache2 2>/dev/null || sudo systemctl reload nginx 2>/dev/null
