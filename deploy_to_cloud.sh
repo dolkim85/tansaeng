@@ -164,7 +164,10 @@ ENVEOF'
         # Node.js 의존성 설치 및 빌드
         if [ -f "package.json" ]; then
             echo "📦 npm 의존성 설치 중..."
-            npm install 2>&1 | grep -E "added|removed|changed|audited" || echo "의존성 설치 진행 중..."
+            npm install
+            echo "✅ npm install 완료"
+            echo "📋 node_modules 확인:"
+            ls -la node_modules/.bin/ | head -10
 
             echo "🔨 React 앱 빌드 중..."
             BUILD_OUTPUT=$(npm run build 2>&1)
