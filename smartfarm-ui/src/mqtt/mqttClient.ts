@@ -56,13 +56,20 @@ export function getMqttClient(): MqttClient {
  */
 export function publishCommand(topic: string, payload: object): void {
   const client = getMqttClient();
-  const message = JSON.stringify(payload);
+
+  // ESP32 호환: { power: "on" } → "ON", { power: "off" } → "OFF"
+  let message: string;
+  if ('power' in payload) {
+    message = (payload as { power: string }).power.toUpperCase();
+  } else {
+    message = JSON.stringify(payload);
+  }
 
   client.publish(topic, message, { qos: 1 }, (err) => {
     if (err) {
       console.error(`❌ Failed to publish to ${topic}:`, err);
     } else {
-      console.log(`📤 Published to ${topic}:`, payload);
+      console.log(`📤 Published to ${topic}:`, message);
     }
   });
 }
