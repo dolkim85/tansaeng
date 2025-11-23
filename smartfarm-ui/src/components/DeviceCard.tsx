@@ -68,30 +68,70 @@ export default function DeviceCard({
           </div>
         </div>
       ) : (
-        // 토글 스위치 (팬, 펌프) - 더 크고 눈에 잘 띄게
-        <div className="flex items-center justify-center mb-6">
+        // 토글 스위치 (팬, 펌프) - 크고 세련된 디자인
+        <div className="flex flex-col items-center justify-center mb-6 gap-4">
           <button
             onClick={() => onToggle?.(!isOn)}
             className={`
-              relative w-32 h-16 rounded-full transition-all duration-300
-              focus:outline-none focus:ring-4 focus:ring-offset-2
+              relative w-44 h-24 rounded-full transition-all duration-500
+              focus:outline-none focus:ring-4 focus:ring-offset-4
+              transform hover:scale-105 active:scale-95
               ${isOn
-                ? "bg-gradient-to-r from-emerald-500 to-green-600 focus:ring-emerald-300 shadow-lg shadow-emerald-400"
-                : "bg-gray-300 focus:ring-gray-300 shadow-md"}
+                ? "bg-gradient-to-r from-emerald-400 via-green-500 to-emerald-600 focus:ring-emerald-300 shadow-2xl shadow-emerald-500/50"
+                : "bg-gradient-to-r from-gray-300 via-gray-400 to-gray-500 focus:ring-gray-400 shadow-xl"}
             `}
           >
+            {/* 배경 글로우 효과 */}
+            {isOn && (
+              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 blur-xl opacity-60 animate-pulse" />
+            )}
+
+            {/* 슬라이더 노브 */}
             <span
               className={`
-                absolute top-2 w-12 h-12 bg-white rounded-full shadow-xl
-                transition-all duration-300 flex items-center justify-center
-                ${isOn ? "left-[4.5rem]" : "left-2"}
+                absolute top-2 w-20 h-20 rounded-full shadow-2xl
+                transition-all duration-500 flex items-center justify-center
+                transform
+                ${isOn
+                  ? "left-[5.5rem] bg-gradient-to-br from-white via-emerald-50 to-green-100 rotate-180"
+                  : "left-2 bg-gradient-to-br from-white to-gray-100"}
               `}
             >
-              <span className={`text-2xl ${isOn ? "animate-spin" : ""}`}>
-                {isOn ? "⚡" : "○"}
+              {/* 아이콘 */}
+              <span className={`
+                text-4xl font-bold transition-all duration-300
+                ${isOn ? "text-emerald-600 drop-shadow-lg" : "text-gray-500"}
+              `}>
+                {isOn ? (
+                  <svg className="w-10 h-10 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
+                  </svg>
+                ) : (
+                  <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 20 20">
+                    <circle cx="10" cy="10" r="6" opacity="0.3"/>
+                  </svg>
+                )}
               </span>
             </span>
+
+            {/* ON/OFF 텍스트 */}
+            <span className={`
+              absolute top-1/2 -translate-y-1/2 font-bold text-sm
+              transition-all duration-500
+              ${isOn ? "left-4 text-white" : "right-4 text-gray-600"}
+            `}>
+              {isOn ? "ON" : "OFF"}
+            </span>
           </button>
+
+          {/* 상태 텍스트 */}
+          <div className={`
+            text-center font-bold text-lg
+            transition-colors duration-500
+            ${isOn ? "text-emerald-600" : "text-gray-500"}
+          `}>
+            {isOn ? "🔥 가동중" : "⏸️ 대기중"}
+          </div>
         </div>
       )}
 
