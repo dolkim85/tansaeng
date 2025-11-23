@@ -62,40 +62,45 @@ export default function Environment() {
         </header>
 
         {/* 필터 섹션 */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                기간
-              </label>
-              <select
-                value={period}
-                onChange={(e) => setPeriod(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              >
-                <option value="1h">최근 1시간</option>
-                <option value="today">오늘</option>
-                <option value="24h">24시간</option>
-                <option value="7d">7일</option>
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Zone
-              </label>
-              <select
-                value={selectedZone}
-                onChange={(e) => setSelectedZone(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              >
-                <option value="all">전체</option>
-                <option value="zone_a">Zone A (상층)</option>
-                <option value="zone_b">Zone B (하층)</option>
-                <option value="zone_c">Zone C (테스트베드)</option>
-              </select>
+        <section>
+          <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-t-xl">
+            <h2 className="text-xl font-semibold">🔍 조회 조건</h2>
+          </header>
+          <div className="bg-white rounded-b-xl shadow-md p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  기간
+                </label>
+                <select
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="1h">최근 1시간</option>
+                  <option value="today">오늘</option>
+                  <option value="24h">24시간</option>
+                  <option value="7d">7일</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Zone
+                </label>
+                <select
+                  value={selectedZone}
+                  onChange={(e) => setSelectedZone(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="all">전체</option>
+                  <option value="zone_a">Zone A (상층)</option>
+                  <option value="zone_b">Zone B (하층)</option>
+                  <option value="zone_c">Zone C (테스트베드)</option>
+                </select>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
 
         {/* 온도/습도 게이지 카드 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -118,51 +123,58 @@ export default function Environment() {
         </div>
 
         {/* 실시간 센서 데이터 */}
-        <section className="bg-white rounded-xl p-6 shadow-md">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            📈 실시간 센서 데이터
-          </h3>
-          <dl className="grid md:grid-cols-2 gap-y-3 gap-x-8">
-            <SensorRow label="근권 온도" value={currentValues.rootTemp} unit="°C" />
-            <SensorRow label="근권 습도" value={currentValues.rootHumidity} unit="%" />
-            <SensorRow label="EC" value={currentValues.ec} unit="mS/cm" />
-            <SensorRow label="pH" value={currentValues.ph} unit="" />
-            <SensorRow label="탱크 수위" value={currentValues.tankLevel} unit="%" />
-            <SensorRow label="CO₂" value={currentValues.co2} unit="ppm" />
-            <SensorRow label="PPFD" value={currentValues.ppfd} unit="μmol/m²/s" />
-          </dl>
+        <section>
+          <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-t-xl">
+            <h2 className="text-xl font-semibold">📈 실시간 센서 데이터</h2>
+          </header>
+          <div className="bg-white rounded-b-xl shadow-md p-6">
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-y-3 gap-x-8">
+              <SensorRow label="근권 온도" value={currentValues.rootTemp} unit="°C" />
+              <SensorRow label="근권 습도" value={currentValues.rootHumidity} unit="%" />
+              <SensorRow label="EC" value={currentValues.ec} unit="mS/cm" />
+              <SensorRow label="pH" value={currentValues.ph} unit="" />
+              <SensorRow label="탱크 수위" value={currentValues.tankLevel} unit="%" />
+              <SensorRow label="CO₂" value={currentValues.co2} unit="ppm" />
+              <SensorRow label="PPFD" value={currentValues.ppfd} unit="μmol/m²/s" />
+            </dl>
+          </div>
         </section>
 
-        {/* 그래프 영역 */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            온도/습도 타임라인
-          </h2>
-          {chartData.length === 0 ? (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              데이터가 없습니다
-            </div>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-gray-400">
-              차트 데이터: {chartData.length}개 포인트
-            </div>
-          )}
-        </div>
+        {/* 온도/습도 타임라인 */}
+        <section>
+          <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-t-xl">
+            <h2 className="text-xl font-semibold">📊 온도/습도 타임라인</h2>
+          </header>
+          <div className="bg-white rounded-b-xl shadow-md p-6">
+            {chartData.length === 0 ? (
+              <div className="flex items-center justify-center h-64 text-gray-500">
+                데이터가 없습니다
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-gray-400">
+                차트 데이터: {chartData.length}개 포인트
+              </div>
+            )}
+          </div>
+        </section>
 
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            EC/pH/수위 타임라인
-          </h2>
-          {chartData.length === 0 ? (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              데이터가 없습니다
-            </div>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-gray-400">
-              차트 데이터: {chartData.length}개 포인트
-            </div>
-          )}
-        </div>
+        {/* EC/pH/수위 타임라인 */}
+        <section>
+          <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-t-xl">
+            <h2 className="text-xl font-semibold">💧 EC/pH/수위 타임라인</h2>
+          </header>
+          <div className="bg-white rounded-b-xl shadow-md p-6">
+            {chartData.length === 0 ? (
+              <div className="flex items-center justify-center h-64 text-gray-500">
+                데이터가 없습니다
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-gray-400">
+                차트 데이터: {chartData.length}개 포인트
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );
