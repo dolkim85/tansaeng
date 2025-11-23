@@ -8,7 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist  <- 프로덕션 빌드 파일을 Git에 포함
 dist-ssr
 *.local
 
