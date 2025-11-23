@@ -16,6 +16,9 @@ const MQTT_PASSWORD = import.meta.env.VITE_MQTT_PASSWORD;
 
 let client: MqttClient | null = null;
 
+// 연결 상태 콜백 리스트
+const connectionCallbacks: Array<(connected: boolean) => void> = [];
+
 export function getMqttClient(): MqttClient {
   if (client) return client;
 
@@ -34,10 +37,12 @@ export function getMqttClient(): MqttClient {
   // 연결 이벤트 로깅
   client.on("connect", () => {
     console.log("✅ MQTT Connected to HiveMQ Cloud");
+    connectionCallbacks.forEach(cb => cb(true));
   });
 
   client.on("error", (err) => {
     console.error("❌ MQTT Connection Error:", err);
+    connectionCallbacks.forEach(cb => cb(false));
   });
 
   client.on("reconnect", () => {
@@ -46,9 +51,37 @@ export function getMqttClient(): MqttClient {
 
   client.on("offline", () => {
     console.log("⚠️ MQTT Offline");
+    connectionCallbacks.forEach(cb => cb(false));
   });
 
   return client;
+}
+
+/**
+ * MQTT 연결 상태 확인
+ */
+export function isMqttConnected(): boolean {
+  return client?.connected ?? false;
+}
+
+/**
+ * MQTT 연결 상태 변경 감지
+ */
+export function onConnectionChange(callback: (connected: boolean) => void): () => void {
+  connectionCallbacks.push(callback);
+
+  // 현재 상태 즉시 콜백
+  if (client) {
+    callback(client.connected);
+  }
+
+  // unsubscribe 함수 반환
+  return () => {
+    const index = connectionCallbacks.indexOf(callback);
+    if (index > -1) {
+      connectionCallbacks.splice(index, 1);
+    }
+  };
 }
 
 /**

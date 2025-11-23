@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import type { SensorSnapshot } from "../types";
-import { getMqttClient } from "../mqtt/mqttClient";
+import { getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
 import GaugeCard from "../components/GaugeCard";
 import SensorRow from "../components/SensorRow";
 
 export default function Environment() {
   const [period, setPeriod] = useState("24h");
   const [selectedZone, setSelectedZone] = useState("all");
+  const [mqttConnected, setMqttConnected] = useState(false);
 
   const [currentValues, setCurrentValues] = useState<Partial<SensorSnapshot>>({
     airTemp: null,
@@ -19,6 +20,15 @@ export default function Environment() {
     co2: null,
     ppfd: null,
   });
+
+  // MQTT 연결 상태 감지
+  useEffect(() => {
+    const unsubscribe = onConnectionChange((connected) => {
+      setMqttConnected(connected);
+    });
+
+    return unsubscribe;
+  }, []);
 
   // MQTT 구독 - ESP32 DHT11 센서 데이터
   useEffect(() => {
@@ -55,10 +65,21 @@ export default function Environment() {
       <div className="container mx-auto px-4 max-w-6xl space-y-6">
         {/* 페이지 헤더 */}
         <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-xl">
-          <h1 className="text-2xl font-bold">📊 환경 모니터링</h1>
-          <p className="text-sm opacity-80 mt-1">
-            온도, 습도, EC, pH 등 센서 데이터를 실시간으로 모니터링합니다
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">📊 환경 모니터링</h1>
+              <p className="text-sm opacity-80 mt-1">
+                온도, 습도, EC, pH 등 센서 데이터를 실시간으로 모니터링합니다
+              </p>
+            </div>
+            {/* ESP32 연결 상태 */}
+            <div className="flex items-center gap-2 bg-white bg-opacity-20 px-4 py-2 rounded-lg">
+              <div className={`w-3 h-3 rounded-full ${mqttConnected ? 'bg-green-300 animate-pulse' : 'bg-red-300'}`}></div>
+              <span className="text-sm font-medium">
+                {mqttConnected ? 'ESP32 연결됨' : 'ESP32 연결 끊김'}
+              </span>
+            </div>
+          </div>
         </header>
 
         {/* 필터 섹션 */}

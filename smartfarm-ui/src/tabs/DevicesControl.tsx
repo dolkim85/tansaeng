@@ -1,7 +1,8 @@
+import { useState, useEffect } from "react";
 import { getDevicesByType } from "../config/devices";
 import type { DeviceDesiredState } from "../types";
 import DeviceCard from "../components/DeviceCard";
-import { publishCommand } from "../mqtt/mqttClient";
+import { publishCommand, onConnectionChange } from "../mqtt/mqttClient";
 
 interface DevicesControlProps {
   deviceState: DeviceDesiredState;
@@ -9,9 +10,20 @@ interface DevicesControlProps {
 }
 
 export default function DevicesControl({ deviceState, setDeviceState }: DevicesControlProps) {
+  const [mqttConnected, setMqttConnected] = useState(false);
+
   const fans = getDevicesByType("fan");
   const vents = getDevicesByType("vent");
   const pumps = getDevicesByType("pump");
+
+  // MQTT 연결 상태 감지
+  useEffect(() => {
+    const unsubscribe = onConnectionChange((connected) => {
+      setMqttConnected(connected);
+    });
+
+    return unsubscribe;
+  }, []);
 
   const handleToggle = (deviceId: string, isOn: boolean) => {
     const newState = {
@@ -50,6 +62,25 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container mx-auto px-4 max-w-6xl space-y-10">
+        {/* ESP32 연결 상태 헤더 */}
+        <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">⚙️ 장치 제어</h1>
+              <p className="text-sm opacity-80 mt-1">
+                팬, 개폐기, 펌프 등 장치를 원격으로 제어합니다
+              </p>
+            </div>
+            {/* ESP32 연결 상태 */}
+            <div className="flex items-center gap-2 bg-white bg-opacity-20 px-4 py-2 rounded-lg">
+              <div className={`w-3 h-3 rounded-full ${mqttConnected ? 'bg-green-300 animate-pulse' : 'bg-red-300'}`}></div>
+              <span className="text-sm font-medium">
+                {mqttConnected ? 'ESP32 연결됨' : 'ESP32 연결 끊김'}
+              </span>
+            </div>
+          </div>
+        </header>
+
         {/* 팬 제어 섹션 */}
         <section>
           <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-t-xl flex items-center justify-between">
