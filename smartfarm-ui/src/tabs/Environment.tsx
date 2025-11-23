@@ -107,38 +107,70 @@ export default function Environment() {
       </div>
 
       {/* 현재 값 카드 */}
-      <div className="bg-white rounded-2xl shadow-md p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-          <span className="text-2xl">📡</span>
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <span className="text-xl">📡</span>
           실시간 센서 데이터
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-          {sensorCards.map((sensor) => (
-            <div
-              key={sensor.label}
-              className={`
-                rounded-2xl p-5 border-2 transition-all duration-300
-                ${sensor.value !== null
-                  ? "bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-300 shadow-lg hover:shadow-xl hover:scale-105"
-                  : "bg-gray-50 border-gray-200 shadow-md"}
-              `}
-            >
-              <div className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">
-                {sensor.label}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sensorCards.map((sensor) => {
+            const hasValue = sensor.value !== null && sensor.value !== undefined;
+
+            // 막대 게이지용 최대값 설정
+            let maxValue = 100;
+            let barColor = "bg-green-600";
+            if (sensor.label === "공기 온도" || sensor.label === "근권 온도") {
+              maxValue = 50;
+              barColor = hasValue && sensor.value! > 30 ? "bg-orange-500" : "bg-green-600";
+            } else if (sensor.label === "EC") {
+              maxValue = 5;
+            } else if (sensor.label === "pH") {
+              maxValue = 14;
+            } else if (sensor.label === "CO₂") {
+              maxValue = 2000;
+            } else if (sensor.label === "PPFD") {
+              maxValue = 1500;
+            }
+
+            const percentage = hasValue ? Math.min((sensor.value! / maxValue) * 100, 100) : 0;
+
+            return (
+              <div
+                key={sensor.label}
+                className={`
+                  rounded-lg p-4 border transition-all duration-300
+                  ${hasValue
+                    ? "bg-white border-green-600 shadow-md"
+                    : "bg-gray-50 border-gray-300"}
+                `}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-semibold text-gray-700">
+                    {sensor.label}
+                  </div>
+                  <div className={`
+                    text-2xl font-bold
+                    ${hasValue ? "text-green-700" : "text-gray-400"}
+                  `}>
+                    {hasValue ? sensor.value : "-"}
+                    {hasValue && <span className="text-sm font-normal ml-1">{sensor.unit}</span>}
+                  </div>
+                </div>
+
+                {/* 막대 게이지 */}
+                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ${barColor}`}
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+
+                {!hasValue && (
+                  <div className="text-xs text-gray-500 mt-1 text-center">측정 대기중</div>
+                )}
               </div>
-              <div className={`
-                text-4xl font-black mb-1
-                ${sensor.value !== null ? "text-emerald-600" : "text-gray-300"}
-              `}>
-                {sensor.value !== null && sensor.value !== undefined
-                  ? sensor.value
-                  : "-"}
-              </div>
-              <div className="text-sm font-medium text-gray-600">
-                {sensor.value !== null ? sensor.unit : "측정 대기중"}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
