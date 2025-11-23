@@ -107,23 +107,36 @@ export default function Environment() {
       </div>
 
       {/* 현재 값 카드 */}
-      <div className="bg-white rounded-2xl shadow-md p-4">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">현재 센서 값</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="bg-white rounded-2xl shadow-md p-6">
+        <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+          <span className="text-2xl">📡</span>
+          실시간 센서 데이터
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {sensorCards.map((sensor) => (
             <div
               key={sensor.label}
-              className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-4 border border-emerald-200"
+              className={`
+                rounded-2xl p-5 border-2 transition-all duration-300
+                ${sensor.value !== null
+                  ? "bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-300 shadow-lg hover:shadow-xl hover:scale-105"
+                  : "bg-gray-50 border-gray-200 shadow-md"}
+              `}
             >
-              <div className="text-sm text-gray-600 mb-1">{sensor.label}</div>
-              <div className="text-2xl font-bold text-emerald-700">
+              <div className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">
+                {sensor.label}
+              </div>
+              <div className={`
+                text-4xl font-black mb-1
+                ${sensor.value !== null ? "text-emerald-600" : "text-gray-300"}
+              `}>
                 {sensor.value !== null && sensor.value !== undefined
-                  ? `${sensor.value}${sensor.unit}`
+                  ? sensor.value
                   : "-"}
               </div>
-              {sensor.value === null && (
-                <div className="text-xs text-gray-500 mt-1">측정값 없음</div>
-              )}
+              <div className="text-sm font-medium text-gray-600">
+                {sensor.value !== null ? sensor.unit : "측정 대기중"}
+              </div>
             </div>
           ))}
         </div>
