@@ -1,2 +1,4 @@
 /smartfarm-ui/node_modules/
 /smartfarm-ui/package-lock.json
+.env
+smartfarm-ui/.env

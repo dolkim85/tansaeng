@@ -17,9 +17,9 @@ export const DEVICES: DeviceConfig[] = [
     id: "fan_front",
     name: "내부팬 앞",
     type: "fan",
-    esp32Id: "esp32-node-1",
-    commandTopic: "tansaeng/esp32-node-1/fan_front/cmd",
-    stateTopic: "tansaeng/esp32-node-1/fan_front/state",
+    esp32Id: "ctlr-0001",
+    commandTopic: "tansaeng/ctlr-0001/fan1/cmd",
+    stateTopic: "tansaeng/ctlr-0001/fan1/state",
   },
   {
     id: "fan_back",

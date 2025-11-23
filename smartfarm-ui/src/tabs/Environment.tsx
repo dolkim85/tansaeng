@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { SensorSnapshot } from "../types";
+import { getMqttClient } from "../mqtt/mqttClient";
 
 export default function Environment() {
   const [period, setPeriod] = useState("24h");
   const [selectedZone, setSelectedZone] = useState("all");
 
   // 초기 상태: 데이터 없음 (더미 값 사용하지 않음)
-  const [currentValues] = useState<Partial<SensorSnapshot>>({
+  const [currentValues, setCurrentValues] = useState<Partial<SensorSnapshot>>({
     airTemp: null,
     airHumidity: null,
     rootTemp: null,
@@ -17,6 +18,34 @@ export default function Environment() {
     co2: null,
     ppfd: null,
   });
+
+  // MQTT 구독 - ESP32 DHT11 센서 데이터
+  useEffect(() => {
+    const client = getMqttClient();
+
+    const tempTopic = "tansaeng/ctlr-0001/dht11/temperature";
+    const humTopic = "tansaeng/ctlr-0001/dht11/humidity";
+
+    const handleMessage = (topic: string, message: Buffer) => {
+      const value = parseFloat(message.toString());
+
+      if (topic === tempTopic) {
+        setCurrentValues((prev) => ({ ...prev, airTemp: value }));
+      } else if (topic === humTopic) {
+        setCurrentValues((prev) => ({ ...prev, airHumidity: value }));
+      }
+    };
+
+    client.on("message", handleMessage);
+    client.subscribe(tempTopic);
+    client.subscribe(humTopic);
+
+    return () => {
+      client.off("message", handleMessage);
+      client.unsubscribe(tempTopic);
+      client.unsubscribe(humTopic);
+    };
+  }, []);
 
   const [chartData] = useState<SensorSnapshot[]>([]);
 
