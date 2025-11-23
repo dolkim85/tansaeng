@@ -1,4 +1,4 @@
-<?php
+s<?php
 /**
  * Main Index Page
  * Tansaeng Smart Farm Website
