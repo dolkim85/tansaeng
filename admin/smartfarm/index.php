@@ -171,12 +171,33 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
             </div>
         </div>
 
-        <iframe
-            src="/smartfarm-ui/dist/index.html"
-            class="smartfarm-iframe"
-            id="smartfarmFrame"
-            onload="document.getElementById('loadingOverlay').classList.add('loaded')"
-        ></iframe>
+        <?php
+        // React 빌드 파일이 존재하는지 확인
+        $distPath = '/var/www/html/smartfarm-ui/dist';
+        $indexFile = $distPath . '/index.html';
+
+        if (file_exists($indexFile)) {
+            // React 앱 iframe으로 로드 (base URL이 /smartfarm-admin/로 설정되어 있음)
+            echo '<iframe
+                    src="/smartfarm-ui/dist/index.html"
+                    class="smartfarm-iframe"
+                    id="smartfarmFrame"
+                    allow="fullscreen"
+                    sandbox="allow-scripts allow-same-origin allow-forms"
+                    onload="document.getElementById(\'loadingOverlay\').classList.add(\'loaded\')"
+                  ></iframe>';
+        } else {
+            // 빌드 파일이 없으면 에러 메시지 표시
+            echo '<div style="color: white; text-align: center; padding: 50px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                    <h2>❌ 빌드 파일 없음</h2>
+                    <p>React 앱이 아직 빌드되지 않았습니다.</p>
+                    <p style="margin-top: 20px;">서버에서 다음 명령을 실행하세요:</p>
+                    <code style="background: rgba(0,0,0,0.3); padding: 10px; display: block; margin: 10px 0;">cd /var/www/html/smartfarm-ui && npm run build</code>
+                    <p style="margin-top: 20px;"><a href="/admin/" style="color: white; text-decoration: underline;">대시보드로 돌아가기</a></p>
+                  </div>';
+            echo '<script>setTimeout(function() { document.getElementById("loadingOverlay").classList.add("loaded"); }, 100);</script>';
+        }
+        ?>
     </div>
 
     <script>
