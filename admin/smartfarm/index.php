@@ -183,7 +183,6 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
                     class="smartfarm-iframe"
                     id="smartfarmFrame"
                     allow="fullscreen"
-                    sandbox="allow-scripts allow-same-origin allow-forms"
                     onload="document.getElementById(\'loadingOverlay\').classList.add(\'loaded\')"
                   ></iframe>';
         } else {
