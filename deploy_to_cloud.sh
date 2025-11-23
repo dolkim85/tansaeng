@@ -138,6 +138,46 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         echo "⚠️  테스트 계정 생성 스크립트를 찾을 수 없습니다."
     fi
 
+    # 🏭 스마트팜 React 앱 빌드
+    if [ -d "/var/www/html/smartfarm-ui" ]; then
+        echo "🏭 스마트팜 React 앱 빌드 중..."
+        cd /var/www/html/smartfarm-ui
+
+        # .env 파일 생성 (HiveMQ Cloud 설정)
+        echo "📝 HiveMQ Cloud 설정 중..."
+        cat > .env << 'ENVEOF'
+# HiveMQ Cloud WebSocket Configuration
+VITE_MQTT_HOST=22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud
+VITE_MQTT_WS_PORT=8884
+VITE_MQTT_USERNAME=esp32-client-01
+VITE_MQTT_PASSWORD=Qjawns3445
+ENVEOF
+
+        # Node.js 의존성 설치 및 빌드
+        if [ -f "package.json" ]; then
+            echo "📦 npm 의존성 설치 중..."
+            npm install 2>&1 | grep -E "added|removed|changed|audited" || true
+
+            echo "🔨 React 앱 빌드 중..."
+            npm run build
+
+            # dist 폴더 권한 설정
+            if [ -d "dist" ]; then
+                sudo chown -R www-data:www-data dist/
+                sudo chmod -R 755 dist/
+                echo "✅ 스마트팜 React 앱 빌드 완료!"
+            else
+                echo "❌ 빌드 실패: dist 폴더가 생성되지 않았습니다."
+            fi
+        else
+            echo "⚠️  package.json이 없습니다. 빌드를 건너뜁니다."
+        fi
+
+        cd /var/www/html
+    else
+        echo "⚠️  smartfarm-ui 디렉토리가 없습니다. 스마트팜 빌드를 건너뜁니다."
+    fi
+
     # 웹서버 재시작
     echo "🔄 웹서버 재시작 중..."
     sudo systemctl reload apache2 2>/dev/null || sudo systemctl reload nginx 2>/dev/null
