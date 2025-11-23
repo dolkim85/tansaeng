@@ -167,8 +167,11 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     $indexFile = $distPath . '/index.html';
 
     if (file_exists($indexFile)) {
-        // 리다이렉트로 React 앱으로 이동
-        header('Location: /smartfarm-ui/dist/index.html');
+        // React 앱 HTML을 직접 include하고 base URL 수정
+        $html = file_get_contents($indexFile);
+        // /smartfarm-admin/ 경로를 /smartfarm-ui/dist/ 경로로 변경
+        $html = str_replace('/smartfarm-admin/', '/smartfarm-ui/dist/', $html);
+        echo $html;
         exit;
     } else {
         // 빌드 파일이 없으면 에러 메시지 표시
