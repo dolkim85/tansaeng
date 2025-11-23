@@ -145,21 +145,29 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
 
         # .env 파일 생성 (HiveMQ Cloud 설정)
         echo "📝 HiveMQ Cloud 설정 중..."
-        cat > .env << 'ENVEOF'
+        sudo bash -c 'cat > .env << '\''ENVEOF'\''
 # HiveMQ Cloud WebSocket Configuration
 VITE_MQTT_HOST=22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud
 VITE_MQTT_WS_PORT=8884
 VITE_MQTT_USERNAME=esp32-client-01
 VITE_MQTT_PASSWORD=Qjawns3445
-ENVEOF
+ENVEOF'
+
+        # Node.js 및 npm 설치 확인
+        if ! command -v npm &> /dev/null; then
+            echo "📦 Node.js 및 npm 설치 중..."
+            sudo apt-get update -qq
+            sudo apt-get install -y nodejs npm 2>&1 | grep -E "Setting up|unpacking" || true
+            echo "✅ Node.js 설치 완료"
+        fi
 
         # Node.js 의존성 설치 및 빌드
         if [ -f "package.json" ]; then
             echo "📦 npm 의존성 설치 중..."
-            npm install 2>&1 | grep -E "added|removed|changed|audited" || true
+            npm install 2>&1 | grep -E "added|removed|changed|audited" || echo "의존성 설치 진행 중..."
 
             echo "🔨 React 앱 빌드 중..."
-            npm run build
+            npm run build 2>&1 | grep -E "built|error|warning" || echo "빌드 진행 중..."
 
             # dist 폴더 권한 설정
             if [ -d "dist" ]; then
