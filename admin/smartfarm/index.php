@@ -167,21 +167,22 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     $indexFile = $distPath . '/index.html';
 
     if (file_exists($indexFile)) {
-        // 캐시 방지 헤더
-        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-        header('Cache-Control: post-check=0, pre-check=0', false);
+        // 강력한 캐시 방지 헤더
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0');
         header('Pragma: no-cache');
+        header('Expires: 0');
+        header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
 
         // React 앱 HTML을 직접 include하고 base URL 수정
         $html = file_get_contents($indexFile);
         // /smartfarm-admin/ 경로를 /smartfarm-ui/dist/ 경로로 변경
         $html = str_replace('/smartfarm-admin/', '/smartfarm-ui/dist/', $html);
 
-        // JS/CSS 파일에 버전 쿼리스트링 추가 (캐시 무효화)
-        $version = filemtime($indexFile);
+        // JS/CSS 파일에 타임스탬프 쿼리스트링 추가 (캐시 무효화)
+        $timestamp = time();
         $html = preg_replace(
             '/(href|src)="([^"]+\.(css|js))"/',
-            '$1="$2?v=' . $version . '"',
+            '$1="$2?t=' . $timestamp . '"',
             $html
         );
 
