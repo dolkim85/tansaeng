@@ -90,7 +90,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             <span className="text-sm opacity-80">총 {fans.length}개 디바이스</span>
           </header>
           <div className="bg-white shadow-md rounded-b-xl p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
               {fans.map((fan) => (
                 <DeviceCard
                   key={fan.id}
@@ -113,7 +113,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             <span className="text-sm opacity-80">총 {vents.length}개 디바이스</span>
           </header>
           <div className="bg-white shadow-md rounded-b-xl p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
               {vents.map((vent) => (
                 <DeviceCard
                   key={vent.id}
@@ -137,7 +137,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             <span className="text-sm opacity-80">총 {pumps.length}개 디바이스</span>
           </header>
           <div className="bg-white shadow-md rounded-b-xl p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
               {pumps.map((pump) => (
                 <DeviceCard
                   key={pump.id}
