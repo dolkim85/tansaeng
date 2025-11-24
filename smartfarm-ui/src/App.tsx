@@ -55,7 +55,7 @@ function App() {
     <div style={{
       display: "flex",
       flexDirection: "column",
-      minHeight: "100vh",
+      height: "100vh",
       background: "#f3f4f6"
     }}>
       {/* 상단 헤더 */}
