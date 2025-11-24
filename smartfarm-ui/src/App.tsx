@@ -66,9 +66,11 @@ function App() {
 
       {/* 메인 콘텐츠 - 스크롤 가능 */}
       <main style={{
-        flex: "1",
+        flex: "1 1 auto",
         overflowY: "auto",
-        paddingBottom: "20px"
+        overflowX: "hidden",
+        paddingBottom: "20px",
+        minHeight: "0"
       }}>
         {activeTab === "devices" && (
           <DevicesControl
