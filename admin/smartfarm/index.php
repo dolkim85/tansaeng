@@ -133,7 +133,7 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
         } catch(e) {}
     </script>
     <div id="root"></div>
-    <script type="module" crossorigin src="/smartfarm-ui/dist/assets/index-DIRKNcqr.js?v=<?php echo $timestamp; ?>"></script>
-    <link rel="stylesheet" crossorigin href="/smartfarm-ui/dist/assets/index-CvLKbSJ4.css?v=<?php echo $timestamp; ?>">
+    <script type="module" crossorigin src="/smartfarm-ui/dist/assets/index-CEZEnxMy.js?v=<?php echo $timestamp; ?>"></script>
+    <link rel="stylesheet" crossorigin href="/smartfarm-ui/dist/assets/index-D4bkbyoK.css?v=<?php echo $timestamp; ?>">
 </body>
 </html>
