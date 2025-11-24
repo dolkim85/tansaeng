@@ -61,9 +61,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
   return (
     <div style={{
-      minHeight: "100vh",
-      background: "#f9fafb",
-      overflowY: "auto"
+      background: "#f9fafb"
     }}>
       <div style={{
         maxWidth: "1400px",

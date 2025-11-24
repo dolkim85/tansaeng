@@ -20,29 +20,90 @@ export default function Header({ connectionState }: HeaderProps) {
     switch (connectionState) {
       case "connected":
         return (
-          <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-medium">
-            <span className="w-2 h-2 rounded-full bg-green-500"></span>
+          <span style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "4px 10px",
+            borderRadius: "9999px",
+            background: "#d1fae5",
+            color: "#047857",
+            fontSize: "0.75rem",
+            fontWeight: "500"
+          }}>
+            <span style={{
+              width: "6px",
+              height: "6px",
+              borderRadius: "9999px",
+              background: "#10b981"
+            }}></span>
             Connected
           </span>
         );
       case "connecting":
         return (
-          <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 text-sm font-medium">
-            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+          <span style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "4px 10px",
+            borderRadius: "9999px",
+            background: "#fef3c7",
+            color: "#b45309",
+            fontSize: "0.75rem",
+            fontWeight: "500"
+          }}>
+            <span style={{
+              width: "6px",
+              height: "6px",
+              borderRadius: "9999px",
+              background: "#f59e0b",
+              animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+            }}></span>
             Connecting
           </span>
         );
       case "disconnected":
         return (
-          <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-100 text-red-700 text-sm font-medium">
-            <span className="w-2 h-2 rounded-full bg-red-500"></span>
+          <span style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "4px 10px",
+            borderRadius: "9999px",
+            background: "#fee2e2",
+            color: "#b91c1c",
+            fontSize: "0.75rem",
+            fontWeight: "500"
+          }}>
+            <span style={{
+              width: "6px",
+              height: "6px",
+              borderRadius: "9999px",
+              background: "#ef4444"
+            }}></span>
             Disconnected
           </span>
         );
       case "error":
         return (
-          <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-100 text-red-700 text-sm font-medium">
-            <span className="w-2 h-2 rounded-full bg-red-500"></span>
+          <span style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "4px 10px",
+            borderRadius: "9999px",
+            background: "#fee2e2",
+            color: "#b91c1c",
+            fontSize: "0.75rem",
+            fontWeight: "500"
+          }}>
+            <span style={{
+              width: "6px",
+              height: "6px",
+              borderRadius: "9999px",
+              background: "#ef4444"
+            }}></span>
             Error
           </span>
         );
@@ -50,16 +111,37 @@ export default function Header({ connectionState }: HeaderProps) {
   };
 
   return (
-    <header className="bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <header style={{
+      background: "linear-gradient(to right, #10b981, #059669)",
+      color: "white",
+      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+      flexShrink: 0
+    }}>
+      <div style={{
+        maxWidth: "1400px",
+        margin: "0 auto",
+        padding: "12px 16px"
+      }}>
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "12px"
+        }}>
           {/* 좌측: 로고 */}
-          <div className="text-xl md:text-2xl font-bold">
+          <div style={{
+            fontSize: "1.125rem",
+            fontWeight: "700"
+          }}>
             탄생농원 | Tansaeng SmartFarm
           </div>
 
           {/* 중앙: 현재 시간 */}
-          <div className="text-sm md:text-base">
+          <div style={{
+            fontSize: "0.875rem",
+            fontWeight: "500"
+          }}>
             {currentTime.toLocaleString("ko-KR", {
               year: "numeric",
               month: "2-digit",
@@ -71,9 +153,12 @@ export default function Header({ connectionState }: HeaderProps) {
           </div>
 
           {/* 우측: MQTT 연결 상태 */}
-          <div className="flex items-center gap-3">
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px"
+          }}>
             {getConnectionBadge()}
-            <span className="hidden md:inline text-sm">원격 제어 대기 중</span>
           </div>
         </div>
       </div>
