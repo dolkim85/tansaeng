@@ -101,13 +101,12 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     ?>
     <script>
         // 강제 캐시 무효화 (버전별로 실행)
-        const APP_VERSION = 'v3.0.0';
+        const APP_VERSION = 'v3.0.1';
         if (sessionStorage.getItem('app_version') !== APP_VERSION) {
             sessionStorage.setItem('app_version', APP_VERSION);
 
-            // localStorage도 클리어
-            const savedKeys = ['deviceState', 'mistZones', 'cameras', 'farmSettings'];
-            // 다른 키들은 보존하면서 필요한 것만 제거
+            // localStorage 완전 클리어
+            localStorage.clear();
 
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.getRegistrations().then(function(registrations) {
