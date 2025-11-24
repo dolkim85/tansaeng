@@ -60,8 +60,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4 max-w-6xl space-y-10">
+    <div className="!min-h-screen !bg-gray-50 !overflow-y-auto">
+      <div className="!container !mx-auto !px-4 !max-w-7xl !py-6 !space-y-6">
         {/* ESP32 연결 상태 헤더 */}
         <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-xl">
           <div className="flex items-center justify-between">
@@ -89,8 +89,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             </h2>
             <span className="text-sm opacity-80">총 {fans.length}개 디바이스</span>
           </header>
-          <div className="bg-white shadow-md rounded-b-xl p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+          <div className="!bg-white !shadow-md !rounded-b-xl !p-4">
+            <div className="!grid !grid-cols-1 lg:!grid-cols-2 xl:!grid-cols-3 !gap-4">
               {fans.map((fan) => (
                 <DeviceCard
                   key={fan.id}
@@ -112,8 +112,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             </h2>
             <span className="text-sm opacity-80">총 {vents.length}개 디바이스</span>
           </header>
-          <div className="bg-white shadow-md rounded-b-xl p-6">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+          <div className="!bg-white !shadow-md !rounded-b-xl !p-4">
+            <div className="!grid !grid-cols-1 xl:!grid-cols-2 !gap-4">
               {vents.map((vent) => (
                 <DeviceCard
                   key={vent.id}
@@ -136,8 +136,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             </h2>
             <span className="text-sm opacity-80">총 {pumps.length}개 디바이스</span>
           </header>
-          <div className="bg-white shadow-md rounded-b-xl p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+          <div className="!bg-white !shadow-md !rounded-b-xl !p-4">
+            <div className="!grid !grid-cols-1 lg:!grid-cols-2 xl:!grid-cols-3 !gap-4">
               {pumps.map((pump) => (
                 <DeviceCard
                   key={pump.id}
