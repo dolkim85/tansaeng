@@ -100,14 +100,17 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     $timestamp = time() . rand(1000, 9999);
     ?>
     <script>
-        // 강제 캐시 무효화 (버전별로 실행)
+        // 버전 기반 캐시 무효화 (한 번만 실행)
         const APP_VERSION = 'v3.0.1';
-        if (sessionStorage.getItem('app_version') !== APP_VERSION) {
+        const lastVersion = sessionStorage.getItem('app_version');
+
+        if (lastVersion !== APP_VERSION) {
+            console.log('New version detected: ' + APP_VERSION + ' (previous: ' + lastVersion + ')');
+
+            // 버전 업데이트
             sessionStorage.setItem('app_version', APP_VERSION);
 
-            // localStorage 완전 클리어
-            localStorage.clear();
-
+            // ServiceWorker 제거
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.getRegistrations().then(function(registrations) {
                     for(let registration of registrations) {
@@ -115,17 +118,22 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
                     }
                 });
             }
+
+            // Cache API 클리어
             if ('caches' in window) {
                 caches.keys().then(function(names) {
                     for (let name of names) caches.delete(name);
                 });
             }
 
-            // 페이지 강제 새로고침
-            console.log('New version detected: ' + APP_VERSION + ', clearing cache...');
-            setTimeout(function() {
-                window.location.reload(true);
-            }, 100);
+            // 한 번만 새로고침 (localStorage는 유지)
+            if (!sessionStorage.getItem('cache_cleared_' + APP_VERSION)) {
+                sessionStorage.setItem('cache_cleared_' + APP_VERSION, 'true');
+                console.log('Reloading page to apply new version...');
+                setTimeout(function() {
+                    window.location.reload(true);
+                }, 100);
+            }
         }
     </script>
     <div id="root"></div>
