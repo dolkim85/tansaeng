@@ -162,47 +162,18 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
 </head>
 <body>
     <?php
-    // React 빌드 파일이 존재하는지 확인
-    $distPath = '/var/www/html/smartfarm-ui/dist';
-    $indexFile = $distPath . '/index.html';
+    // 강력한 캐시 방지 헤더
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
 
-    if (file_exists($indexFile)) {
-        // 강력한 캐시 방지 헤더
-        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0');
-        header('Pragma: no-cache');
-        header('Expires: 0');
-        header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
-
-        // React 앱 HTML을 직접 include하고 base URL 수정
-        $html = file_get_contents($indexFile);
-        // /smartfarm-admin/ 경로를 /smartfarm-ui/dist/ 경로로 변경
-        $html = str_replace('/smartfarm-admin/', '/smartfarm-ui/dist/', $html);
-
-        // JS/CSS 파일에 타임스탬프 쿼리스트링 추가 (캐시 무효화)
-        $timestamp = time();
-        $html = preg_replace(
-            '/(href|src)="([^"]+\.(css|js))"/',
-            '$1="$2?t=' . $timestamp . '"',
-            $html
-        );
-
-        echo $html;
-        exit;
-    } else {
-        // 빌드 파일이 없으면 에러 메시지 표시
-        ?>
-        <div class="smartfarm-container">
-            <div style="color: white; text-align: center; padding: 50px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
-                <h2>❌ 빌드 파일 없음</h2>
-                <p>React 앱이 아직 빌드되지 않았습니다.</p>
-                <p style="margin-top: 20px;">서버에서 다음 명령을 실행하세요:</p>
-                <code style="background: rgba(0,0,0,0.3); padding: 10px; display: block; margin: 10px 0;">cd /var/www/html/smartfarm-ui && npm run build</code>
-                <p style="margin-top: 20px;"><a href="/admin/" style="color: white; text-decoration: underline;">대시보드로 돌아가기</a></p>
-            </div>
-        </div>
-        <?php
-    }
+    // 타임스탬프로 캐시 무효화
+    $timestamp = time();
     ?>
+    <div id="root"></div>
+    <script type="module" crossorigin src="/smartfarm-ui/dist/assets/index-CIaqFoxe.js?v=<?php echo $timestamp; ?>"></script>
+    <link rel="stylesheet" crossorigin href="/smartfarm-ui/dist/assets/index-BdxEBzf8.css?v=<?php echo $timestamp; ?>">
     </div>
 
     <script>
