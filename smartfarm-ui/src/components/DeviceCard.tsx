@@ -29,10 +29,10 @@ export default function DeviceCard({
   return (
     <div style={{
       background: "white",
-      borderRadius: "8px",
-      boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1)",
+      borderRadius: "6px",
+      boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
       transition: "box-shadow 0.2s",
-      padding: "16px",
+      padding: "10px",
       border: "1px solid #e5e7eb"
     }}>
       {/* 헤더: 아이콘 + 장치명 + 스위치 */}
@@ -40,23 +40,23 @@ export default function DeviceCard({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        marginBottom: "12px"
+        marginBottom: "8px"
       }}>
         <div style={{
           display: "flex",
           alignItems: "center",
-          gap: "8px"
+          gap: "6px"
         }}>
-          <div style={{ fontSize: "2rem" }}>{getIcon()}</div>
+          <div style={{ fontSize: "1.5rem" }}>{getIcon()}</div>
           <div>
             <h3 style={{
-              fontSize: "1rem",
+              fontSize: "0.875rem",
               fontWeight: "700",
               color: "#1f2937",
               margin: "0"
             }}>{device.name}</h3>
             <p style={{
-              fontSize: "0.75rem",
+              fontSize: "0.7rem",
               color: "#6b7280",
               margin: "0"
             }}>
@@ -78,8 +78,8 @@ export default function DeviceCard({
               style={{
                 position: "relative",
                 display: "inline-flex",
-                height: "48px",
-                width: "96px",
+                height: "36px",
+                width: "72px",
                 cursor: "pointer",
                 borderRadius: "9999px",
                 border: "2px solid transparent",
@@ -93,9 +93,9 @@ export default function DeviceCard({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                height: "44px",
-                width: "44px",
-                transform: isOn ? "translateX(48px)" : "translateX(0)",
+                height: "32px",
+                width: "32px",
+                transform: isOn ? "translateX(36px)" : "translateX(0)",
                 borderRadius: "9999px",
                 background: "white",
                 boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
@@ -176,23 +176,23 @@ export default function DeviceCard({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingTop: "12px",
+        paddingTop: "8px",
         borderTop: "1px solid #f3f4f6"
       }}>
         <div style={{
           display: "flex",
           alignItems: "center",
-          gap: "8px"
+          gap: "6px"
         }}>
           <div style={{
-            width: "8px",
-            height: "8px",
+            width: "6px",
+            height: "6px",
             borderRadius: "9999px",
             background: isOn ? "#10b981" : "#9ca3af",
             animation: isOn ? "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" : "none"
           }}></div>
           <span style={{
-            fontSize: "0.75rem",
+            fontSize: "0.7rem",
             fontWeight: "600",
             color: isOn ? "#15803d" : "#4b5563"
           }}>
@@ -200,7 +200,7 @@ export default function DeviceCard({
           </span>
         </div>
         <div style={{
-          fontSize: "0.75rem",
+          fontSize: "0.7rem",
           color: "#9ca3af"
         }}>
           {lastSavedAt

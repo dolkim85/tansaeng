@@ -60,21 +60,63 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   };
 
   return (
-    <div className="!min-h-screen !bg-gray-50 !overflow-y-auto">
-      <div className="!container !mx-auto !px-4 !max-w-7xl !py-6 !space-y-6">
+    <div style={{
+      minHeight: "100vh",
+      background: "#f9fafb",
+      overflowY: "auto"
+    }}>
+      <div style={{
+        maxWidth: "1400px",
+        margin: "0 auto",
+        padding: "12px"
+      }}>
         {/* ESP32 연결 상태 헤더 */}
-        <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-xl">
-          <div className="flex items-center justify-between">
+        <header style={{
+          background: "linear-gradient(to right, #10b981, #059669)",
+          color: "white",
+          padding: "12px 16px",
+          borderRadius: "8px",
+          marginBottom: "12px"
+        }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}>
             <div>
-              <h1 className="text-2xl font-bold">⚙️ 장치 제어</h1>
-              <p className="text-sm opacity-80 mt-1">
+              <h1 style={{
+                fontSize: "1.25rem",
+                fontWeight: "700",
+                margin: "0 0 4px 0"
+              }}>⚙️ 장치 제어</h1>
+              <p style={{
+                fontSize: "0.75rem",
+                opacity: "0.8",
+                margin: "0"
+              }}>
                 팬, 개폐기, 펌프 등 장치를 원격으로 제어합니다
               </p>
             </div>
             {/* ESP32 연결 상태 */}
-            <div className="flex items-center gap-2 bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-              <div className={`w-3 h-3 rounded-full ${mqttConnected ? 'bg-green-300 animate-pulse' : 'bg-red-300'}`}></div>
-              <span className="text-sm font-medium">
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "rgba(255, 255, 255, 0.2)",
+              padding: "6px 12px",
+              borderRadius: "6px"
+            }}>
+              <div style={{
+                width: "10px",
+                height: "10px",
+                borderRadius: "9999px",
+                background: mqttConnected ? "#6ee7b7" : "#fca5a5",
+                animation: mqttConnected ? "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" : "none"
+              }}></div>
+              <span style={{
+                fontSize: "0.75rem",
+                fontWeight: "500"
+              }}>
                 {mqttConnected ? 'ESP32 연결됨' : 'ESP32 연결 끊김'}
               </span>
             </div>
@@ -82,15 +124,42 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         </header>
 
         {/* 팬 제어 섹션 */}
-        <section>
-          <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-t-xl flex items-center justify-between">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
+        <section style={{ marginBottom: "12px" }}>
+          <header style={{
+            background: "linear-gradient(to right, #10b981, #059669)",
+            color: "white",
+            padding: "10px 16px",
+            borderRadius: "8px 8px 0 0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}>
+            <h2 style={{
+              fontSize: "1rem",
+              fontWeight: "600",
+              margin: "0",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px"
+            }}>
               🌀 팬 제어
             </h2>
-            <span className="text-sm opacity-80">총 {fans.length}개 디바이스</span>
+            <span style={{
+              fontSize: "0.75rem",
+              opacity: "0.8"
+            }}>총 {fans.length}개</span>
           </header>
-          <div className="!bg-white !shadow-md !rounded-b-xl !p-4">
-            <div className="!grid !grid-cols-1 lg:!grid-cols-2 xl:!grid-cols-3 !gap-4">
+          <div style={{
+            background: "white",
+            boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+            borderRadius: "0 0 8px 8px",
+            padding: "12px"
+          }}>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "12px"
+            }}>
               {fans.map((fan) => (
                 <DeviceCard
                   key={fan.id}
@@ -105,15 +174,42 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         </section>
 
         {/* 개폐기 제어 섹션 */}
-        <section>
-          <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-t-xl flex items-center justify-between">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
+        <section style={{ marginBottom: "12px" }}>
+          <header style={{
+            background: "linear-gradient(to right, #10b981, #059669)",
+            color: "white",
+            padding: "10px 16px",
+            borderRadius: "8px 8px 0 0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}>
+            <h2 style={{
+              fontSize: "1rem",
+              fontWeight: "600",
+              margin: "0",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px"
+            }}>
               🪟 개폐기 제어
             </h2>
-            <span className="text-sm opacity-80">총 {vents.length}개 디바이스</span>
+            <span style={{
+              fontSize: "0.75rem",
+              opacity: "0.8"
+            }}>총 {vents.length}개</span>
           </header>
-          <div className="!bg-white !shadow-md !rounded-b-xl !p-4">
-            <div className="!grid !grid-cols-1 xl:!grid-cols-2 !gap-4">
+          <div style={{
+            background: "white",
+            boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+            borderRadius: "0 0 8px 8px",
+            padding: "12px"
+          }}>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))",
+              gap: "12px"
+            }}>
               {vents.map((vent) => (
                 <DeviceCard
                   key={vent.id}
@@ -129,15 +225,42 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         </section>
 
         {/* 펌프 제어 섹션 */}
-        <section>
-          <header className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-t-xl flex items-center justify-between">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
+        <section style={{ marginBottom: "12px" }}>
+          <header style={{
+            background: "linear-gradient(to right, #10b981, #059669)",
+            color: "white",
+            padding: "10px 16px",
+            borderRadius: "8px 8px 0 0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}>
+            <h2 style={{
+              fontSize: "1rem",
+              fontWeight: "600",
+              margin: "0",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px"
+            }}>
               💧 펌프 제어
             </h2>
-            <span className="text-sm opacity-80">총 {pumps.length}개 디바이스</span>
+            <span style={{
+              fontSize: "0.75rem",
+              opacity: "0.8"
+            }}>총 {pumps.length}개</span>
           </header>
-          <div className="!bg-white !shadow-md !rounded-b-xl !p-4">
-            <div className="!grid !grid-cols-1 lg:!grid-cols-2 xl:!grid-cols-3 !gap-4">
+          <div style={{
+            background: "white",
+            boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+            borderRadius: "0 0 8px 8px",
+            padding: "12px"
+          }}>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "12px"
+            }}>
               {pumps.map((pump) => (
                 <DeviceCard
                   key={pump.id}
