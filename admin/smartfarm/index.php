@@ -107,30 +107,23 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     $timestamp = time() . rand(1000, 9999);
     ?>
     <script>
-        // 페이지 로드 시 완전히 새로고침 (캐시 무시)
-        if (performance.navigation.type !== 1) {
-            // 최초 로드일 경우 강제 새로고침
-            window.location.href = window.location.href + (window.location.href.includes('?') ? '&' : '?') + '_=' + Date.now();
-        }
+        // 강제 캐시 무효화 (한 번만 실행)
+        if (!sessionStorage.getItem('cache_cleared')) {
+            sessionStorage.setItem('cache_cleared', 'true');
 
-        // 강제 캐시 무효화
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for(let registration of registrations) {
-                    registration.unregister();
-                }
-            });
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let registration of registrations) {
+                        registration.unregister();
+                    }
+                });
+            }
+            if ('caches' in window) {
+                caches.keys().then(function(names) {
+                    for (let name of names) caches.delete(name);
+                });
+            }
         }
-        if ('caches' in window) {
-            caches.keys().then(function(names) {
-                for (let name of names) caches.delete(name);
-            });
-        }
-
-        // localStorage 강제 삭제
-        try {
-            localStorage.clear();
-        } catch(e) {}
     </script>
     <div id="root"></div>
     <script type="module" crossorigin src="/smartfarm-ui/dist/assets/index-CEZEnxMy.js?v=<?php echo $timestamp; ?>"></script>
