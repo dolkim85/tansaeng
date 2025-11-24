@@ -105,8 +105,23 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     // 타임스탬프로 캐시 무효화
     $timestamp = time();
     ?>
+    <script>
+        // 강제 캐시 무효화
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+        if ('caches' in window) {
+            caches.keys().then(function(names) {
+                for (let name of names) caches.delete(name);
+            });
+        }
+    </script>
     <div id="root"></div>
-    <script type="module" crossorigin src="/smartfarm-ui/dist/assets/index--6F7Ujry.js?v=<?php echo $timestamp; ?>"></script>
-    <link rel="stylesheet" crossorigin href="/smartfarm-ui/dist/assets/index-44a9h7CW.css?v=<?php echo $timestamp; ?>">
+    <script type="module" crossorigin src="/smartfarm-ui/dist/assets/index-NEW-1763985813.js?v=<?php echo $timestamp; ?>"></script>
+    <link rel="stylesheet" crossorigin href="/smartfarm-ui/dist/assets/index-NEW-1763985813.css?v=<?php echo $timestamp; ?>">
 </body>
 </html>
