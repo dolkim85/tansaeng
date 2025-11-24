@@ -27,14 +27,39 @@ export default function DeviceCard({
   };
 
   return (
-    <div className="!bg-white !rounded-lg !shadow-md hover:!shadow-lg !transition-shadow !p-4 !border !border-gray-200">
+    <div style={{
+      background: "white",
+      borderRadius: "8px",
+      boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1)",
+      transition: "box-shadow 0.2s",
+      padding: "16px",
+      border: "1px solid #e5e7eb"
+    }}>
       {/* 헤더: 아이콘 + 장치명 + 스위치 */}
-      <div className="!flex !items-center !justify-between !mb-3">
-        <div className="!flex !items-center !gap-2">
-          <div className="!text-3xl">{getIcon()}</div>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: "12px"
+      }}>
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px"
+        }}>
+          <div style={{ fontSize: "2rem" }}>{getIcon()}</div>
           <div>
-            <h3 className="!text-base !font-bold !text-gray-800 !m-0">{device.name}</h3>
-            <p className="!text-xs !text-gray-500 !mt-0">
+            <h3 style={{
+              fontSize: "1rem",
+              fontWeight: "700",
+              color: "#1f2937",
+              margin: "0"
+            }}>{device.name}</h3>
+            <p style={{
+              fontSize: "0.75rem",
+              color: "#6b7280",
+              margin: "0"
+            }}>
               {device.type === "fan" ? "팬" : device.type === "vent" ? "개폐기" : "펌프"}
             </p>
           </div>
@@ -42,32 +67,56 @@ export default function DeviceCard({
 
         {/* iOS 스타일 토글 스위치 (팬, 펌프만) */}
         {!device.extra?.supportsPercentage && (
-          <div className="!flex !flex-col !items-end !gap-1">
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: "4px"
+          }}>
             <button
               onClick={() => onToggle?.(!isOn)}
-              className={`!relative !inline-flex !h-12 !w-24 !cursor-pointer !rounded-full !border-2 !border-transparent !transition-all !duration-300 ${
-                isOn ? "!bg-green-500" : "!bg-gray-300"
-              }`}
+              style={{
+                position: "relative",
+                display: "inline-flex",
+                height: "48px",
+                width: "96px",
+                cursor: "pointer",
+                borderRadius: "9999px",
+                border: "2px solid transparent",
+                transition: "all 0.3s",
+                background: isOn ? "#10b981" : "#d1d5db"
+              }}
               role="switch"
               aria-checked={isOn}
             >
-              <span
-                className={`!inline-block !h-11 !w-11 !transform !rounded-full !bg-white !shadow-md !transition-transform !duration-300 !flex !items-center !justify-center ${
-                  isOn ? "!translate-x-12" : "!translate-x-0"
-                }`}
-              >
+              <span style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "44px",
+                width: "44px",
+                transform: isOn ? "translateX(48px)" : "translateX(0)",
+                borderRadius: "9999px",
+                background: "white",
+                boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                transition: "transform 0.3s"
+              }}>
                 {isOn ? (
-                  <svg className="!w-4 !h-4 !text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <svg style={{ width: "16px", height: "16px", color: "#10b981" }} fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 ) : (
-                  <svg className="!w-4 !h-4 !text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                  <svg style={{ width: "16px", height: "16px", color: "#9ca3af" }} fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 )}
               </span>
             </button>
-            <span className={`!text-xs !font-semibold ${isOn ? "!text-green-600" : "!text-gray-500"}`}>
+            <span style={{
+              fontSize: "0.75rem",
+              fontWeight: "600",
+              color: isOn ? "#10b981" : "#6b7280"
+            }}>
               {isOn ? "ON" : "OFF"}
             </span>
           </div>
@@ -76,10 +125,23 @@ export default function DeviceCard({
 
       {/* 개폐기 슬라이더 (개폐기만) */}
       {device.extra?.supportsPercentage && (
-        <div className="!mb-3">
-          <div className="!flex !items-center !justify-between !mb-2">
-            <span className="!text-xs !font-medium !text-gray-600">개폐 정도</span>
-            <span className="!text-2xl !font-bold !text-green-600">{percentage ?? 0}%</span>
+        <div style={{ marginBottom: "12px" }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "8px"
+          }}>
+            <span style={{
+              fontSize: "0.75rem",
+              fontWeight: "500",
+              color: "#4b5563"
+            }}>개폐 정도</span>
+            <span style={{
+              fontSize: "1.5rem",
+              fontWeight: "700",
+              color: "#10b981"
+            }}>{percentage ?? 0}%</span>
           </div>
           <input
             type="range"
@@ -87,12 +149,22 @@ export default function DeviceCard({
             max="100"
             value={percentage ?? 0}
             onChange={(e) => onPercentageChange?.(Number(e.target.value))}
-            className="!w-full !h-2 !rounded-full !appearance-none !cursor-pointer"
             style={{
+              width: "100%",
+              height: "8px",
+              borderRadius: "9999px",
+              appearance: "none",
+              cursor: "pointer",
               background: `linear-gradient(to right, #10b981 0%, #10b981 ${percentage ?? 0}%, #e5e7eb ${percentage ?? 0}%, #e5e7eb 100%)`
             }}
           />
-          <div className="!flex !justify-between !text-xs !text-gray-500 !mt-1">
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "0.75rem",
+            color: "#6b7280",
+            marginTop: "4px"
+          }}>
             <span>닫힘</span>
             <span>열림</span>
           </div>
@@ -100,14 +172,37 @@ export default function DeviceCard({
       )}
 
       {/* 하단: 상태 + 최종 작동 시간 */}
-      <div className="!flex !items-center !justify-between !pt-3 !border-t !border-gray-100">
-        <div className="!flex !items-center !gap-2">
-          <div className={`!w-2 !h-2 !rounded-full ${isOn ? "!bg-green-500 !animate-pulse" : "!bg-gray-400"}`}></div>
-          <span className={`!text-xs !font-semibold ${isOn ? "!text-green-700" : "!text-gray-600"}`}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingTop: "12px",
+        borderTop: "1px solid #f3f4f6"
+      }}>
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px"
+        }}>
+          <div style={{
+            width: "8px",
+            height: "8px",
+            borderRadius: "9999px",
+            background: isOn ? "#10b981" : "#9ca3af",
+            animation: isOn ? "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" : "none"
+          }}></div>
+          <span style={{
+            fontSize: "0.75rem",
+            fontWeight: "600",
+            color: isOn ? "#15803d" : "#4b5563"
+          }}>
             {isOn ? "작동 중" : "정지"}
           </span>
         </div>
-        <div className="!text-xs !text-gray-400">
+        <div style={{
+          fontSize: "0.75rem",
+          color: "#9ca3af"
+        }}>
           {lastSavedAt
             ? new Date(lastSavedAt).toLocaleString("ko-KR", {
                 month: "short",
