@@ -107,9 +107,14 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     $timestamp = time() . rand(1000, 9999);
     ?>
     <script>
-        // 강제 캐시 무효화 (한 번만 실행)
-        if (!sessionStorage.getItem('cache_cleared')) {
-            sessionStorage.setItem('cache_cleared', 'true');
+        // 강제 캐시 무효화 (버전별로 실행)
+        const APP_VERSION = 'v2.9.0';
+        if (sessionStorage.getItem('app_version') !== APP_VERSION) {
+            sessionStorage.setItem('app_version', APP_VERSION);
+
+            // localStorage도 클리어
+            const savedKeys = ['deviceState', 'mistZones', 'cameras', 'farmSettings'];
+            // 다른 키들은 보존하면서 필요한 것만 제거
 
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.getRegistrations().then(function(registrations) {
@@ -123,6 +128,12 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
                     for (let name of names) caches.delete(name);
                 });
             }
+
+            // 페이지 강제 새로고침
+            console.log('New version detected: ' + APP_VERSION + ', clearing cache...');
+            setTimeout(function() {
+                window.location.reload(true);
+            }, 100);
         }
     </script>
     <div id="root"></div>
