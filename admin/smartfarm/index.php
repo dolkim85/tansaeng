@@ -86,13 +86,6 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>스마트팜 환경제어 시스템 - 탄생</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-        }
-    </style>
 </head>
 <body>
     <?php
@@ -108,7 +101,7 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     ?>
     <script>
         // 강제 캐시 무효화 (버전별로 실행)
-        const APP_VERSION = 'v2.9.2';
+        const APP_VERSION = 'v2.9.3';
         if (sessionStorage.getItem('app_version') !== APP_VERSION) {
             sessionStorage.setItem('app_version', APP_VERSION);
 
