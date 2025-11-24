@@ -121,7 +121,7 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
         }
     </script>
     <div id="root"></div>
-    <script type="module" crossorigin src="/smartfarm-ui/dist/assets/index-DhE91M32.js?v=<?php echo $timestamp; ?>"></script>
+    <script type="module" crossorigin src="/smartfarm-ui/dist/assets/index-1qnR_PmW.js?v=<?php echo $timestamp; ?>"></script>
     <link rel="stylesheet" crossorigin href="/smartfarm-ui/dist/assets/index-BMqcyyfT.css?v=<?php echo $timestamp; ?>">
 </body>
 </html>

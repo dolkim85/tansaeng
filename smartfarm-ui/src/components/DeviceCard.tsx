@@ -30,10 +30,10 @@ export default function DeviceCard({
     <div className="!bg-white !rounded-lg !shadow-md hover:!shadow-lg !transition-shadow !p-4 !border !border-gray-200">
       {/* 헤더: 아이콘 + 장치명 + 스위치 */}
       <div className="!flex !items-center !justify-between !mb-3">
-        <div className="!flex !items-center !gap-3">
-          <div className="!text-4xl">{getIcon()}</div>
+        <div className="!flex !items-center !gap-2">
+          <div className="!text-3xl">{getIcon()}</div>
           <div>
-            <h3 className="!text-lg !font-bold !text-gray-800 !m-0">{device.name}</h3>
+            <h3 className="!text-base !font-bold !text-gray-800 !m-0">{device.name}</h3>
             <p className="!text-xs !text-gray-500 !mt-0">
               {device.type === "fan" ? "팬" : device.type === "vent" ? "개폐기" : "펌프"}
             </p>
@@ -45,15 +45,15 @@ export default function DeviceCard({
           <div className="!flex !flex-col !items-end !gap-1">
             <button
               onClick={() => onToggle?.(!isOn)}
-              className={`!relative !inline-flex !h-8 !w-16 !cursor-pointer !rounded-full !border-2 !border-transparent !transition-all !duration-300 ${
+              className={`!relative !inline-flex !h-12 !w-24 !cursor-pointer !rounded-full !border-2 !border-transparent !transition-all !duration-300 ${
                 isOn ? "!bg-green-500" : "!bg-gray-300"
               }`}
               role="switch"
               aria-checked={isOn}
             >
               <span
-                className={`!inline-block !h-7 !w-7 !transform !rounded-full !bg-white !shadow-md !transition-transform !duration-300 !flex !items-center !justify-center ${
-                  isOn ? "!translate-x-8" : "!translate-x-0"
+                className={`!inline-block !h-11 !w-11 !transform !rounded-full !bg-white !shadow-md !transition-transform !duration-300 !flex !items-center !justify-center ${
+                  isOn ? "!translate-x-12" : "!translate-x-0"
                 }`}
               >
                 {isOn ? (
