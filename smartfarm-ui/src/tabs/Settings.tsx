@@ -11,173 +11,400 @@ export default function Settings({ farmSettings, setFarmSettings }: SettingsProp
   const mqttPort = import.meta.env.VITE_MQTT_WS_PORT || "미설정";
   const mqttUsername = import.meta.env.VITE_MQTT_USERNAME || "미설정";
 
+  const getDeviceTypeColor = (type: string) => {
+    if (type === "fan") return { bg: "#dbeafe", text: "#1e40af" };
+    if (type === "vent") return { bg: "#d1fae5", text: "#065f46" };
+    if (type === "pump") return { bg: "#f3e8ff", text: "#6b21a8" };
+    if (type === "camera") return { bg: "#fed7aa", text: "#c2410c" };
+    return { bg: "#f3f4f6", text: "#4b5563" };
+  };
+
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6">
-      <div className="bg-gradient-to-r from-emerald-500 to-green-600 rounded-2xl px-6 py-4">
-        <h1 className="text-white font-bold text-2xl">⚙️ 설정</h1>
-        <p className="text-white/80 text-sm mt-1">
-          MQTT 설정, 디바이스 레지스트리, 농장 기본 정보를 관리합니다
-        </p>
-      </div>
-
-      {/* MQTT 설정 요약 */}
-      <div className="bg-white rounded-2xl shadow-md p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          MQTT 연결 설정 (읽기 전용)
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">
-              HiveMQ Cloud Host
-            </label>
-            <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
-              {mqttHost}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">
-              WebSocket Port
-            </label>
-            <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
-              {mqttPort}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">
-              Username
-            </label>
-            <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
-              {mqttUsername}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">
-              Password
-            </label>
-            <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
-              ●●●●●●●●
-            </div>
-          </div>
+    <div style={{ background: "#f9fafb" }}>
+      <div style={{
+        maxWidth: "1200px",
+        margin: "0 auto",
+        padding: "0 16px"
+      }}>
+        <div style={{
+          background: "linear-gradient(to right, #10b981, #059669)",
+          borderRadius: "16px",
+          padding: "16px 24px",
+          marginBottom: "24px"
+        }}>
+          <h1 style={{
+            color: "white",
+            fontWeight: "700",
+            fontSize: "1.5rem",
+            margin: 0
+          }}>⚙️ 설정</h1>
+          <p style={{
+            color: "rgba(255, 255, 255, 0.8)",
+            fontSize: "0.875rem",
+            marginTop: "4px",
+            margin: 0
+          }}>
+            MQTT 설정, 디바이스 레지스트리, 농장 기본 정보를 관리합니다
+          </p>
         </div>
-        <p className="text-sm text-gray-500 mt-4">
-          MQTT 설정을 변경하려면 .env 파일을 수정하세요.
-        </p>
-      </div>
 
-      {/* 디바이스 레지스트리 */}
-      <div className="bg-white rounded-2xl shadow-md p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          디바이스 레지스트리
-        </h2>
-        <p className="text-sm text-gray-600 mb-4">
-          총 {DEVICES.length}개 장치가 등록되어 있습니다.
-        </p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-2 text-left text-gray-600 font-medium">
-                  ID
-                </th>
-                <th className="px-4 py-2 text-left text-gray-600 font-medium">
-                  이름
-                </th>
-                <th className="px-4 py-2 text-left text-gray-600 font-medium">
-                  타입
-                </th>
-                <th className="px-4 py-2 text-left text-gray-600 font-medium">
-                  ESP32 노드
-                </th>
-                <th className="px-4 py-2 text-left text-gray-600 font-medium">
-                  Command Topic
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {DEVICES.map((device, index) => (
-                <tr
-                  key={device.id}
-                  className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
-                >
-                  <td className="px-4 py-2 text-gray-700">{device.id}</td>
-                  <td className="px-4 py-2 text-gray-700">{device.name}</td>
-                  <td className="px-4 py-2">
-                    <span
-                      className={`
-                      px-2 py-1 rounded text-xs font-medium
-                      ${device.type === "fan" ? "bg-blue-100 text-blue-700" : ""}
-                      ${device.type === "vent" ? "bg-green-100 text-green-700" : ""}
-                      ${device.type === "pump" ? "bg-purple-100 text-purple-700" : ""}
-                      ${device.type === "camera" ? "bg-orange-100 text-orange-700" : ""}
-                    `}
-                    >
-                      {device.type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-gray-600 text-xs">
-                    {device.esp32Id}
-                  </td>
-                  <td className="px-4 py-2 text-gray-500 text-xs font-mono">
-                    {device.commandTopic}
-                  </td>
+        {/* MQTT 설정 요약 */}
+        <div style={{
+          background: "white",
+          borderRadius: "16px",
+          boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+          padding: "24px",
+          marginBottom: "24px"
+        }}>
+          <h2 style={{
+            fontSize: "1.125rem",
+            fontWeight: "600",
+            color: "#1f2937",
+            marginBottom: "16px"
+          }}>
+            MQTT 연결 설정 (읽기 전용)
+          </h2>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "16px"
+          }}>
+            <div>
+              <label style={{
+                display: "block",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                color: "#4b5563",
+                marginBottom: "4px"
+              }}>
+                HiveMQ Cloud Host
+              </label>
+              <div style={{
+                padding: "8px 12px",
+                background: "#f9fafb",
+                border: "1px solid #e5e7eb",
+                borderRadius: "8px",
+                color: "#374151"
+              }}>
+                {mqttHost}
+              </div>
+            </div>
+            <div>
+              <label style={{
+                display: "block",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                color: "#4b5563",
+                marginBottom: "4px"
+              }}>
+                WebSocket Port
+              </label>
+              <div style={{
+                padding: "8px 12px",
+                background: "#f9fafb",
+                border: "1px solid #e5e7eb",
+                borderRadius: "8px",
+                color: "#374151"
+              }}>
+                {mqttPort}
+              </div>
+            </div>
+            <div>
+              <label style={{
+                display: "block",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                color: "#4b5563",
+                marginBottom: "4px"
+              }}>
+                Username
+              </label>
+              <div style={{
+                padding: "8px 12px",
+                background: "#f9fafb",
+                border: "1px solid #e5e7eb",
+                borderRadius: "8px",
+                color: "#374151"
+              }}>
+                {mqttUsername}
+              </div>
+            </div>
+            <div>
+              <label style={{
+                display: "block",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                color: "#4b5563",
+                marginBottom: "4px"
+              }}>
+                Password
+              </label>
+              <div style={{
+                padding: "8px 12px",
+                background: "#f9fafb",
+                border: "1px solid #e5e7eb",
+                borderRadius: "8px",
+                color: "#374151"
+              }}>
+                ●●●●●●●●
+              </div>
+            </div>
+          </div>
+          <p style={{
+            fontSize: "0.875rem",
+            color: "#6b7280",
+            marginTop: "16px",
+            marginBottom: 0
+          }}>
+            MQTT 설정을 변경하려면 .env 파일을 수정하세요.
+          </p>
+        </div>
+
+        {/* 디바이스 레지스트리 */}
+        <div style={{
+          background: "white",
+          borderRadius: "16px",
+          boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+          padding: "24px",
+          marginBottom: "24px"
+        }}>
+          <h2 style={{
+            fontSize: "1.125rem",
+            fontWeight: "600",
+            color: "#1f2937",
+            marginBottom: "16px"
+          }}>
+            디바이스 레지스트리
+          </h2>
+          <p style={{
+            fontSize: "0.875rem",
+            color: "#4b5563",
+            marginBottom: "16px"
+          }}>
+            총 {DEVICES.length}개 장치가 등록되어 있습니다.
+          </p>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{
+              width: "100%",
+              fontSize: "0.875rem",
+              borderCollapse: "collapse"
+            }}>
+              <thead style={{ background: "#f9fafb" }}>
+                <tr>
+                  <th style={{
+                    padding: "8px 16px",
+                    textAlign: "left",
+                    color: "#4b5563",
+                    fontWeight: "500"
+                  }}>
+                    ID
+                  </th>
+                  <th style={{
+                    padding: "8px 16px",
+                    textAlign: "left",
+                    color: "#4b5563",
+                    fontWeight: "500"
+                  }}>
+                    이름
+                  </th>
+                  <th style={{
+                    padding: "8px 16px",
+                    textAlign: "left",
+                    color: "#4b5563",
+                    fontWeight: "500"
+                  }}>
+                    타입
+                  </th>
+                  <th style={{
+                    padding: "8px 16px",
+                    textAlign: "left",
+                    color: "#4b5563",
+                    fontWeight: "500"
+                  }}>
+                    ESP32 노드
+                  </th>
+                  <th style={{
+                    padding: "8px 16px",
+                    textAlign: "left",
+                    color: "#4b5563",
+                    fontWeight: "500"
+                  }}>
+                    Command Topic
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {DEVICES.map((device, index) => {
+                  const typeColor = getDeviceTypeColor(device.type);
+                  return (
+                    <tr
+                      key={device.id}
+                      style={{
+                        background: index % 2 === 0 ? "white" : "#f9fafb"
+                      }}
+                    >
+                      <td style={{
+                        padding: "8px 16px",
+                        color: "#374151"
+                      }}>{device.id}</td>
+                      <td style={{
+                        padding: "8px 16px",
+                        color: "#374151"
+                      }}>{device.name}</td>
+                      <td style={{ padding: "8px 16px" }}>
+                        <span style={{
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          fontSize: "0.75rem",
+                          fontWeight: "500",
+                          background: typeColor.bg,
+                          color: typeColor.text
+                        }}>
+                          {device.type}
+                        </span>
+                      </td>
+                      <td style={{
+                        padding: "8px 16px",
+                        color: "#4b5563",
+                        fontSize: "0.75rem"
+                      }}>
+                        {device.esp32Id}
+                      </td>
+                      <td style={{
+                        padding: "8px 16px",
+                        color: "#6b7280",
+                        fontSize: "0.75rem",
+                        fontFamily: "monospace"
+                      }}>
+                        {device.commandTopic}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p style={{
+            fontSize: "0.875rem",
+            color: "#6b7280",
+            marginTop: "16px",
+            marginBottom: 0
+          }}>
+            디바이스를 추가/수정하려면 src/config/devices.ts 파일을 편집하세요.
+          </p>
         </div>
-        <p className="text-sm text-gray-500 mt-4">
-          디바이스를 추가/수정하려면 src/config/devices.ts 파일을 편집하세요.
-        </p>
-      </div>
 
-      {/* 농장 기본 정보 */}
-      <div className="bg-white rounded-2xl shadow-md p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          농장 기본 정보
-        </h2>
-        <div className="space-y-4">
+        {/* 농장 기본 정보 */}
+        <div style={{
+          background: "white",
+          borderRadius: "16px",
+          boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+          padding: "24px",
+          marginBottom: "24px"
+        }}>
+          <h2 style={{
+            fontSize: "1.125rem",
+            fontWeight: "600",
+            color: "#1f2937",
+            marginBottom: "16px"
+          }}>
+            농장 기본 정보
+          </h2>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              농장 이름
-            </label>
-            <input
-              type="text"
-              value={farmSettings.farmName}
-              onChange={(e) =>
-                setFarmSettings({ ...farmSettings, farmName: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-            />
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{
+                display: "block",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                color: "#374151",
+                marginBottom: "4px"
+              }}>
+                농장 이름
+              </label>
+              <input
+                type="text"
+                value={farmSettings.farmName}
+                onChange={(e) =>
+                  setFarmSettings({ ...farmSettings, farmName: e.target.value })
+                }
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "8px",
+                  fontSize: "1rem"
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{
+                display: "block",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                color: "#374151",
+                marginBottom: "4px"
+              }}>
+                관리자 이름
+              </label>
+              <input
+                type="text"
+                value={farmSettings.adminName}
+                onChange={(e) =>
+                  setFarmSettings({ ...farmSettings, adminName: e.target.value })
+                }
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "8px",
+                  fontSize: "1rem"
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{
+                display: "block",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                color: "#374151",
+                marginBottom: "4px"
+              }}>
+                비고
+              </label>
+              <textarea
+                value={farmSettings.notes}
+                onChange={(e) =>
+                  setFarmSettings({ ...farmSettings, notes: e.target.value })
+                }
+                rows={4}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "8px",
+                  fontSize: "1rem",
+                  resize: "vertical"
+                }}
+              />
+            </div>
+            <button
+              style={{
+                width: "100%",
+                background: "#10b981",
+                color: "white",
+                fontWeight: "500",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                border: "none",
+                cursor: "pointer",
+                transition: "background 0.2s"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "#059669"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "#10b981"}
+            >
+              저장
+            </button>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              관리자 이름
-            </label>
-            <input
-              type="text"
-              value={farmSettings.adminName}
-              onChange={(e) =>
-                setFarmSettings({ ...farmSettings, adminName: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              비고
-            </label>
-            <textarea
-              value={farmSettings.notes}
-              onChange={(e) =>
-                setFarmSettings({ ...farmSettings, notes: e.target.value })
-              }
-              rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-            />
-          </div>
-          <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
-            저장
-          </button>
         </div>
       </div>
     </div>
