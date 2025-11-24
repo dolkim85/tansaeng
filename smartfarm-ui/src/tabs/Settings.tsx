@@ -20,215 +20,84 @@ export default function Settings({ farmSettings, setFarmSettings }: SettingsProp
   };
 
   return (
-    <div style={{ background: "#f9fafb" }}>
-      <div style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "0 16px"
-      }}>
-        <div style={{
-          background: "linear-gradient(to right, #10b981, #059669)",
-          borderRadius: "16px",
-          padding: "16px 24px",
-          marginBottom: "24px"
-        }}>
-          <h1 style={{
-            color: "white",
-            fontWeight: "700",
-            fontSize: "1.5rem",
-            margin: 0
-          }}>⚙️ 설정</h1>
-          <p style={{
-            color: "rgba(255, 255, 255, 0.8)",
-            fontSize: "0.875rem",
-            marginTop: "4px",
-            margin: 0
-          }}>
+    <div className="bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="bg-gradient-to-r from-farm-500 to-farm-600 rounded-2xl px-6 py-4 mb-6">
+          <h1 className="text-white font-bold text-2xl m-0">⚙️ 설정</h1>
+          <p className="text-white/80 text-sm mt-1 m-0">
             MQTT 설정, 디바이스 레지스트리, 농장 기본 정보를 관리합니다
           </p>
         </div>
 
         {/* MQTT 설정 요약 */}
-        <div style={{
-          background: "white",
-          borderRadius: "16px",
-          boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-          padding: "24px",
-          marginBottom: "24px"
-        }}>
-          <h2 style={{
-            fontSize: "1.125rem",
-            fontWeight: "600",
-            color: "#1f2937",
-            marginBottom: "16px"
-          }}>
+        <div className="bg-white rounded-2xl shadow-card p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
             MQTT 연결 설정 (읽기 전용)
           </h2>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-            gap: "16px"
-          }}>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-4">
             <div>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#4b5563",
-                marginBottom: "4px"
-              }}>
+              <label className="block text-sm font-medium text-gray-600 mb-1">
                 HiveMQ Cloud Host
               </label>
-              <div style={{
-                padding: "8px 12px",
-                background: "#f9fafb",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                color: "#374151"
-              }}>
+              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
                 {mqttHost}
               </div>
             </div>
             <div>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#4b5563",
-                marginBottom: "4px"
-              }}>
+              <label className="block text-sm font-medium text-gray-600 mb-1">
                 WebSocket Port
               </label>
-              <div style={{
-                padding: "8px 12px",
-                background: "#f9fafb",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                color: "#374151"
-              }}>
+              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
                 {mqttPort}
               </div>
             </div>
             <div>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#4b5563",
-                marginBottom: "4px"
-              }}>
+              <label className="block text-sm font-medium text-gray-600 mb-1">
                 Username
               </label>
-              <div style={{
-                padding: "8px 12px",
-                background: "#f9fafb",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                color: "#374151"
-              }}>
+              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
                 {mqttUsername}
               </div>
             </div>
             <div>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#4b5563",
-                marginBottom: "4px"
-              }}>
+              <label className="block text-sm font-medium text-gray-600 mb-1">
                 Password
               </label>
-              <div style={{
-                padding: "8px 12px",
-                background: "#f9fafb",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                color: "#374151"
-              }}>
+              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
                 ●●●●●●●●
               </div>
             </div>
           </div>
-          <p style={{
-            fontSize: "0.875rem",
-            color: "#6b7280",
-            marginTop: "16px",
-            marginBottom: 0
-          }}>
+          <p className="text-sm text-gray-500 mt-4 mb-0">
             MQTT 설정을 변경하려면 .env 파일을 수정하세요.
           </p>
         </div>
 
         {/* 디바이스 레지스트리 */}
-        <div style={{
-          background: "white",
-          borderRadius: "16px",
-          boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-          padding: "24px",
-          marginBottom: "24px"
-        }}>
-          <h2 style={{
-            fontSize: "1.125rem",
-            fontWeight: "600",
-            color: "#1f2937",
-            marginBottom: "16px"
-          }}>
+        <div className="bg-white rounded-2xl shadow-card p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
             디바이스 레지스트리
           </h2>
-          <p style={{
-            fontSize: "0.875rem",
-            color: "#4b5563",
-            marginBottom: "16px"
-          }}>
+          <p className="text-sm text-gray-600 mb-4">
             총 {DEVICES.length}개 장치가 등록되어 있습니다.
           </p>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{
-              width: "100%",
-              fontSize: "0.875rem",
-              borderCollapse: "collapse"
-            }}>
-              <thead style={{ background: "#f9fafb" }}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th style={{
-                    padding: "8px 16px",
-                    textAlign: "left",
-                    color: "#4b5563",
-                    fontWeight: "500"
-                  }}>
+                  <th className="px-4 py-2 text-left text-gray-600 font-medium">
                     ID
                   </th>
-                  <th style={{
-                    padding: "8px 16px",
-                    textAlign: "left",
-                    color: "#4b5563",
-                    fontWeight: "500"
-                  }}>
+                  <th className="px-4 py-2 text-left text-gray-600 font-medium">
                     이름
                   </th>
-                  <th style={{
-                    padding: "8px 16px",
-                    textAlign: "left",
-                    color: "#4b5563",
-                    fontWeight: "500"
-                  }}>
+                  <th className="px-4 py-2 text-left text-gray-600 font-medium">
                     타입
                   </th>
-                  <th style={{
-                    padding: "8px 16px",
-                    textAlign: "left",
-                    color: "#4b5563",
-                    fontWeight: "500"
-                  }}>
+                  <th className="px-4 py-2 text-left text-gray-600 font-medium">
                     ESP32 노드
                   </th>
-                  <th style={{
-                    padding: "8px 16px",
-                    textAlign: "left",
-                    color: "#4b5563",
-                    fontWeight: "500"
-                  }}>
+                  <th className="px-4 py-2 text-left text-gray-600 font-medium">
                     Command Topic
                   </th>
                 </tr>
@@ -239,43 +108,25 @@ export default function Settings({ farmSettings, setFarmSettings }: SettingsProp
                   return (
                     <tr
                       key={device.id}
-                      style={{
-                        background: index % 2 === 0 ? "white" : "#f9fafb"
-                      }}
+                      className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
                     >
-                      <td style={{
-                        padding: "8px 16px",
-                        color: "#374151"
-                      }}>{device.id}</td>
-                      <td style={{
-                        padding: "8px 16px",
-                        color: "#374151"
-                      }}>{device.name}</td>
-                      <td style={{ padding: "8px 16px" }}>
-                        <span style={{
-                          padding: "2px 8px",
-                          borderRadius: "4px",
-                          fontSize: "0.75rem",
-                          fontWeight: "500",
-                          background: typeColor.bg,
-                          color: typeColor.text
-                        }}>
+                      <td className="px-4 py-2 text-gray-700">{device.id}</td>
+                      <td className="px-4 py-2 text-gray-700">{device.name}</td>
+                      <td className="px-4 py-2">
+                        <span
+                          className="px-2 py-0.5 rounded text-xs font-medium"
+                          style={{
+                            background: typeColor.bg,
+                            color: typeColor.text
+                          }}
+                        >
                           {device.type}
                         </span>
                       </td>
-                      <td style={{
-                        padding: "8px 16px",
-                        color: "#4b5563",
-                        fontSize: "0.75rem"
-                      }}>
+                      <td className="px-4 py-2 text-gray-600 text-xs">
                         {device.esp32Id}
                       </td>
-                      <td style={{
-                        padding: "8px 16px",
-                        color: "#6b7280",
-                        fontSize: "0.75rem",
-                        fontFamily: "monospace"
-                      }}>
+                      <td className="px-4 py-2 text-gray-500 text-xs font-mono">
                         {device.commandTopic}
                       </td>
                     </tr>
@@ -284,41 +135,19 @@ export default function Settings({ farmSettings, setFarmSettings }: SettingsProp
               </tbody>
             </table>
           </div>
-          <p style={{
-            fontSize: "0.875rem",
-            color: "#6b7280",
-            marginTop: "16px",
-            marginBottom: 0
-          }}>
+          <p className="text-sm text-gray-500 mt-4 mb-0">
             디바이스를 추가/수정하려면 src/config/devices.ts 파일을 편집하세요.
           </p>
         </div>
 
         {/* 농장 기본 정보 */}
-        <div style={{
-          background: "white",
-          borderRadius: "16px",
-          boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-          padding: "24px",
-          marginBottom: "24px"
-        }}>
-          <h2 style={{
-            fontSize: "1.125rem",
-            fontWeight: "600",
-            color: "#1f2937",
-            marginBottom: "16px"
-          }}>
+        <div className="bg-white rounded-2xl shadow-card p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
             농장 기본 정보
           </h2>
           <div>
-            <div style={{ marginBottom: "16px" }}>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#374151",
-                marginBottom: "4px"
-              }}>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 농장 이름
               </label>
               <input
@@ -327,23 +156,11 @@ export default function Settings({ farmSettings, setFarmSettings }: SettingsProp
                 onChange={(e) =>
                   setFarmSettings({ ...farmSettings, farmName: e.target.value })
                 }
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "8px",
-                  fontSize: "1rem"
-                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
               />
             </div>
-            <div style={{ marginBottom: "16px" }}>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#374151",
-                marginBottom: "4px"
-              }}>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 관리자 이름
               </label>
               <input
@@ -352,23 +169,11 @@ export default function Settings({ farmSettings, setFarmSettings }: SettingsProp
                 onChange={(e) =>
                   setFarmSettings({ ...farmSettings, adminName: e.target.value })
                 }
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "8px",
-                  fontSize: "1rem"
-                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
               />
             </div>
-            <div style={{ marginBottom: "16px" }}>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#374151",
-                marginBottom: "4px"
-              }}>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 비고
               </label>
               <textarea
@@ -377,30 +182,11 @@ export default function Settings({ farmSettings, setFarmSettings }: SettingsProp
                   setFarmSettings({ ...farmSettings, notes: e.target.value })
                 }
                 rows={4}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "8px",
-                  fontSize: "1rem",
-                  resize: "vertical"
-                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base resize-vertical"
               />
             </div>
             <button
-              style={{
-                width: "100%",
-                background: "#10b981",
-                color: "white",
-                fontWeight: "500",
-                padding: "8px 16px",
-                borderRadius: "8px",
-                border: "none",
-                cursor: "pointer",
-                transition: "background 0.2s"
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = "#059669"}
-              onMouseLeave={(e) => e.currentTarget.style.background = "#10b981"}
+              className="w-full bg-farm-500 hover:bg-farm-600 text-white font-medium px-4 py-2 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
             >
               저장
             </button>

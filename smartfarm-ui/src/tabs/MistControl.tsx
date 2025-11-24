@@ -53,98 +53,47 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   };
 
   return (
-    <div style={{ background: "#f9fafb" }}>
-      <div style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "0 16px"
-      }}>
-        <div style={{
-          background: "linear-gradient(to right, #10b981, #059669)",
-          borderRadius: "16px",
-          padding: "16px 24px",
-          marginBottom: "24px"
-        }}>
-          <h1 style={{
-            color: "white",
-            fontWeight: "700",
-            fontSize: "1.5rem",
-            margin: 0
-          }}>💧 분무수경 설정</h1>
-          <p style={{
-            color: "rgba(255, 255, 255, 0.8)",
-            fontSize: "0.875rem",
-            marginTop: "4px",
-            margin: 0
-          }}>각 Zone별 분무 인터벌 및 운전 시간대를 설정합니다</p>
+    <div className="bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="bg-gradient-to-r from-farm-500 to-farm-600 rounded-2xl px-6 py-4 mb-6">
+          <h1 className="text-white font-bold text-2xl m-0">💧 분무수경 설정</h1>
+          <p className="text-white/80 text-sm mt-1 m-0">각 Zone별 분무 인터벌 및 운전 시간대를 설정합니다</p>
         </div>
 
         {zones.map((zone) => {
           const modeColor = getModeColor(zone.mode);
           return (
-            <div key={zone.id} style={{
-              background: "white",
-              borderRadius: "16px",
-              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-              padding: "24px",
-              marginBottom: "24px"
-            }}>
+            <div key={zone.id} className="bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-200 p-6 mb-6">
               {/* 상단: Zone 이름 + 현재 모드 */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "16px"
-              }}>
-                <h2 style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  color: "#1f2937",
-                  margin: 0
-                }}>{zone.name}</h2>
-                <span style={{
-                  padding: "4px 12px",
-                  borderRadius: "9999px",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  background: modeColor.bg,
-                  color: modeColor.text
-                }}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-800 m-0">{zone.name}</h2>
+                <span
+                  className="px-3 py-1 rounded-full text-sm font-medium"
+                  style={{
+                    background: modeColor.bg,
+                    color: modeColor.text
+                  }}
+                >
                   {zone.mode}
                 </span>
               </div>
 
               {/* 모드 선택 */}
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{
-                  display: "block",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  color: "#374151",
-                  marginBottom: "8px"
-                }}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   운전 모드
                 </label>
-                <div style={{ display: "flex", gap: "16px" }}>
+                <div className="flex gap-4">
                   {(["OFF", "MANUAL", "AUTO"] as MistMode[]).map((mode) => (
-                    <label key={mode} style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      cursor: "pointer"
-                    }}>
+                    <label key={mode} className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="radio"
                         name={`mode-${zone.id}`}
                         checked={zone.mode === mode}
                         onChange={() => updateZone(zone.id, { mode })}
-                        style={{
-                          width: "16px",
-                          height: "16px",
-                          accentColor: "#10b981"
-                        }}
+                        className="w-4 h-4 accent-farm-500"
                       />
-                      <span style={{ color: "#374151" }}>{mode}</span>
+                      <span className="text-gray-700">{mode}</span>
                     </label>
                   ))}
                 </div>
@@ -152,22 +101,10 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
               {/* MANUAL 모드: 즉시 분무 버튼 */}
               {zone.mode === "MANUAL" && (
-                <div style={{ marginBottom: "16px" }}>
+                <div className="mb-4">
                   <button
                     onClick={() => handleManualSpray(zone)}
-                    style={{
-                      width: "100%",
-                      background: "#2563eb",
-                      color: "white",
-                      fontWeight: "500",
-                      padding: "12px 16px",
-                      borderRadius: "8px",
-                      border: "none",
-                      cursor: "pointer",
-                      transition: "background 0.2s"
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "#1d4ed8"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "#2563eb"}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
                   >
                     즉시 분무 실행
                   </button>
@@ -177,20 +114,9 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
               {/* AUTO 모드: 설정 폼 */}
               {zone.mode === "AUTO" && (
                 <div>
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                    gap: "16px",
-                    marginBottom: "16px"
-                  }}>
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
                     <div>
-                      <label style={{
-                        display: "block",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                        color: "#374151",
-                        marginBottom: "4px"
-                      }}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         분무 주기 (분)
                       </label>
                       <input
@@ -203,23 +129,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                           })
                         }
                         placeholder="예: 30"
-                        style={{
-                          width: "100%",
-                          padding: "8px 12px",
-                          border: "1px solid #d1d5db",
-                          borderRadius: "8px",
-                          fontSize: "1rem"
-                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
                       />
                     </div>
                     <div>
-                      <label style={{
-                        display: "block",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                        color: "#374151",
-                        marginBottom: "4px"
-                      }}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         분무 시간 (초)
                       </label>
                       <input
@@ -232,31 +146,14 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                           })
                         }
                         placeholder="예: 10"
-                        style={{
-                          width: "100%",
-                          padding: "8px 12px",
-                          border: "1px solid #d1d5db",
-                          borderRadius: "8px",
-                          fontSize: "1rem"
-                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
                       />
                     </div>
                   </div>
 
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                    gap: "16px",
-                    marginBottom: "16px"
-                  }}>
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-4">
                     <div>
-                      <label style={{
-                        display: "block",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                        color: "#374151",
-                        marginBottom: "4px"
-                      }}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         시작 시간
                       </label>
                       <input
@@ -265,23 +162,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                         onChange={(e) =>
                           updateZone(zone.id, { startTime: e.target.value })
                         }
-                        style={{
-                          width: "100%",
-                          padding: "8px 12px",
-                          border: "1px solid #d1d5db",
-                          borderRadius: "8px",
-                          fontSize: "1rem"
-                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
                       />
                     </div>
                     <div>
-                      <label style={{
-                        display: "block",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                        color: "#374151",
-                        marginBottom: "4px"
-                      }}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         종료 시간
                       </label>
                       <input
@@ -290,24 +175,13 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                         onChange={(e) =>
                           updateZone(zone.id, { endTime: e.target.value })
                         }
-                        style={{
-                          width: "100%",
-                          padding: "8px 12px",
-                          border: "1px solid #d1d5db",
-                          borderRadius: "8px",
-                          fontSize: "1rem"
-                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
                       />
                     </div>
                   </div>
 
-                  <div style={{ marginBottom: "16px" }}>
-                    <label style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      cursor: "pointer"
-                    }}>
+                  <div className="mb-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={zone.allowNightOperation}
@@ -316,31 +190,15 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                             allowNightOperation: e.target.checked,
                           })
                         }
-                        style={{
-                          width: "16px",
-                          height: "16px",
-                          accentColor: "#10b981"
-                        }}
+                        className="w-4 h-4 accent-farm-500"
                       />
-                      <span style={{ color: "#374151" }}>야간 운전 허용</span>
+                      <span className="text-gray-700">야간 운전 허용</span>
                     </label>
                   </div>
 
                   <button
                     onClick={() => handleSaveZone(zone)}
-                    style={{
-                      width: "100%",
-                      background: "#10b981",
-                      color: "white",
-                      fontWeight: "500",
-                      padding: "12px 16px",
-                      borderRadius: "8px",
-                      border: "none",
-                      cursor: "pointer",
-                      transition: "background 0.2s"
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "#059669"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "#10b981"}
+                    className="w-full bg-farm-500 hover:bg-farm-600 text-white font-medium px-4 py-3 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
                   >
                     설정 저장
                   </button>

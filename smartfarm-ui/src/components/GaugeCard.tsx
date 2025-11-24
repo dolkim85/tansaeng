@@ -25,66 +25,35 @@ export default function GaugeCard({
   };
 
   return (
-    <div style={{
-      background: "white",
-      borderRadius: "12px",
-      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-      padding: "24px"
-    }}>
+    <div className="bg-white rounded-xl shadow-card hover:shadow-card-hover transition-all duration-200 p-6">
       {/* 헤더 */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "12px",
-        marginBottom: "16px"
-      }}>
-        <span style={{ fontSize: "1.875rem" }}>{icon}</span>
-        <h3 style={{
-          fontSize: "1.125rem",
-          fontWeight: "600",
-          color: "#1f2937"
-        }}>{title}</h3>
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-3xl">{icon}</span>
+        <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
       </div>
 
       {/* 값 표시 */}
-      <div style={{ textAlign: "center", marginBottom: "16px" }}>
-        <div style={{
-          fontSize: "3rem",
-          fontWeight: "700",
-          color: hasValue ? "#059669" : "#d1d5db"
-        }}>
+      <div className="text-center mb-4">
+        <div className={`text-5xl font-bold ${hasValue ? 'text-farm-600' : 'text-gray-300'}`}>
           {hasValue ? value : "-"}
           {hasValue && (
-            <span style={{
-              fontSize: "1.5rem",
-              fontWeight: "400",
-              marginLeft: "8px"
-            }}>{unit}</span>
+            <span className="text-2xl font-normal ml-2">{unit}</span>
           )}
         </div>
         {!hasValue && (
-          <div style={{
-            fontSize: "0.875rem",
-            color: "#6b7280",
-            marginTop: "8px"
-          }}>측정 대기중</div>
+          <div className="text-sm text-gray-500 mt-2">측정 대기중</div>
         )}
       </div>
 
       {/* 게이지 바 */}
-      <div style={{
-        width: "100%",
-        background: "#e5e7eb",
-        borderRadius: "9999px",
-        height: "12px",
-        overflow: "hidden"
-      }}>
-        <div style={{
-          height: "100%",
-          background: colorMap[color],
-          width: `${percentage}%`,
-          transition: "all 0.5s"
-        }} />
+      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+        <div
+          className="h-full transition-all duration-500"
+          style={{
+            background: colorMap[color],
+            width: `${percentage}%`
+          }}
+        />
       </div>
     </div>
   );

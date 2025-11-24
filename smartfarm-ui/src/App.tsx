@@ -52,12 +52,7 @@ function App() {
   }, []);
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      height: "100vh",
-      background: "#f3f4f6"
-    }}>
+    <div className="flex flex-col h-screen bg-gray-100">
       {/* 상단 헤더 */}
       <Header connectionState={connectionState} />
 
@@ -65,13 +60,7 @@ function App() {
       <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* 메인 콘텐츠 - 스크롤 가능 */}
-      <main style={{
-        flex: "1 1 auto",
-        overflowY: "auto",
-        overflowX: "hidden",
-        paddingBottom: "20px",
-        minHeight: "0"
-      }}>
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-5 min-h-0">
         {activeTab === "devices" && (
           <DevicesControl
             deviceState={deviceState}
@@ -94,25 +83,10 @@ function App() {
       </main>
 
       {/* 푸터 */}
-      <footer style={{
-        background: "white",
-        borderTop: "1px solid #e5e7eb",
-        padding: "12px 16px",
-        flexShrink: 0
-      }}>
-        <div style={{
-          maxWidth: "1400px",
-          margin: "0 auto",
-          textAlign: "center",
-          fontSize: "0.75rem",
-          color: "#6b7280"
-        }}>
-          <p style={{ margin: "0 0 4px 0" }}>탄생농원 스마트팜 환경제어 시스템 v2.5</p>
-          <p style={{
-            fontSize: "0.7rem",
-            color: "#9ca3af",
-            margin: "0"
-          }}>
+      <footer className="bg-white border-t border-gray-200 px-4 py-3 flex-shrink-0">
+        <div className="max-w-screen-2xl mx-auto text-center text-xs text-gray-500">
+          <p className="mb-1">탄생농원 스마트팜 환경제어 시스템 v2.5</p>
+          <p className="text-2xs text-gray-400">
             Powered by React + TypeScript + HiveMQ Cloud
           </p>
         </div>

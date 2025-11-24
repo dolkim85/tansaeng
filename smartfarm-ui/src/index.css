@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* Reset and base styles */
 * {
   box-sizing: border-box;
@@ -6,9 +8,7 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -16,25 +16,15 @@ body {
 #root {
   width: 100%;
   height: 100vh;
-  overflow: hidden;  /* body 스크롤 방지, main만 스크롤 */
+  overflow: hidden;
 }
 
 html, body {
   height: 100%;
-  overflow: hidden;  /* 전체 body 스크롤 막기 */
+  overflow: hidden;
 }
 
-/* Pulse animation for status indicators */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-/* 슬라이더 thumb 스타일 */
+/* Custom slider thumb styles */
 .slider-thumb::-webkit-slider-thumb {
   appearance: none;
   width: 28px;
@@ -47,12 +37,12 @@ html, body {
 }
 
 .slider-thumb::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+  transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(16, 185, 129, 0.7);
 }
 
 .slider-thumb::-webkit-slider-thumb:active {
-  transform: scale(1.1);
+  transform: scale(1.05);
 }
 
 .slider-thumb::-moz-range-thumb {
@@ -67,10 +57,10 @@ html, body {
 }
 
 .slider-thumb::-moz-range-thumb:hover {
-  transform: scale(1.2);
+  transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(16, 185, 129, 0.7);
 }
 
 .slider-thumb::-moz-range-thumb:active {
-  transform: scale(1.1);
+  transform: scale(1.05);
 }

@@ -49,51 +49,18 @@ export default function Cameras({ cameras, setCameras }: CamerasProps) {
   };
 
   return (
-    <div style={{ background: "#f9fafb" }}>
-      <div style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "0 16px"
-      }}>
-        <div style={{
-          background: "linear-gradient(to right, #10b981, #059669)",
-          borderRadius: "16px",
-          padding: "16px 24px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "24px"
-        }}>
+    <div className="bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="bg-gradient-to-r from-farm-500 to-farm-600 rounded-2xl px-6 py-4 flex items-center justify-between mb-6">
           <div>
-            <h1 style={{
-              color: "white",
-              fontWeight: "700",
-              fontSize: "1.5rem",
-              margin: 0
-            }}>📷 카메라</h1>
-            <p style={{
-              color: "rgba(255, 255, 255, 0.8)",
-              fontSize: "0.875rem",
-              marginTop: "4px",
-              margin: 0
-            }}>
+            <h1 className="text-white font-bold text-2xl m-0">📷 카메라</h1>
+            <p className="text-white/80 text-sm mt-1 m-0">
               RTSP/HTTP 스트림 카메라를 추가하고 관리합니다
             </p>
           </div>
           <button
             onClick={() => setIsAdding(true)}
-            style={{
-              background: "white",
-              color: "#10b981",
-              fontWeight: "500",
-              padding: "8px 16px",
-              borderRadius: "8px",
-              border: "none",
-              cursor: "pointer",
-              transition: "background 0.2s"
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = "#d1fae5"}
-            onMouseLeave={(e) => e.currentTarget.style.background = "white"}
+            className="bg-white hover:bg-farm-50 text-farm-500 font-medium px-4 py-2 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
           >
             + 카메라 추가
           </button>
@@ -101,30 +68,13 @@ export default function Cameras({ cameras, setCameras }: CamerasProps) {
 
         {/* 카메라 추가 폼 */}
         {isAdding && (
-          <div style={{
-            background: "white",
-            borderRadius: "16px",
-            boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-            padding: "24px",
-            marginBottom: "24px"
-          }}>
-            <h2 style={{
-              fontSize: "1.125rem",
-              fontWeight: "600",
-              color: "#1f2937",
-              marginBottom: "16px"
-            }}>
+          <div className="bg-white rounded-2xl shadow-card p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">
               새 카메라 추가
             </h2>
             <div>
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{
-                  display: "block",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  color: "#374151",
-                  marginBottom: "4px"
-                }}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   카메라 이름
                 </label>
                 <input
@@ -134,23 +84,11 @@ export default function Cameras({ cameras, setCameras }: CamerasProps) {
                     setNewCamera({ ...newCamera, name: e.target.value })
                   }
                   placeholder="예: 온실 입구 카메라"
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "8px",
-                    fontSize: "1rem"
-                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
                 />
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{
-                  display: "block",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  color: "#374151",
-                  marginBottom: "4px"
-                }}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   스트림 URL
                 </label>
                 <input
@@ -160,23 +98,11 @@ export default function Cameras({ cameras, setCameras }: CamerasProps) {
                     setNewCamera({ ...newCamera, streamUrl: e.target.value })
                   }
                   placeholder="rtsp://... 또는 http://..."
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "8px",
-                    fontSize: "1rem"
-                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
                 />
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{
-                  display: "block",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  color: "#374151",
-                  marginBottom: "4px"
-                }}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   관련 장치 (선택사항)
                 </label>
                 <input
@@ -186,49 +112,19 @@ export default function Cameras({ cameras, setCameras }: CamerasProps) {
                     setNewCamera({ ...newCamera, relatedEsp32: e.target.value })
                   }
                   placeholder="예: esp32-node-4"
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "8px",
-                    fontSize: "1rem"
-                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
                 />
               </div>
-              <div style={{ display: "flex", gap: "12px" }}>
+              <div className="flex gap-3">
                 <button
                   onClick={handleAddCamera}
-                  style={{
-                    flex: 1,
-                    background: "#10b981",
-                    color: "white",
-                    fontWeight: "500",
-                    padding: "8px 16px",
-                    borderRadius: "8px",
-                    border: "none",
-                    cursor: "pointer",
-                    transition: "background 0.2s"
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "#059669"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = "#10b981"}
+                  className="flex-1 bg-farm-500 hover:bg-farm-600 text-white font-medium px-4 py-2 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
                 >
                   추가
                 </button>
                 <button
                   onClick={() => setIsAdding(false)}
-                  style={{
-                    flex: 1,
-                    background: "#e5e7eb",
-                    color: "#374151",
-                    fontWeight: "500",
-                    padding: "8px 16px",
-                    borderRadius: "8px",
-                    border: "none",
-                    cursor: "pointer",
-                    transition: "background 0.2s"
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "#d1d5db"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = "#e5e7eb"}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium px-4 py-2 rounded-lg border-none cursor-pointer transition-all duration-200"
                 >
                   취소
                 </button>
@@ -239,145 +135,57 @@ export default function Cameras({ cameras, setCameras }: CamerasProps) {
 
         {/* 카메라 리스트 */}
         {cameras.length === 0 ? (
-          <div style={{
-            background: "white",
-            borderRadius: "16px",
-            boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-            padding: "48px",
-            textAlign: "center"
-          }}>
-            <div style={{
-              color: "#9ca3af",
-              fontSize: "2.25rem",
-              marginBottom: "16px"
-            }}>📷</div>
-            <p style={{
-              color: "#6b7280",
-              margin: "0 0 8px 0"
-            }}>등록된 카메라가 없습니다.</p>
-            <p style={{
-              color: "#9ca3af",
-              fontSize: "0.875rem",
-              margin: 0
-            }}>
+          <div className="bg-white rounded-2xl shadow-card p-12 text-center">
+            <div className="text-gray-400 text-4xl mb-4">📷</div>
+            <p className="text-gray-500 m-0 mb-2">등록된 카메라가 없습니다.</p>
+            <p className="text-gray-400 text-sm m-0">
               상단의 "카메라 추가" 버튼을 눌러 카메라를 추가하세요.
             </p>
           </div>
         ) : (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: "24px"
-          }}>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-6">
             {cameras.map((camera) => (
               <div
                 key={camera.id}
-                style={{
-                  background: "white",
-                  borderRadius: "16px",
-                  boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                  overflow: "hidden"
-                }}
+                className="bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-200 overflow-hidden"
               >
                 {/* 미리보기 영역 */}
-                <div style={{
-                  background: "#111827",
-                  aspectRatio: "16 / 9",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center"
-                }}>
+                <div className="bg-gray-900 aspect-video flex items-center justify-center">
                   {camera.streamUrl ? (
-                    <div style={{
-                      color: "#9ca3af",
-                      fontSize: "0.875rem",
-                      textAlign: "center",
-                      padding: "16px"
-                    }}>
-                      <div style={{
-                        fontSize: "1.875rem",
-                        marginBottom: "8px"
-                      }}>📹</div>
-                      <div style={{
-                        fontSize: "0.75rem",
-                        wordBreak: "break-all"
-                      }}>{camera.streamUrl}</div>
-                      <div style={{
-                        fontSize: "0.75rem",
-                        marginTop: "8px",
-                        color: "#6b7280"
-                      }}>
+                    <div className="text-gray-400 text-sm text-center p-4">
+                      <div className="text-3xl mb-2">📹</div>
+                      <div className="text-xs break-all">{camera.streamUrl}</div>
+                      <div className="text-xs mt-2 text-gray-500">
                         스트림 미리보기는 별도 플레이어가 필요합니다
                       </div>
                     </div>
                   ) : (
-                    <div style={{
-                      color: "#6b7280",
-                      fontSize: "0.875rem"
-                    }}>URL 미설정</div>
+                    <div className="text-gray-500 text-sm">URL 미설정</div>
                   )}
                 </div>
 
                 {/* 카메라 정보 */}
-                <div style={{ padding: "16px" }}>
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: "8px"
-                  }}>
-                    <h3 style={{
-                      fontWeight: "600",
-                      color: "#1f2937",
-                      margin: 0
-                    }}>{camera.name}</h3>
-                    <label style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      cursor: "pointer"
-                    }}>
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-gray-800 m-0">{camera.name}</h3>
+                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={camera.enabled}
                         onChange={() => handleToggleEnabled(camera.id)}
-                        style={{
-                          width: "16px",
-                          height: "16px",
-                          accentColor: "#10b981"
-                        }}
+                        className="w-4 h-4 accent-farm-500"
                       />
-                      <span style={{
-                        fontSize: "0.875rem",
-                        color: "#4b5563"
-                      }}>활성</span>
+                      <span className="text-sm text-gray-600">활성</span>
                     </label>
                   </div>
                   {camera.relatedEsp32 && (
-                    <div style={{
-                      fontSize: "0.75rem",
-                      color: "#6b7280",
-                      marginBottom: "12px"
-                    }}>
+                    <div className="text-xs text-gray-500 mb-3">
                       관련 장치: {camera.relatedEsp32}
                     </div>
                   )}
                   <button
                     onClick={() => handleDeleteCamera(camera.id)}
-                    style={{
-                      width: "100%",
-                      background: "#fef2f2",
-                      color: "#dc2626",
-                      fontWeight: "500",
-                      padding: "8px 16px",
-                      borderRadius: "8px",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: "0.875rem",
-                      transition: "background 0.2s"
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "#fee2e2"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "#fef2f2"}
+                    className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-medium px-4 py-2 rounded-lg border-none cursor-pointer text-sm transition-all duration-200"
                   >
                     삭제
                   </button>
