@@ -101,11 +101,18 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     header('Pragma: no-cache');
     header('Expires: 0');
     header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
+    header('Clear-Site-Data: "cache", "storage"');
 
-    // 타임스탬프로 캐시 무효화
-    $timestamp = time();
+    // 타임스탬프 + 랜덤으로 강력한 캐시 무효화
+    $timestamp = time() . rand(1000, 9999);
     ?>
     <script>
+        // 페이지 로드 시 완전히 새로고침 (캐시 무시)
+        if (performance.navigation.type !== 1) {
+            // 최초 로드일 경우 강제 새로고침
+            window.location.href = window.location.href + (window.location.href.includes('?') ? '&' : '?') + '_=' + Date.now();
+        }
+
         // 강제 캐시 무효화
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(function(registrations) {
@@ -119,6 +126,11 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
                 for (let name of names) caches.delete(name);
             });
         }
+
+        // localStorage 강제 삭제
+        try {
+            localStorage.clear();
+        } catch(e) {}
     </script>
     <div id="root"></div>
     <script type="module" crossorigin src="/smartfarm-ui/dist/assets/index-C8TDPs8i.js?v=<?php echo $timestamp; ?>"></script>
