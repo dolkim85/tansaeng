@@ -18,37 +18,73 @@ export default function GaugeCard({
   const hasValue = value !== null && value !== undefined;
   const percentage = hasValue ? Math.min((value / maxValue) * 100, 100) : 0;
 
-  const colorClasses = {
-    green: "bg-green-600",
-    blue: "bg-blue-600",
-    orange: "bg-orange-500",
+  const colorMap = {
+    green: "#059669",
+    blue: "#2563eb",
+    orange: "#f97316",
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
+    <div style={{
+      background: "white",
+      borderRadius: "12px",
+      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+      padding: "24px"
+    }}>
       {/* 헤더 */}
-      <div className="flex items-center gap-3">
-        <span className="text-3xl">{icon}</span>
-        <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+        marginBottom: "16px"
+      }}>
+        <span style={{ fontSize: "1.875rem" }}>{icon}</span>
+        <h3 style={{
+          fontSize: "1.125rem",
+          fontWeight: "600",
+          color: "#1f2937"
+        }}>{title}</h3>
       </div>
 
       {/* 값 표시 */}
-      <div className="text-center">
-        <div className={`text-5xl font-bold ${hasValue ? "text-green-600" : "text-gray-300"}`}>
+      <div style={{ textAlign: "center", marginBottom: "16px" }}>
+        <div style={{
+          fontSize: "3rem",
+          fontWeight: "700",
+          color: hasValue ? "#059669" : "#d1d5db"
+        }}>
           {hasValue ? value : "-"}
-          {hasValue && <span className="text-2xl font-normal ml-2">{unit}</span>}
+          {hasValue && (
+            <span style={{
+              fontSize: "1.5rem",
+              fontWeight: "400",
+              marginLeft: "8px"
+            }}>{unit}</span>
+          )}
         </div>
         {!hasValue && (
-          <div className="text-sm text-gray-500 mt-2">측정 대기중</div>
+          <div style={{
+            fontSize: "0.875rem",
+            color: "#6b7280",
+            marginTop: "8px"
+          }}>측정 대기중</div>
         )}
       </div>
 
       {/* 게이지 바 */}
-      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-        <div
-          className={`h-full transition-all duration-500 ${colorClasses[color]}`}
-          style={{ width: `${percentage}%` }}
-        />
+      <div style={{
+        width: "100%",
+        background: "#e5e7eb",
+        borderRadius: "9999px",
+        height: "12px",
+        overflow: "hidden"
+      }}>
+        <div style={{
+          height: "100%",
+          background: colorMap[color],
+          width: `${percentage}%`,
+          transition: "all 0.5s"
+        }} />
       </div>
     </div>
   );

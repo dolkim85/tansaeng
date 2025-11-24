@@ -8,9 +8,23 @@ export default function SensorRow({ label, value, unit }: SensorRowProps) {
   const hasValue = value !== null && value !== undefined;
 
   return (
-    <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-      <dt className="text-sm text-gray-600">{label}</dt>
-      <dd className={`text-base font-semibold ${hasValue ? "text-gray-800" : "text-gray-400"}`}>
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingTop: "8px",
+      paddingBottom: "8px",
+      borderBottom: "1px solid #f3f4f6"
+    }}>
+      <dt style={{
+        fontSize: "0.875rem",
+        color: "#4b5563"
+      }}>{label}</dt>
+      <dd style={{
+        fontSize: "1rem",
+        fontWeight: "600",
+        color: hasValue ? "#1f2937" : "#9ca3af"
+      }}>
         {hasValue ? `${value}${unit}` : "측정 대기중"}
       </dd>
     </div>
