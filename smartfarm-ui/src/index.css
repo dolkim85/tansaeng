@@ -16,6 +16,12 @@ body {
 #root {
   width: 100%;
   height: 100vh;
+  overflow: hidden;  /* body 스크롤 방지, main만 스크롤 */
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;  /* 전체 body 스크롤 막기 */
 }
 
 /* Pulse animation for status indicators */
