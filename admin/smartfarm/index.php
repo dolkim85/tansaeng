@@ -101,7 +101,7 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     ?>
     <script>
         // 강제 캐시 무효화 (버전별로 실행)
-        const APP_VERSION = 'v2.9.3';
+        const APP_VERSION = 'v2.9.4';
         if (sessionStorage.getItem('app_version') !== APP_VERSION) {
             sessionStorage.setItem('app_version', APP_VERSION);
 
