@@ -50,16 +50,16 @@ export default function Header({ connectionState }: HeaderProps) {
   };
 
   return (
-    <header className="bg-gradient-to-r from-farm-500 to-farm-600 text-white shadow-lg flex-shrink-0">
+    <header className="bg-farm-500 shadow-lg flex-shrink-0">
       <div className="max-w-screen-2xl mx-auto px-4 py-3">
         <div className="flex items-center justify-between flex-wrap gap-3">
           {/* 좌측: 로고 */}
-          <div className="text-lg font-bold">
+          <div className="text-lg font-bold text-gray-900">
             탄생농원 | Tansaeng SmartFarm
           </div>
 
           {/* 중앙: 현재 시간 */}
-          <div className="text-sm font-medium">
+          <div className="text-sm font-medium text-gray-800">
             {currentTime.toLocaleString("ko-KR", {
               year: "numeric",
               month: "2-digit",

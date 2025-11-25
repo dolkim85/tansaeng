@@ -24,6 +24,17 @@ html, body {
   overflow: hidden;
 }
 
+/* 스크롤바 숨기기 (webkit 브라우저) */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* 스크롤바 숨기기 (Firefox) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Custom slider thumb styles */
 .slider-thumb::-webkit-slider-thumb {
   appearance: none;
