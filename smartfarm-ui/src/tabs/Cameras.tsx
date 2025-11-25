@@ -53,7 +53,7 @@ export default function Cameras({ cameras, setCameras }: CamerasProps) {
       <div className="max-w-7xl mx-auto px-4">
         <div className="bg-gradient-to-r from-farm-500 to-farm-600 rounded-2xl px-6 py-4 flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-white font-bold text-2xl m-0">📷 카메라</h1>
+            <h1 className="text-gray-900 font-bold text-2xl m-0">📷 카메라</h1>
             <p className="text-white/80 text-sm mt-1 m-0">
               RTSP/HTTP 스트림 카메라를 추가하고 관리합니다
             </p>
@@ -118,7 +118,7 @@ export default function Cameras({ cameras, setCameras }: CamerasProps) {
               <div className="flex gap-3">
                 <button
                   onClick={handleAddCamera}
-                  className="flex-1 bg-farm-500 hover:bg-farm-600 text-white font-medium px-4 py-2 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
+                  className="flex-1 bg-farm-500 hover:bg-farm-600 text-gray-900 font-medium px-4 py-2 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
                 >
                   추가
                 </button>

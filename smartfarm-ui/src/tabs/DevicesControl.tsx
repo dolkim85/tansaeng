@@ -63,21 +63,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     <div className="bg-gray-50">
       <div className="max-w-screen-2xl mx-auto p-3">
         {/* ESP32 연결 상태 헤더 */}
-        <header className="bg-gradient-to-r from-farm-500 to-farm-600 text-white px-4 py-3 rounded-lg mb-3 shadow-md">
+        <header className="bg-white border-2 border-farm-500 px-4 py-3 rounded-lg mb-3 shadow-md">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold mb-1">⚙️ 장치 제어</h1>
-              <p className="text-xs opacity-80">
+              <h1 className="text-xl font-bold mb-1 text-gray-900">⚙️ 장치 제어</h1>
+              <p className="text-xs text-gray-600">
                 팬, 개폐기, 펌프 등 장치를 원격으로 제어합니다
               </p>
             </div>
             {/* ESP32 연결 상태 */}
-            <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-md">
+            <div className="flex items-center gap-2 bg-farm-50 border border-farm-200 px-3 py-1.5 rounded-md">
               <div className={`
                 w-2.5 h-2.5 rounded-full
-                ${mqttConnected ? 'bg-farm-200 animate-pulse' : 'bg-red-300'}
+                ${mqttConnected ? 'bg-farm-500 animate-pulse' : 'bg-red-500'}
               `}></div>
-              <span className="text-xs font-medium">
+              <span className="text-xs font-medium text-gray-900">
                 {mqttConnected ? 'ESP32 연결됨' : 'ESP32 연결 끊김'}
               </span>
             </div>
@@ -86,11 +86,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
         {/* 팬 제어 섹션 */}
         <section className="mb-3">
-          <header className="bg-gradient-to-r from-farm-500 to-farm-600 text-white px-4 py-2.5 rounded-t-lg flex items-center justify-between">
-            <h2 className="text-base font-semibold flex items-center gap-1.5">
+          <header className="bg-farm-500 px-4 py-2.5 rounded-t-lg flex items-center justify-between">
+            <h2 className="text-base font-semibold flex items-center gap-1.5 text-gray-900">
               🌀 팬 제어
             </h2>
-            <span className="text-xs opacity-80">총 {fans.length}개</span>
+            <span className="text-xs text-gray-800">총 {fans.length}개</span>
           </header>
           <div className="bg-white shadow-sm rounded-b-lg p-3">
             <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3">
@@ -109,11 +109,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
         {/* 개폐기 제어 섹션 */}
         <section className="mb-3">
-          <header className="bg-gradient-to-r from-farm-500 to-farm-600 text-white px-4 py-2.5 rounded-t-lg flex items-center justify-between">
-            <h2 className="text-base font-semibold flex items-center gap-1.5">
+          <header className="bg-farm-500 px-4 py-2.5 rounded-t-lg flex items-center justify-between">
+            <h2 className="text-base font-semibold flex items-center gap-1.5 text-gray-900">
               🪟 개폐기 제어
             </h2>
-            <span className="text-xs opacity-80">총 {vents.length}개</span>
+            <span className="text-xs text-gray-800">총 {vents.length}개</span>
           </header>
           <div className="bg-white shadow-sm rounded-b-lg p-3">
             <div className="grid grid-cols-[repeat(auto-fit,minmax(350px,1fr))] gap-3">
@@ -133,11 +133,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
         {/* 펌프 제어 섹션 */}
         <section className="mb-3">
-          <header className="bg-gradient-to-r from-farm-500 to-farm-600 text-white px-4 py-2.5 rounded-t-lg flex items-center justify-between">
-            <h2 className="text-base font-semibold flex items-center gap-1.5">
+          <header className="bg-farm-500 px-4 py-2.5 rounded-t-lg flex items-center justify-between">
+            <h2 className="text-base font-semibold flex items-center gap-1.5 text-gray-900">
               💧 펌프 제어
             </h2>
-            <span className="text-xs opacity-80">총 {pumps.length}개</span>
+            <span className="text-xs text-gray-800">총 {pumps.length}개</span>
           </header>
           <div className="bg-white shadow-sm rounded-b-lg p-3">
             <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3">

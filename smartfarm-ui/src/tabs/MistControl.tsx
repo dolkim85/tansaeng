@@ -56,7 +56,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     <div className="bg-gray-50">
       <div className="max-w-7xl mx-auto px-4">
         <div className="bg-gradient-to-r from-farm-500 to-farm-600 rounded-2xl px-6 py-4 mb-6">
-          <h1 className="text-white font-bold text-2xl m-0">💧 분무수경 설정</h1>
+          <h1 className="text-gray-900 font-bold text-2xl m-0">💧 분무수경 설정</h1>
           <p className="text-white/80 text-sm mt-1 m-0">각 Zone별 분무 인터벌 및 운전 시간대를 설정합니다</p>
         </div>
 
@@ -104,7 +104,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                 <div className="mb-4">
                   <button
                     onClick={() => handleManualSpray(zone)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-gray-900 font-medium px-4 py-3 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
                   >
                     즉시 분무 실행
                   </button>
@@ -198,7 +198,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
                   <button
                     onClick={() => handleSaveZone(zone)}
-                    className="w-full bg-farm-500 hover:bg-farm-600 text-white font-medium px-4 py-3 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
+                    className="w-full bg-farm-500 hover:bg-farm-600 text-gray-900 font-medium px-4 py-3 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
                   >
                     설정 저장
                   </button>

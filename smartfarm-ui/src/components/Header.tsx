@@ -53,9 +53,27 @@ export default function Header({ connectionState }: HeaderProps) {
     <header className="bg-farm-500 shadow-lg flex-shrink-0">
       <div className="max-w-screen-2xl mx-auto px-4 py-3">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          {/* 좌측: 로고 */}
-          <div className="text-lg font-bold text-gray-900">
-            탄생농원 | Tansaeng SmartFarm
+          {/* 좌측: 로고 + 링크 */}
+          <div className="flex items-center gap-3">
+            <div className="text-lg font-bold text-gray-900">
+              탄생농원 | Tansaeng SmartFarm
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href="/"
+                target="_blank"
+                className="text-xs px-2 py-1 bg-white text-farm-700 rounded hover:bg-farm-50 transition-colors font-medium"
+              >
+                메인페이지
+              </a>
+              <a
+                href="/admin/"
+                target="_blank"
+                className="text-xs px-2 py-1 bg-white text-farm-700 rounded hover:bg-farm-50 transition-colors font-medium"
+              >
+                관리자
+              </a>
+            </div>
           </div>
 
           {/* 중앙: 현재 시간 */}

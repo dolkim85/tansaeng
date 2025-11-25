@@ -64,11 +64,11 @@ export default function Environment() {
     <div className="bg-gray-50">
       <div className="max-w-7xl mx-auto px-4">
         {/* 페이지 헤더 */}
-        <header className="bg-gradient-to-r from-farm-500 to-farm-600 text-white p-4 sm:px-6 rounded-xl mb-6">
+        <header className="bg-farm-500 p-4 sm:px-6 rounded-xl mb-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold m-0">📊 환경 모니터링</h1>
-              <p className="text-sm opacity-80 mt-1 m-0">
+              <p className="text-sm text-gray-800 mt-1 m-0">
                 온도, 습도, EC, pH 등 센서 데이터를 실시간으로 모니터링합니다
               </p>
             </div>
@@ -84,7 +84,7 @@ export default function Environment() {
 
         {/* 필터 섹션 */}
         <section className="mb-6">
-          <header className="bg-gradient-to-r from-farm-500 to-farm-600 text-white px-6 py-4 rounded-t-xl">
+          <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
             <h2 className="text-xl font-semibold m-0">🔍 조회 조건</h2>
           </header>
           <div className="bg-white rounded-b-xl shadow-card p-6">
@@ -145,7 +145,7 @@ export default function Environment() {
 
         {/* 실시간 센서 데이터 */}
         <section className="mb-6">
-          <header className="bg-gradient-to-r from-farm-500 to-farm-600 text-white px-6 py-4 rounded-t-xl">
+          <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
             <h2 className="text-xl font-semibold m-0">📈 실시간 센서 데이터</h2>
           </header>
           <div className="bg-white rounded-b-xl shadow-card p-6">
@@ -163,7 +163,7 @@ export default function Environment() {
 
         {/* 온도/습도 타임라인 */}
         <section className="mb-6">
-          <header className="bg-gradient-to-r from-farm-500 to-farm-600 text-white px-6 py-4 rounded-t-xl">
+          <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
             <h2 className="text-xl font-semibold m-0">📊 온도/습도 타임라인</h2>
           </header>
           <div className="bg-white rounded-b-xl shadow-card p-6">
@@ -181,7 +181,7 @@ export default function Environment() {
 
         {/* EC/pH/수위 타임라인 */}
         <section className="mb-6">
-          <header className="bg-gradient-to-r from-farm-500 to-farm-600 text-white px-6 py-4 rounded-t-xl">
+          <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
             <h2 className="text-xl font-semibold m-0">💧 EC/pH/수위 타임라인</h2>
           </header>
           <div className="bg-white rounded-b-xl shadow-card p-6">
