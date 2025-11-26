@@ -7,7 +7,7 @@ import CameraPage from './pages/CameraPage.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/smartfarm-ui">
       <Routes>
         {/* 기존 스마트팜 환경제어 앱 (루트 경로) */}
         <Route path="/" element={<App />} />
