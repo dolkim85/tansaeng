@@ -1,5 +1,70 @@
 # 스마트팜 환경제어 시스템 - 변경 이력
 
+## v3.4.0 (2025-11-26) 📹 **Tapo 카메라 전용 페이지 추가**
+
+### ✨ 새로운 기능
+- **독립된 /camera 페이지 추가**:
+  - React Router 도입으로 페이지 라우팅 지원
+  - TP-Link Tapo 카메라 4대 전용 모니터링 페이지
+  - 기존 스마트팜 UI와 완전히 분리된 독립 페이지
+
+- **Tapo 카메라 스트리밍**:
+  - HLS 스트림 직접 재생 (Nginx/SRS 서버)
+  - 4대의 카메라 2x2 그리드 레이아웃
+  - 반응형 디자인 (모바일 1열, 데스크톱 2열)
+  - 저지연 모드 라이브 스트리밍
+
+- **새로운 컴포넌트**:
+  - `TapoCameraView`: HLS 재생 전용 컴포넌트
+  - `CameraPage`: 카메라 모니터링 페이지
+  - 브라우저 호환성 자동 처리 (hls.js + Safari native)
+
+### 🔧 기술 구현
+- **React Router 추가**:
+  - `/` - 기존 스마트팜 환경제어 앱
+  - `/camera` - 새로운 Tapo 카메라 페이지
+  - BrowserRouter 기반 라우팅
+
+- **환경변수 설정**:
+  - `VITE_TAPO_CAM1_HLS_URL` ~ `VITE_TAPO_CAM4_HLS_URL`
+  - TypeScript 타입 정의 추가 (vite-env.d.ts)
+  - .env 파일로 HLS URL 관리
+
+- **HLS 스트리밍 최적화**:
+  - liveBackBufferLength: 0 (지연 최소화)
+  - lowLatencyMode: true
+  - 네트워크 오류 자동 재시도
+  - 로딩/에러 상태 표시
+
+### 📦 빌드 정보
+- **JavaScript**: 1,163.43KB (gzip: 357.80KB)
+- **CSS**: 24.76KB (gzip: 5.41KB)
+- **빌드 파일**: `index-C56F581z.js`, `index-DrwB0a3n.css`
+- **새 의존성**: react-router-dom@^7.6.3
+
+### 🔧 파일 변경사항
+- **신규 파일**:
+  - `src/vite-env.d.ts` - Vite 환경변수 TypeScript 타입 정의
+  - `src/components/camera/TapoCameraView.tsx` - HLS 카메라 재생 컴포넌트
+  - `src/pages/CameraPage.tsx` - 카메라 모니터링 페이지
+
+- **수정 파일**:
+  - `src/main.tsx` - React Router 추가 및 라우팅 설정
+  - `package.json` - react-router-dom 의존성 추가
+
+### ⚙️ 기능 보존
+- ✅ 기존 스마트팜 UI 100% 유지 (루트 경로)
+- ✅ MQTT 연결 및 제어 기능 변경 없음
+- ✅ 기존 카메라 탭 정상 작동
+- ✅ 센서 모니터링 및 장치 제어 유지
+- ✅ PHP 백엔드 변경 없음
+
+### 🚀 사용 방법
+- 기존 앱: `https://www.tansaeng.com/`
+- Tapo 카메라: `https://www.tansaeng.com/camera`
+
+---
+
 ## v3.3.1 (2025-11-26) 🎯 **카메라 UI 개선: 각 카메라별 직접 편집 기능**
 
 ### ✨ 주요 개선사항
