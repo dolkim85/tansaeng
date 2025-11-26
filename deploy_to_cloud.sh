@@ -11,7 +11,7 @@ CLOUD_USER="ubuntu"
 SSH_KEY="/home/spinmoll/.ssh/tansaeng.pem"
 CLOUD_PATH="/var/www/html"
 REPO_URL="https://github.com/dolkim85/tansaeng.git"
-DEPLOY_TAG="v2.2.0-간격축소"
+DEPLOY_TAG="v3.4.0"
 DOMAIN="www.tansaeng.com"
 
 # Git 상태 확인
@@ -65,7 +65,7 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         sudo git pull origin main
     fi
 
-    echo "✅ Version v2.2.0-간격축소 체크아웃 완료"
+    echo "✅ Version v3.4.0 체크아웃 완료"
 
     # 권한 설정
     echo "🔐 파일 권한 설정 중..."
@@ -143,14 +143,20 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         echo "🏭 스마트팜 React 앱 빌드 중..."
         cd /var/www/html/smartfarm-ui
 
-        # .env 파일 생성 (HiveMQ Cloud 설정)
-        echo "📝 HiveMQ Cloud 설정 중..."
+        # .env 파일 생성 (HiveMQ Cloud + Tapo 카메라 설정)
+        echo "📝 HiveMQ Cloud 및 Tapo 카메라 설정 중..."
         sudo bash -c 'cat > .env << '\''ENVEOF'\''
 # HiveMQ Cloud WebSocket Configuration
 VITE_MQTT_HOST=22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud
 VITE_MQTT_WS_PORT=8884
 VITE_MQTT_USERNAME=esp32-client-01
 VITE_MQTT_PASSWORD=Qjawns3445
+
+# Tapo 카메라 HLS 스트림 URL (Nginx/SRS 서버에서 제공)
+VITE_TAPO_CAM1_HLS_URL=https://www.tansaeng.com/live/tapo1.m3u8
+VITE_TAPO_CAM2_HLS_URL=https://www.tansaeng.com/live/tapo2.m3u8
+VITE_TAPO_CAM3_HLS_URL=https://www.tansaeng.com/live/tapo3.m3u8
+VITE_TAPO_CAM4_HLS_URL=https://www.tansaeng.com/live/tapo4.m3u8
 ENVEOF'
 
         # Node.js 및 npm 설치 확인
@@ -219,7 +225,7 @@ echo "🎉 배포가 완료되었습니다!"
 echo "🌐 웹사이트: https://$DOMAIN"
 echo "👨‍💼 관리자: https://$DOMAIN/admin"
 echo "📊 서버 IP: $CLOUD_SERVER"
-echo "🏷️  버전: 배포성공_v13_디스플레이실시간업데이트완벽수정"
+echo "🏷️  버전: v3.4.0 - Tapo 카메라 전용 페이지 추가"
 echo ""
 echo "⚠️  배포 후 확인사항:"
 echo "1. 웹사이트 접속 확인"
