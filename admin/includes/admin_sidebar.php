@@ -65,7 +65,7 @@
                 
                 <li class="nav-section">스마트팜</li>
                 <li class="nav-item">
-                    <a href="/admin/smartfarm/" class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/smartfarm/') === 0 ? 'active' : '' ?>">
+                    <a href="/smartfarm-ui/" class="nav-link" target="_blank">
                         <span class="nav-icon">🏭</span>
                         <span class="nav-text">환경제어 시스템</span>
                     </a>
