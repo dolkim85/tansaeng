@@ -5,6 +5,7 @@
  */
 
 import TapoCameraView from "../components/camera/TapoCameraView";
+import RpiIpSettings from "../components/camera/RpiIpSettings";
 
 // App.tsx와의 호환성을 위해 props 타입 유지 (사용하지 않음)
 interface CamerasProps {
@@ -19,6 +20,10 @@ export default function Cameras(_props: CamerasProps) {
         📷 카메라 라이브 모니터링
       </h1>
 
+      {/* 라즈베리파이 IP 설정 */}
+      <RpiIpSettings />
+
+      {/* 카메라 그리드 */}
       <div className="grid gap-4 md:grid-cols-2">
         <TapoCameraView cameraId={1} title="하우스 카메라 1" />
         <TapoCameraView cameraId={2} title="하우스 카메라 2" />
