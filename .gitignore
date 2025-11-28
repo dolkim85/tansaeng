@@ -2,3 +2,4 @@
 /smartfarm-ui/package-lock.json
 .env
 smartfarm-ui/.env
+live/
