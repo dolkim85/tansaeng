@@ -35,19 +35,25 @@ export default function RpiIpSettings() {
   // IP 저장 핸들러
   const handleSave = () => {
     const trimmedIp = ipInput.trim();
+    console.log("[RpiIpSettings] 저장 버튼 클릭, 입력값:", trimmedIp);
 
     if (!trimmedIp) {
+      console.log("[RpiIpSettings] 입력값 없음");
       setMessage("❌ IP 주소를 입력하세요");
       return;
     }
 
     if (!isValidIp(trimmedIp)) {
+      console.log("[RpiIpSettings] IP 형식 오류:", trimmedIp);
       setMessage("❌ 올바른 IP 주소 형식이 아닙니다 (예: 192.168.1.100)");
       return;
     }
 
     // localStorage에 저장
     localStorage.setItem(RPI_IP_STORAGE_KEY, trimmedIp);
+    console.log("[RpiIpSettings] localStorage 저장 완료:", trimmedIp);
+    console.log("[RpiIpSettings] 저장 확인:", localStorage.getItem(RPI_IP_STORAGE_KEY));
+
     setSavedIp(trimmedIp);
     setIpInput("");
     setMessage("✅ 라즈베리파이 IP가 저장되었습니다");
