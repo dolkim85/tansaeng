@@ -15,6 +15,22 @@ interface HeartbeatTimestamps {
   [controllerId: string]: number;
 }
 
+// 자동 제어 설정 인터페이스
+interface AutoControlSettings {
+  mode: "manual" | "auto";
+  deviceControl: Record<string, boolean>; // 장치별 자동 제어 ON/OFF
+  tempMin: number;
+  tempMax: number;
+  humMin: number;
+  humMax: number;
+}
+
+// 센서 데이터 인터페이스
+interface SensorData {
+  temperature: number | null;
+  humidity: number | null;
+}
+
 export default function DevicesControl({ deviceState, setDeviceState }: DevicesControlProps) {
   const [mqttConnected, setMqttConnected] = useState(false);
 
@@ -23,6 +39,27 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
   // ESP32 장치별 마지막 heartbeat 시간 저장
   const heartbeatTimestamps = useRef<HeartbeatTimestamps>({});
+
+  // 자동 제어 설정
+  const [autoControl, setAutoControl] = useState<AutoControlSettings>({
+    mode: "manual",
+    deviceControl: {},
+    tempMin: 18,
+    tempMax: 28,
+    humMin: 40,
+    humMax: 70,
+  });
+
+  // 센서 데이터 (평균값 계산용)
+  const [sensorData, setSensorData] = useState<{
+    front: SensorData;
+    back: SensorData;
+    top: SensorData;
+  }>({
+    front: { temperature: null, humidity: null },
+    back: { temperature: null, humidity: null },
+    top: { temperature: null, humidity: null },
+  });
 
   const fans = getDevicesByType("fan");
   const vents = getDevicesByType("vent");
@@ -129,6 +166,96 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     return () => clearInterval(checkInterval);
   }, [esp32Status]);
+
+  // 센서 데이터 구독 (자동 제어용)
+  useEffect(() => {
+    const client = getMqttClient();
+
+    const handleSensorMessage = (topic: string, message: Buffer) => {
+      const value = parseFloat(message.toString());
+
+      // 내부팬 앞 (ctlr-0001)
+      if (topic === "tansaeng/ctlr-0001/dht11/temperature") {
+        setSensorData((prev) => ({ ...prev, front: { ...prev.front, temperature: value } }));
+      } else if (topic === "tansaeng/ctlr-0001/dht11/humidity") {
+        setSensorData((prev) => ({ ...prev, front: { ...prev.front, humidity: value } }));
+      }
+      // 내부팬 뒤 (ctlr-0002)
+      else if (topic === "tansaeng/ctlr-0002/dht22/temperature") {
+        setSensorData((prev) => ({ ...prev, back: { ...prev.back, temperature: value } }));
+      } else if (topic === "tansaeng/ctlr-0002/dht22/humidity") {
+        setSensorData((prev) => ({ ...prev, back: { ...prev.back, humidity: value } }));
+      }
+      // 천장 (ctlr-0003)
+      else if (topic === "tansaeng/ctlr-0003/dht22/temperature") {
+        setSensorData((prev) => ({ ...prev, top: { ...prev.top, temperature: value } }));
+      } else if (topic === "tansaeng/ctlr-0003/dht22/humidity") {
+        setSensorData((prev) => ({ ...prev, top: { ...prev.top, humidity: value } }));
+      }
+    };
+
+    client.on("message", handleSensorMessage);
+
+    // 센서 토픽 구독
+    const sensorTopics = [
+      "tansaeng/ctlr-0001/dht11/temperature",
+      "tansaeng/ctlr-0001/dht11/humidity",
+      "tansaeng/ctlr-0002/dht22/temperature",
+      "tansaeng/ctlr-0002/dht22/humidity",
+      "tansaeng/ctlr-0003/dht22/temperature",
+      "tansaeng/ctlr-0003/dht22/humidity",
+    ];
+
+    sensorTopics.forEach((topic) => client.subscribe(topic, { qos: 1 }));
+
+    return () => {
+      client.off("message", handleSensorMessage);
+      sensorTopics.forEach((topic) => client.unsubscribe(topic));
+    };
+  }, []);
+
+  // 자동 제어 로직
+  useEffect(() => {
+    if (autoControl.mode !== "auto") return;
+
+    // 평균 온습도 계산
+    const temps = [sensorData.front.temperature, sensorData.back.temperature, sensorData.top.temperature].filter((t) => t !== null) as number[];
+    const hums = [sensorData.front.humidity, sensorData.back.humidity, sensorData.top.humidity].filter((h) => h !== null) as number[];
+
+    if (temps.length === 0 || hums.length === 0) return;
+
+    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+    const avgHum = hums.reduce((a, b) => a + b, 0) / hums.length;
+
+    // 자동 제어가 활성화된 장치들만 제어
+    ESP32_CONTROLLERS.forEach((controller) => {
+      if (!autoControl.deviceControl[controller.controllerId]) return;
+
+      const commandTopic = `tansaeng/${controller.controllerId}/+/cmd`;
+
+      // 온도 기반 제어
+      if (avgTemp > autoControl.tempMax) {
+        // 온도가 높으면 장치 켜기
+        publishCommand(commandTopic.replace("+", "fan1"), { power: "on" });
+        publishCommand(commandTopic.replace("+", "fan2"), { power: "on" });
+      } else if (avgTemp < autoControl.tempMin) {
+        // 온도가 낮으면 장치 끄기
+        publishCommand(commandTopic.replace("+", "fan1"), { power: "off" });
+        publishCommand(commandTopic.replace("+", "fan2"), { power: "off" });
+      }
+
+      // 습도 기반 제어
+      if (avgHum > autoControl.humMax) {
+        // 습도가 높으면 환기
+        publishCommand(commandTopic.replace("+", "vent_side_left"), { target: 80 });
+        publishCommand(commandTopic.replace("+", "vent_side_right"), { target: 80 });
+      } else if (avgHum < autoControl.humMin) {
+        // 습도가 낮으면 환기 닫기
+        publishCommand(commandTopic.replace("+", "vent_side_left"), { target: 20 });
+        publishCommand(commandTopic.replace("+", "vent_side_right"), { target: 20 });
+      }
+    });
+  }, [sensorData, autoControl]);
 
   const handleToggle = (deviceId: string, isOn: boolean) => {
     const newState = {
@@ -245,6 +372,186 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 );
               })}
             </div>
+          </div>
+        </section>
+
+        {/* 자동 제어 설정 */}
+        <section className="mb-3">
+          <header className="bg-farm-500 px-4 py-2.5 rounded-t-lg flex items-center justify-between">
+            <h2 className="text-base font-semibold flex items-center gap-1.5 text-gray-900">
+              ⚙️ 자동 제어 설정
+            </h2>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-800">모드:</span>
+              <button
+                onClick={() =>
+                  setAutoControl({
+                    ...autoControl,
+                    mode: autoControl.mode === "manual" ? "auto" : "manual",
+                  })
+                }
+                className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  autoControl.mode === "auto"
+                    ? "bg-green-500 text-white hover:bg-green-600"
+                    : "bg-gray-300 text-gray-700 hover:bg-gray-400"
+                }`}
+              >
+                {autoControl.mode === "auto" ? "자동 모드" : "수동 모드"}
+              </button>
+            </div>
+          </header>
+          <div className="bg-white shadow-sm rounded-b-lg p-4">
+            {/* 현재 평균 온습도 표시 */}
+            <div className="mb-4 p-3 bg-farm-50 rounded-lg border border-farm-200">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-xs text-gray-600">평균 온도:</span>
+                  <span className="ml-2 text-sm font-semibold text-gray-900">
+                    {(() => {
+                      const temps = [
+                        sensorData.front.temperature,
+                        sensorData.back.temperature,
+                        sensorData.top.temperature,
+                      ].filter((t) => t !== null) as number[];
+                      if (temps.length === 0) return "N/A";
+                      const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
+                      return `${avg.toFixed(2)}°C`;
+                    })()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-600">평균 습도:</span>
+                  <span className="ml-2 text-sm font-semibold text-gray-900">
+                    {(() => {
+                      const hums = [
+                        sensorData.front.humidity,
+                        sensorData.back.humidity,
+                        sensorData.top.humidity,
+                      ].filter((h) => h !== null) as number[];
+                      if (hums.length === 0) return "N/A";
+                      const avg = hums.reduce((a, b) => a + b, 0) / hums.length;
+                      return `${avg.toFixed(2)}%`;
+                    })()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {autoControl.mode === "auto" && (
+              <>
+                {/* 온습도 임계값 설정 */}
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">온습도 임계값</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* 온도 설정 */}
+                    <div>
+                      <label className="text-xs text-gray-700 font-medium mb-1 block">
+                        온도 범위 (°C)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={autoControl.tempMin}
+                          onChange={(e) =>
+                            setAutoControl({ ...autoControl, tempMin: parseFloat(e.target.value) })
+                          }
+                          className="w-20 px-2 py-1 text-xs border border-gray-300 rounded"
+                          step="0.5"
+                        />
+                        <span className="text-xs text-gray-500">~</span>
+                        <input
+                          type="number"
+                          value={autoControl.tempMax}
+                          onChange={(e) =>
+                            setAutoControl({ ...autoControl, tempMax: parseFloat(e.target.value) })
+                          }
+                          className="w-20 px-2 py-1 text-xs border border-gray-300 rounded"
+                          step="0.5"
+                        />
+                      </div>
+                    </div>
+                    {/* 습도 설정 */}
+                    <div>
+                      <label className="text-xs text-gray-700 font-medium mb-1 block">
+                        습도 범위 (%)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={autoControl.humMin}
+                          onChange={(e) =>
+                            setAutoControl({ ...autoControl, humMin: parseFloat(e.target.value) })
+                          }
+                          className="w-20 px-2 py-1 text-xs border border-gray-300 rounded"
+                          step="1"
+                        />
+                        <span className="text-xs text-gray-500">~</span>
+                        <input
+                          type="number"
+                          value={autoControl.humMax}
+                          onChange={(e) =>
+                            setAutoControl({ ...autoControl, humMax: parseFloat(e.target.value) })
+                          }
+                          className="w-20 px-2 py-1 text-xs border border-gray-300 rounded"
+                          step="1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 장치별 자동 제어 ON/OFF */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">제어 대상 장치</h3>
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2">
+                    {ESP32_CONTROLLERS.map((controller) => {
+                      const isEnabled = autoControl.deviceControl[controller.controllerId] === true;
+                      const isConnected = esp32Status[controller.controllerId] === true;
+
+                      return (
+                        <div
+                          key={controller.id}
+                          className={`flex items-center justify-between px-3 py-2 rounded-md border ${
+                            isEnabled
+                              ? "bg-green-50 border-green-300"
+                              : "bg-gray-50 border-gray-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <div
+                              className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                isConnected ? "bg-green-500" : "bg-gray-400"
+                              }`}
+                            ></div>
+                            <span className="text-xs font-medium text-gray-900 truncate">
+                              {controller.name}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() =>
+                              setAutoControl({
+                                ...autoControl,
+                                deviceControl: {
+                                  ...autoControl.deviceControl,
+                                  [controller.controllerId]: !isEnabled,
+                                },
+                              })
+                            }
+                            className={`px-3 py-1 rounded text-xs font-medium transition-colors flex-shrink-0 ${
+                              isEnabled
+                                ? "bg-green-500 text-white hover:bg-green-600"
+                                : "bg-gray-300 text-gray-700 hover:bg-gray-400"
+                            }`}
+                          >
+                            {isEnabled ? "ON" : "OFF"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </section>
 
