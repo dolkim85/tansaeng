@@ -84,3 +84,12 @@ export interface FarmSettings {
   adminName: string;
   notes: string;
 }
+
+// ========== ESP32 Controller Registry ==========
+
+export interface ESP32Controller {
+  id: string;           // 예: "esp32-in-fan-front"
+  name: string;         // 화면 표시 이름
+  controllerId: string; // 예: "ctlr-0001"
+  statusTopic: string;  // 연결 상태 확인용 토픽
+}
