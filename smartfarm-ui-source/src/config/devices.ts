@@ -23,11 +23,11 @@ export const DEVICES: DeviceConfig[] = [
   },
   {
     id: "fan_back",
-    name: "내부팬 뒤",
+    name: "내부팬 뒤 (후방 환기팬)",
     type: "fan",
-    esp32Id: "esp32-node-1",
-    commandTopic: "tansaeng/esp32-node-1/fan_back/cmd",
-    stateTopic: "tansaeng/esp32-node-1/fan_back/state",
+    esp32Id: "ctlr-0002",
+    commandTopic: "tansaeng/ctlr-0002/fan2/cmd",
+    stateTopic: "tansaeng/ctlr-0002/fan2/state",
   },
   {
     id: "fan_top",

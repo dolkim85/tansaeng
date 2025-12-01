@@ -9,7 +9,7 @@ export default function Environment() {
   const [selectedZone, setSelectedZone] = useState("all");
   const [mqttConnected, setMqttConnected] = useState(false);
 
-  const [currentValues, setCurrentValues] = useState<Partial<SensorSnapshot>>({
+  const [currentValues] = useState<Partial<SensorSnapshot>>({
     airTemp: null,
     airHumidity: null,
     rootTemp: null,
@@ -21,6 +21,20 @@ export default function Environment() {
     ppfd: null,
   });
 
+  // 앞/뒤 개별 센서 값
+  const [frontTemp, setFrontTemp] = useState<number | null>(null);
+  const [frontHumidity, setFrontHumidity] = useState<number | null>(null);
+  const [backTemp, setBackTemp] = useState<number | null>(null);
+  const [backHumidity, setBackHumidity] = useState<number | null>(null);
+
+  // 평균값 계산
+  const avgTemp = frontTemp !== null && backTemp !== null
+    ? (frontTemp + backTemp) / 2
+    : null;
+  const avgHumidity = frontHumidity !== null && backHumidity !== null
+    ? (frontHumidity + backHumidity) / 2
+    : null;
+
   // MQTT 연결 상태 감지
   useEffect(() => {
     const unsubscribe = onConnectionChange((connected) => {
@@ -30,31 +44,47 @@ export default function Environment() {
     return unsubscribe;
   }, []);
 
-  // MQTT 구독 - ESP32 DHT11 센서 데이터
+  // MQTT 구독 - ESP32 앞/뒤 온습도 센서 데이터
   useEffect(() => {
     const client = getMqttClient();
 
-    const tempTopic = "tansaeng/ctlr-0001/dht11/temperature";
-    const humTopic = "tansaeng/ctlr-0001/dht11/humidity";
+    // ESP32-앞 (ctlr-0001) - DHT11
+    const frontTempTopic = "tansaeng/ctlr-0001/dht11/temperature";
+    const frontHumTopic = "tansaeng/ctlr-0001/dht11/humidity";
+
+    // ESP32-뒤 (ctlr-0002) - DHT22
+    const backTempTopic = "tansaeng/ctlr-0002/dht22/temperature";
+    const backHumTopic = "tansaeng/ctlr-0002/dht22/humidity";
 
     const handleMessage = (topic: string, message: Buffer) => {
       const value = parseFloat(message.toString());
 
-      if (topic === tempTopic) {
-        setCurrentValues((prev) => ({ ...prev, airTemp: value }));
-      } else if (topic === humTopic) {
-        setCurrentValues((prev) => ({ ...prev, airHumidity: value }));
+      // 앞 센서
+      if (topic === frontTempTopic) {
+        setFrontTemp(value);
+      } else if (topic === frontHumTopic) {
+        setFrontHumidity(value);
+      }
+      // 뒤 센서
+      else if (topic === backTempTopic) {
+        setBackTemp(value);
+      } else if (topic === backHumTopic) {
+        setBackHumidity(value);
       }
     };
 
     client.on("message", handleMessage);
-    client.subscribe(tempTopic);
-    client.subscribe(humTopic);
+    client.subscribe(frontTempTopic);
+    client.subscribe(frontHumTopic);
+    client.subscribe(backTempTopic);
+    client.subscribe(backHumTopic);
 
     return () => {
       client.off("message", handleMessage);
-      client.unsubscribe(tempTopic);
-      client.unsubscribe(humTopic);
+      client.unsubscribe(frontTempTopic);
+      client.unsubscribe(frontHumTopic);
+      client.unsubscribe(backTempTopic);
+      client.unsubscribe(backHumTopic);
     };
   }, []);
 
@@ -123,25 +153,74 @@ export default function Environment() {
           </div>
         </section>
 
-        {/* 온도/습도 게이지 카드 */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6 mb-6">
-          <GaugeCard
-            icon="🌡️"
-            title="공기 온도"
-            value={currentValues.airTemp}
-            unit="°C"
-            maxValue={50}
-            color="green"
-          />
-          <GaugeCard
-            icon="💧"
-            title="공기 습도"
-            value={currentValues.airHumidity}
-            unit="%"
-            maxValue={100}
-            color="blue"
-          />
-        </div>
+        {/* 온도/습도 게이지 카드 - 앞/뒤/평균 */}
+        <section className="mb-6">
+          <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
+            <h2 className="text-xl font-semibold m-0">🌡️ 공기 온도</h2>
+          </header>
+          <div className="bg-white rounded-b-xl shadow-card p-6">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+              <GaugeCard
+                icon="🌡️"
+                title="온도 (앞)"
+                value={frontTemp}
+                unit="°C"
+                maxValue={50}
+                color="green"
+              />
+              <GaugeCard
+                icon="🌡️"
+                title="온도 (뒤)"
+                value={backTemp}
+                unit="°C"
+                maxValue={50}
+                color="green"
+              />
+              <GaugeCard
+                icon="🌡️"
+                title="온도 (평균)"
+                value={avgTemp}
+                unit="°C"
+                maxValue={50}
+                color="blue"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-6">
+          <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
+            <h2 className="text-xl font-semibold m-0">💧 공기 습도</h2>
+          </header>
+          <div className="bg-white rounded-b-xl shadow-card p-6">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+              <GaugeCard
+                icon="💧"
+                title="습도 (앞)"
+                value={frontHumidity}
+                unit="%"
+                maxValue={100}
+                color="blue"
+              />
+              <GaugeCard
+                icon="💧"
+                title="습도 (뒤)"
+                value={backHumidity}
+                unit="%"
+                maxValue={100}
+                color="blue"
+              />
+              <GaugeCard
+                icon="💧"
+                title="습도 (평균)"
+                value={avgHumidity}
+                unit="%"
+                maxValue={100}
+                color="green"
+              />
+            </div>
+          </div>
+        </section>
 
         {/* 실시간 센서 데이터 */}
         <section className="mb-6">
