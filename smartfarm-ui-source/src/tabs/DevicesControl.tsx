@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getDevicesByType } from "../config/devices";
 import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
@@ -10,11 +10,19 @@ interface DevicesControlProps {
   setDeviceState: React.Dispatch<React.SetStateAction<DeviceDesiredState>>;
 }
 
+// ESP32 장치별 마지막 heartbeat 시간
+interface HeartbeatTimestamps {
+  [controllerId: string]: number;
+}
+
 export default function DevicesControl({ deviceState, setDeviceState }: DevicesControlProps) {
   const [mqttConnected, setMqttConnected] = useState(false);
 
   // ESP32 장치별 연결 상태 (12개)
   const [esp32Status, setEsp32Status] = useState<Record<string, boolean>>({});
+
+  // ESP32 장치별 마지막 heartbeat 시간 저장
+  const heartbeatTimestamps = useRef<HeartbeatTimestamps>({});
 
   const fans = getDevicesByType("fan");
   const vents = getDevicesByType("vent");
@@ -24,40 +32,103 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   useEffect(() => {
     const unsubscribe = onConnectionChange((connected) => {
       setMqttConnected(connected);
+
+      // MQTT 연결이 끊어지면 모든 ESP32 연결 상태를 OFF로 설정
+      if (!connected) {
+        setEsp32Status({});
+        heartbeatTimestamps.current = {};
+      }
     });
 
     return unsubscribe;
   }, []);
 
-  // ESP32 장치별 연결 상태 모니터링
+  // ESP32 장치별 연결 상태 모니터링 (heartbeat 기반)
   useEffect(() => {
     const client = getMqttClient();
 
-    const handleStatusMessage = (topic: string, message: Buffer) => {
+    const handleMessage = (topic: string, message: Buffer) => {
+      // status 토픽 처리
       const controller = ESP32_CONTROLLERS.find((c) => topic === c.statusTopic);
       if (controller) {
-        const status = message.toString();
-        setEsp32Status((prev) => ({
-          ...prev,
-          [controller.controllerId]: status === "online",
-        }));
+        const payload = message.toString().trim();
+        const now = Date.now();
+
+        // "online" 메시지를 받으면 연결됨으로 표시
+        if (payload.toLowerCase() === "online") {
+          heartbeatTimestamps.current[controller.controllerId] = now;
+          setEsp32Status((prev) => ({
+            ...prev,
+            [controller.controllerId]: true,
+          }));
+          console.log(`✅ ESP32 ${controller.name} (${controller.controllerId}) connected`);
+        }
       }
+
+      // 장치별 state 토픽도 heartbeat로 활용
+      ESP32_CONTROLLERS.forEach((ctrl) => {
+        // 해당 컨트롤러의 모든 state 토픽 체크
+        const stateTopicPattern = `tansaeng/${ctrl.controllerId}/`;
+        if (topic.startsWith(stateTopicPattern) && topic.endsWith("/state")) {
+          const now = Date.now();
+          heartbeatTimestamps.current[ctrl.controllerId] = now;
+          setEsp32Status((prev) => ({
+            ...prev,
+            [ctrl.controllerId]: true,
+          }));
+        }
+      });
     };
 
-    client.on("message", handleStatusMessage);
+    client.on("message", handleMessage);
 
     // 모든 ESP32 status 토픽 구독
     ESP32_CONTROLLERS.forEach((controller) => {
-      client.subscribe(controller.statusTopic);
+      client.subscribe(controller.statusTopic, { qos: 1 });
+    });
+
+    // 모든 장치의 state 토픽도 구독 (heartbeat로 활용)
+    ESP32_CONTROLLERS.forEach((controller) => {
+      client.subscribe(`tansaeng/${controller.controllerId}/+/state`, { qos: 1 });
     });
 
     return () => {
-      client.off("message", handleStatusMessage);
+      client.off("message", handleMessage);
       ESP32_CONTROLLERS.forEach((controller) => {
         client.unsubscribe(controller.statusTopic);
+        client.unsubscribe(`tansaeng/${controller.controllerId}/+/state`);
       });
     };
   }, []);
+
+  // 타임아웃 체크: 30초 동안 heartbeat가 없으면 연결 끊김으로 표시
+  useEffect(() => {
+    const TIMEOUT_MS = 30000; // 30초
+
+    const checkInterval = setInterval(() => {
+      const now = Date.now();
+      const newStatus: Record<string, boolean> = {};
+
+      ESP32_CONTROLLERS.forEach((controller) => {
+        const lastHeartbeat = heartbeatTimestamps.current[controller.controllerId];
+
+        if (lastHeartbeat && (now - lastHeartbeat < TIMEOUT_MS)) {
+          newStatus[controller.controllerId] = true;
+        } else {
+          newStatus[controller.controllerId] = false;
+
+          // 타임아웃 발생 시 로그
+          if (lastHeartbeat && esp32Status[controller.controllerId]) {
+            console.log(`⚠️ ESP32 ${controller.name} (${controller.controllerId}) timeout`);
+          }
+        }
+      });
+
+      setEsp32Status(newStatus);
+    }, 5000); // 5초마다 체크
+
+    return () => clearInterval(checkInterval);
+  }, [esp32Status]);
 
   const handleToggle = (deviceId: string, isOn: boolean) => {
     const newState = {
@@ -135,6 +206,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2">
               {ESP32_CONTROLLERS.map((controller) => {
                 const isConnected = esp32Status[controller.controllerId] === true;
+                const lastHeartbeat = heartbeatTimestamps.current[controller.controllerId];
+                const timeSinceHeartbeat = lastHeartbeat ? Math.floor((Date.now() - lastHeartbeat) / 1000) : null;
+
                 return (
                   <div
                     key={controller.id}
@@ -145,7 +219,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     }`}
                   >
                     <div
-                      className={`w-2 h-2 rounded-full ${
+                      className={`w-2 h-2 rounded-full flex-shrink-0 ${
                         isConnected ? "bg-green-500 animate-pulse" : "bg-gray-400"
                       }`}
                     ></div>
@@ -155,10 +229,13 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </span>
                       <span className="text-xs text-gray-500">
                         {controller.controllerId}
+                        {timeSinceHeartbeat !== null && isConnected && (
+                          <span className="ml-1">({timeSinceHeartbeat}초 전)</span>
+                        )}
                       </span>
                     </div>
                     <span
-                      className={`text-xs font-medium ${
+                      className={`text-xs font-medium flex-shrink-0 ${
                         isConnected ? "text-green-600" : "text-gray-500"
                       }`}
                     >
