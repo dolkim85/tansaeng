@@ -231,28 +231,30 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     ESP32_CONTROLLERS.forEach((controller) => {
       if (!autoControl.deviceControl[controller.controllerId]) return;
 
-      const commandTopic = `tansaeng/${controller.controllerId}/+/cmd`;
-
       // 온도 기반 제어
       if (avgTemp > autoControl.tempMax) {
-        // 온도가 높으면 장치 켜기
-        publishCommand(commandTopic.replace("+", "fan1"), { power: "on" });
-        publishCommand(commandTopic.replace("+", "fan2"), { power: "on" });
+        // 온도가 높으면 팬 켜기, 환기 열기
+        publishCommand(`tansaeng/${controller.controllerId}/fan1/cmd`, { power: "on" });
+        publishCommand(`tansaeng/${controller.controllerId}/fan2/cmd`, { power: "on" });
+        publishCommand(`tansaeng/${controller.controllerId}/vent_side_left/cmd`, { target: 80 });
+        publishCommand(`tansaeng/${controller.controllerId}/vent_side_right/cmd`, { target: 80 });
       } else if (avgTemp < autoControl.tempMin) {
-        // 온도가 낮으면 장치 끄기
-        publishCommand(commandTopic.replace("+", "fan1"), { power: "off" });
-        publishCommand(commandTopic.replace("+", "fan2"), { power: "off" });
+        // 온도가 낮으면 팬 끄기, 환기 닫기
+        publishCommand(`tansaeng/${controller.controllerId}/fan1/cmd`, { power: "off" });
+        publishCommand(`tansaeng/${controller.controllerId}/fan2/cmd`, { power: "off" });
+        publishCommand(`tansaeng/${controller.controllerId}/vent_side_left/cmd`, { target: 20 });
+        publishCommand(`tansaeng/${controller.controllerId}/vent_side_right/cmd`, { target: 20 });
       }
 
       // 습도 기반 제어
       if (avgHum > autoControl.humMax) {
         // 습도가 높으면 환기
-        publishCommand(commandTopic.replace("+", "vent_side_left"), { target: 80 });
-        publishCommand(commandTopic.replace("+", "vent_side_right"), { target: 80 });
+        publishCommand(`tansaeng/${controller.controllerId}/vent_top_left/cmd`, { target: 80 });
+        publishCommand(`tansaeng/${controller.controllerId}/vent_top_right/cmd`, { target: 80 });
       } else if (avgHum < autoControl.humMin) {
         // 습도가 낮으면 환기 닫기
-        publishCommand(commandTopic.replace("+", "vent_side_left"), { target: 20 });
-        publishCommand(commandTopic.replace("+", "vent_side_right"), { target: 20 });
+        publishCommand(`tansaeng/${controller.controllerId}/vent_top_left/cmd`, { target: 20 });
+        publishCommand(`tansaeng/${controller.controllerId}/vent_top_right/cmd`, { target: 20 });
       }
     });
   }, [sensorData, autoControl]);

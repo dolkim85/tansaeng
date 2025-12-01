@@ -184,30 +184,22 @@ export default function Environment() {
         }, 0) / recentData.length;
 
       setTenMinAvg({
-        temperature: isNaN(avgTemp) ? null : parseFloat(avgTemp.toFixed(2)),
-        humidity: isNaN(avgHum) ? null : parseFloat(avgHum.toFixed(2)),
+        temperature: isNaN(avgTemp) ? null : parseFloat(avgTemp.toFixed(1)),
+        humidity: isNaN(avgHum) ? null : parseFloat(avgHum.toFixed(1)),
       });
     }
   }, [chartData]);
 
-  // 평균값 계산 (소수점 2자리)
-  const avgTemp = (() => {
-    const temps = [frontSensor.temperature, backSensor.temperature, topSensor.temperature].filter(
-      (t) => t !== null
-    ) as number[];
-    if (temps.length === 0) return null;
-    const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
-    return parseFloat(avg.toFixed(2));
-  })();
+  // 평균값 계산
+  const avgTemp =
+    [frontSensor.temperature, backSensor.temperature, topSensor.temperature]
+      .filter((t) => t !== null)
+      .reduce((sum, t) => sum + (t as number), 0) / 3 || null;
 
-  const avgHum = (() => {
-    const hums = [frontSensor.humidity, backSensor.humidity, topSensor.humidity].filter(
-      (h) => h !== null
-    ) as number[];
-    if (hums.length === 0) return null;
-    const avg = hums.reduce((a, b) => a + b, 0) / hums.length;
-    return parseFloat(avg.toFixed(2));
-  })();
+  const avgHum =
+    [frontSensor.humidity, backSensor.humidity, topSensor.humidity]
+      .filter((h) => h !== null)
+      .reduce((sum, h) => sum + (h as number), 0) / 3 || null;
 
   return (
     <div className="bg-gray-50">
@@ -229,7 +221,7 @@ export default function Environment() {
                 }`}
               ></div>
               <span className="text-sm font-medium">
-                {mqttConnected ? "MQTT 연결됨" : "MQTT 연결 끊김"}
+                MQTT {mqttConnected ? "연결됨" : "연결 끊김"}
               </span>
             </div>
           </div>
@@ -262,90 +254,103 @@ export default function Environment() {
           </div>
         </section>
 
-        {/* 온습도 센서 데이터 (3개 센서 + 평균) */}
-        <section className="mb-6">
-          <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
-            <h2 className="text-xl font-semibold m-0">🌡️ 온도 센서</h2>
-          </header>
-          <div className="bg-white rounded-b-xl shadow-card p-6">
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
+        {/* 온습도 센서 데이터 (센서별 그룹화) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          {/* 내부팬 앞 */}
+          <section>
+            <header className="bg-farm-500 px-4 py-3 rounded-t-xl">
+              <h3 className="text-lg font-semibold m-0">📍 내부팬 앞</h3>
+            </header>
+            <div className="bg-white rounded-b-xl shadow-card p-4 space-y-4">
               <GaugeCard
                 icon="🌡️"
-                title="내부팬 앞"
+                title="온도"
                 value={frontSensor.temperature}
                 unit="°C"
                 maxValue={50}
                 color="green"
               />
               <GaugeCard
+                icon="💧"
+                title="습도"
+                value={frontSensor.humidity}
+                unit="%"
+                maxValue={100}
+                color="blue"
+              />
+            </div>
+          </section>
+
+          {/* 내부팬 뒤 */}
+          <section>
+            <header className="bg-farm-500 px-4 py-3 rounded-t-xl">
+              <h3 className="text-lg font-semibold m-0">📍 내부팬 뒤</h3>
+            </header>
+            <div className="bg-white rounded-b-xl shadow-card p-4 space-y-4">
+              <GaugeCard
                 icon="🌡️"
-                title="내부팬 뒤"
+                title="온도"
                 value={backSensor.temperature}
                 unit="°C"
                 maxValue={50}
                 color="green"
               />
               <GaugeCard
+                icon="💧"
+                title="습도"
+                value={backSensor.humidity}
+                unit="%"
+                maxValue={100}
+                color="blue"
+              />
+            </div>
+          </section>
+
+          {/* 천장 */}
+          <section>
+            <header className="bg-farm-500 px-4 py-3 rounded-t-xl">
+              <h3 className="text-lg font-semibold m-0">📍 천장</h3>
+            </header>
+            <div className="bg-white rounded-b-xl shadow-card p-4 space-y-4">
+              <GaugeCard
                 icon="🌡️"
-                title="천장"
+                title="온도"
                 value={topSensor.temperature}
                 unit="°C"
                 maxValue={50}
                 color="green"
               />
               <GaugeCard
-                icon="🌡️"
-                title="평균 온도"
-                value={avgTemp}
-                unit="°C"
-                maxValue={50}
-                color="blue"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="mb-6">
-          <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
-            <h2 className="text-xl font-semibold m-0">💧 습도 센서</h2>
-          </header>
-          <div className="bg-white rounded-b-xl shadow-card p-6">
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
-              <GaugeCard
                 icon="💧"
-                title="내부팬 앞"
-                value={frontSensor.humidity}
-                unit="%"
-                maxValue={100}
-                color="blue"
-              />
-              <GaugeCard
-                icon="💧"
-                title="내부팬 뒤"
-                value={backSensor.humidity}
-                unit="%"
-                maxValue={100}
-                color="blue"
-              />
-              <GaugeCard
-                icon="💧"
-                title="천장"
+                title="습도"
                 value={topSensor.humidity}
                 unit="%"
                 maxValue={100}
                 color="blue"
               />
-              <GaugeCard
-                icon="💧"
-                title="평균 습도"
-                value={avgHum}
-                unit="%"
-                maxValue={100}
-                color="green"
-              />
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
+
+        {/* 평균 온습도 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <GaugeCard
+            icon="🌡️"
+            title="평균 온도"
+            value={avgTemp !== null ? parseFloat(avgTemp.toFixed(2)) : null}
+            unit="°C"
+            maxValue={50}
+            color="blue"
+          />
+          <GaugeCard
+            icon="💧"
+            title="평균 습도"
+            value={avgHum !== null ? parseFloat(avgHum.toFixed(2)) : null}
+            unit="%"
+            maxValue={100}
+            color="green"
+          />
+        </div>
 
         {/* 필터 섹션 */}
         <section className="mb-6">
@@ -355,7 +360,9 @@ export default function Environment() {
           <div className="bg-white rounded-b-xl shadow-card p-6">
             <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">기간</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  기간
+                </label>
                 <select
                   value={period}
                   onChange={(e) => setPeriod(e.target.value as "current" | "1h" | "1w" | "1m")}
@@ -368,7 +375,9 @@ export default function Environment() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Zone</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Zone
+                </label>
                 <select
                   value={selectedZone}
                   onChange={(e) => setSelectedZone(e.target.value)}
@@ -384,7 +393,7 @@ export default function Environment() {
           </div>
         </section>
 
-        {/* 온도/습도 타임라인 차트 (좌우 배치) */}
+        {/* 온도/습도 타임라인 차트 (좌우 분리) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           {/* 온도 차트 */}
           <section>
@@ -397,10 +406,10 @@ export default function Environment() {
                   데이터를 수집하는 중입니다...
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={400}>
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="timestamp" tick={{ fontSize: 11 }} />
+                    <XAxis dataKey="timestamp" />
                     <YAxis />
                     <Tooltip />
                     <Legend />
@@ -408,7 +417,7 @@ export default function Environment() {
                       type="monotone"
                       dataKey="frontTemp"
                       stroke="#22c55e"
-                      name="내부팬 앞"
+                      name="앞 온도"
                       strokeWidth={2}
                       dot={false}
                     />
@@ -416,7 +425,7 @@ export default function Environment() {
                       type="monotone"
                       dataKey="backTemp"
                       stroke="#3b82f6"
-                      name="내부팬 뒤"
+                      name="뒤 온도"
                       strokeWidth={2}
                       dot={false}
                     />
@@ -424,7 +433,7 @@ export default function Environment() {
                       type="monotone"
                       dataKey="topTemp"
                       stroke="#f59e0b"
-                      name="천장"
+                      name="천장 온도"
                       strokeWidth={2}
                       dot={false}
                     />
@@ -445,10 +454,10 @@ export default function Environment() {
                   데이터를 수집하는 중입니다...
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={400}>
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="timestamp" tick={{ fontSize: 11 }} />
+                    <XAxis dataKey="timestamp" />
                     <YAxis />
                     <Tooltip />
                     <Legend />
@@ -456,7 +465,7 @@ export default function Environment() {
                       type="monotone"
                       dataKey="frontHum"
                       stroke="#22c55e"
-                      name="내부팬 앞"
+                      name="앞 습도"
                       strokeWidth={2}
                       dot={false}
                     />
@@ -464,7 +473,7 @@ export default function Environment() {
                       type="monotone"
                       dataKey="backHum"
                       stroke="#3b82f6"
-                      name="내부팬 뒤"
+                      name="뒤 습도"
                       strokeWidth={2}
                       dot={false}
                     />
@@ -472,7 +481,7 @@ export default function Environment() {
                       type="monotone"
                       dataKey="topHum"
                       stroke="#f59e0b"
-                      name="천장"
+                      name="천장 습도"
                       strokeWidth={2}
                       dot={false}
                     />
