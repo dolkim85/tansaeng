@@ -3,7 +3,7 @@
 # 탄생(Tansaeng) 클라우드 자동 배포 스크립트 v11.0
 # 사용법: ./deploy_to_cloud.sh
 
-echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: v2.2.0-간격축소)..."
+echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: v3.5.0-ESP32후방환기팬)..."
 
 # 변수 설정
 CLOUD_SERVER="1.201.17.34"
@@ -11,7 +11,7 @@ CLOUD_USER="ubuntu"
 SSH_KEY="/home/spinmoll/.ssh/tansaeng.pem"
 CLOUD_PATH="/var/www/html"
 REPO_URL="https://github.com/dolkim85/tansaeng.git"
-DEPLOY_TAG="v3.4.0"
+DEPLOY_TAG="v3.5.0"
 DOMAIN="www.tansaeng.com"
 
 # Git 상태 확인
@@ -65,7 +65,7 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         sudo git pull origin main
     fi
 
-    echo "✅ Version v3.4.0 체크아웃 완료"
+    echo "✅ Version v3.5.0 체크아웃 완료"
 
     # 권한 설정
     echo "🔐 파일 권한 설정 중..."
@@ -139,9 +139,9 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
     fi
 
     # 🏭 스마트팜 React 앱 빌드
-    if [ -d "/var/www/html/smartfarm-ui" ]; then
+    if [ -d "/var/www/html/smartfarm-ui-source" ]; then
         echo "🏭 스마트팜 React 앱 빌드 중..."
-        cd /var/www/html/smartfarm-ui
+        cd /var/www/html/smartfarm-ui-source
 
         # .env 파일 생성 (HiveMQ Cloud + Tapo 카메라 설정)
         echo "📝 HiveMQ Cloud 및 Tapo 카메라 설정 중..."
@@ -200,14 +200,14 @@ ENVEOF'
 
         cd /var/www/html
     else
-        echo "⚠️  smartfarm-ui 디렉토리가 없습니다. 스마트팜 빌드를 건너뜁니다."
+        echo "⚠️  smartfarm-ui-source 디렉토리가 없습니다. 스마트팜 빌드를 건너뜁니다."
     fi
 
-    # Apache Alias 설정 (smartfarm-admin -> smartfarm-ui/dist)
+    # Apache Alias 설정 (smartfarm-admin -> smartfarm-ui-source/dist)
     echo "🔧 Apache Alias 설정 확인 중..."
     if ! grep -q "Alias /smartfarm-admin" /etc/apache2/sites-enabled/tansaeng.conf; then
         echo "📝 Apache에 /smartfarm-admin Alias 추가 중..."
-        sudo sed -i '/<\/VirtualHost>/i \    # React 스마트팜 Alias\n    Alias /smartfarm-admin /var/www/html/smartfarm-ui/dist\n\n    <Directory /var/www/html/smartfarm-ui/dist>\n        Options -Indexes +FollowSymLinks\n        AllowOverride None\n        Require all granted\n    </Directory>\n' /etc/apache2/sites-enabled/tansaeng.conf
+        sudo sed -i '/<\/VirtualHost>/i \    # React 스마트팜 Alias\n    Alias /smartfarm-admin /var/www/html/smartfarm-ui-source/dist\n\n    <Directory /var/www/html/smartfarm-ui-source/dist>\n        Options -Indexes +FollowSymLinks\n        AllowOverride None\n        Require all granted\n    </Directory>\n' /etc/apache2/sites-enabled/tansaeng.conf
         echo "✅ Alias 추가 완료"
     else
         echo "✅ Alias 이미 존재함"
@@ -225,7 +225,7 @@ echo "🎉 배포가 완료되었습니다!"
 echo "🌐 웹사이트: https://$DOMAIN"
 echo "👨‍💼 관리자: https://$DOMAIN/admin"
 echo "📊 서버 IP: $CLOUD_SERVER"
-echo "🏷️  버전: v3.4.0 - Tapo 카메라 전용 페이지 추가"
+echo "🏷️  버전: v3.5.0 - ESP32 후방 환기팬 및 온습도 센서 모니터링"
 echo ""
 echo "⚠️  배포 후 확인사항:"
 echo "1. 웹사이트 접속 확인"
