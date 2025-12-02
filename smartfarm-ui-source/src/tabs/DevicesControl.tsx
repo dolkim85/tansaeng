@@ -85,7 +85,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     const client = getMqttClient();
 
     const handleMessage = (topic: string, message: Buffer) => {
-      // status 토픽 처리
+      // status 토픽 처리만 사용 (state 토픽은 heartbeat로 사용하지 않음)
       const controller = ESP32_CONTROLLERS.find((c) => topic === c.statusTopic);
       if (controller) {
         const payload = message.toString().trim();
@@ -100,40 +100,29 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           }));
           console.log(`✅ ESP32 ${controller.name} (${controller.controllerId}) connected`);
         }
-      }
-
-      // 장치별 state 토픽도 heartbeat로 활용
-      ESP32_CONTROLLERS.forEach((ctrl) => {
-        // 해당 컨트롤러의 모든 state 토픽 체크
-        const stateTopicPattern = `tansaeng/${ctrl.controllerId}/`;
-        if (topic.startsWith(stateTopicPattern) && topic.endsWith("/state")) {
-          const now = Date.now();
-          heartbeatTimestamps.current[ctrl.controllerId] = now;
+        // "offline" 메시지를 받으면 연결 끊김으로 표시
+        else if (payload.toLowerCase() === "offline") {
+          delete heartbeatTimestamps.current[controller.controllerId];
           setEsp32Status((prev) => ({
             ...prev,
-            [ctrl.controllerId]: true,
+            [controller.controllerId]: false,
           }));
+          console.log(`❌ ESP32 ${controller.name} (${controller.controllerId}) disconnected`);
         }
-      });
+      }
     };
 
     client.on("message", handleMessage);
 
-    // 모든 ESP32 status 토픽 구독
+    // 모든 ESP32 status 토픽만 구독
     ESP32_CONTROLLERS.forEach((controller) => {
       client.subscribe(controller.statusTopic, { qos: 1 });
-    });
-
-    // 모든 장치의 state 토픽도 구독 (heartbeat로 활용)
-    ESP32_CONTROLLERS.forEach((controller) => {
-      client.subscribe(`tansaeng/${controller.controllerId}/+/state`, { qos: 1 });
     });
 
     return () => {
       client.off("message", handleMessage);
       ESP32_CONTROLLERS.forEach((controller) => {
         client.unsubscribe(controller.statusTopic);
-        client.unsubscribe(`tansaeng/${controller.controllerId}/+/state`);
       });
     };
   }, []);
