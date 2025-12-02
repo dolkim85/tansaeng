@@ -3,7 +3,7 @@
 # 탄생(Tansaeng) 클라우드 자동 배포 스크립트 v12.0
 # 사용법: ./deploy_to_cloud.sh
 
-echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: v3.6.3-타임존수정)..."
+echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: v3.6.4-평균값수정)..."
 
 # 변수 설정
 CLOUD_SERVER="1.201.17.34"
@@ -11,7 +11,7 @@ CLOUD_USER="root"
 CLOUD_PASSWORD="qjawns3445"
 CLOUD_PATH="/var/www/html"
 REPO_URL="https://github.com/dolkim85/tansaeng.git"
-DEPLOY_TAG="v3.6.3"
+DEPLOY_TAG="v3.6.4"
 DOMAIN="www.tansaeng.com"
 
 # Git 상태 확인
@@ -65,7 +65,7 @@ sshpass -p "$CLOUD_PASSWORD" ssh -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD
         sudo git pull origin main
     fi
 
-    echo "✅ Version v3.6.3 체크아웃 완료"
+    echo "✅ Version v3.6.4 체크아웃 완료"
 
     # 권한 설정
     echo "🔐 파일 권한 설정 중..."
@@ -250,7 +250,7 @@ echo "🎉 배포가 완료되었습니다!"
 echo "🌐 웹사이트: https://$DOMAIN"
 echo "👨‍💼 관리자: https://$DOMAIN/admin"
 echo "📊 서버 IP: $CLOUD_SERVER"
-echo "🏷️  버전: v3.6.3 - PHP 타임존 수정 (5초 타임아웃 정상 작동)"
+echo "🏷️  버전: v3.6.4 - 평균값 API 수정 (실시간 반영)"
 echo ""
 echo "⚠️  배포 후 확인사항:"
 echo "1. 웹사이트 접속 확인"
