@@ -3,16 +3,11 @@ import { getDevicesByType } from "../config/devices";
 import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
 import DeviceCard from "../components/DeviceCard";
-import { publishCommand, onConnectionChange, getMqttClient } from "../mqtt/mqttClient";
+import { publishCommand, getMqttClient } from "../mqtt/mqttClient";
 
 interface DevicesControlProps {
   deviceState: DeviceDesiredState;
   setDeviceState: React.Dispatch<React.SetStateAction<DeviceDesiredState>>;
-}
-
-// ESP32 장치별 마지막 heartbeat 시간
-interface HeartbeatTimestamps {
-  [controllerId: string]: number;
 }
 
 // 장치별 자동 제어 설정
@@ -41,12 +36,6 @@ interface ValveSchedule {
 export default function DevicesControl({ deviceState, setDeviceState }: DevicesControlProps) {
   // ESP32 장치별 연결 상태 (12개)
   const [esp32Status, setEsp32Status] = useState<Record<string, boolean>>({});
-
-  // ESP32 장치별 마지막 heartbeat 시간 저장
-  const heartbeatTimestamps = useRef<HeartbeatTimestamps>({});
-
-  // 온습도 센서 초기 메시지 무시용 (retained 메시지 필터링)
-  const sensorInitialMessages = useRef<Record<string, boolean>>({});
 
   // 수동/자동 모드
   const [controlMode, setControlMode] = useState<"manual" | "auto">("manual");
@@ -169,140 +158,32 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => clearInterval(interval);
   }, []);
 
-  // MQTT 연결 상태 감지 (장치 제어 명령 전송용)
+  // 서버에서 장치 연결 상태 가져오기 (3초마다 폴링)
   useEffect(() => {
-    const unsubscribe = onConnectionChange((connected) => {
-      // MQTT 연결이 끊어지면 모든 ESP32 연결 상태를 OFF로 설정
-      if (!connected) {
-        setEsp32Status({});
-        heartbeatTimestamps.current = {};
-        sensorInitialMessages.current = {}; // 재연결 시 다시 초기 메시지 체크
-      }
-    });
+    const fetchDeviceStatus = async () => {
+      try {
+        const response = await fetch("/api/smartfarm/get_device_status.php");
+        const result = await response.json();
 
-    return unsubscribe;
-  }, []);
-
-  // ESP32 장치별 연결 상태 모니터링 (heartbeat 기반)
-  useEffect(() => {
-    const client = getMqttClient();
-
-    const handleMessage = (topic: string, message: Buffer) => {
-      const now = Date.now();
-
-      // 온습도 센서 토픽 체크 (ctlr-0001, 0002, 0003)
-      const sensorControllers = ["ctlr-0001", "ctlr-0002", "ctlr-0003"];
-      for (const controllerId of sensorControllers) {
-        if (
-          topic === `tansaeng/${controllerId}/dht11/temperature` ||
-          topic === `tansaeng/${controllerId}/dht11/humidity` ||
-          topic === `tansaeng/${controllerId}/dht22/temperature` ||
-          topic === `tansaeng/${controllerId}/dht22/humidity`
-        ) {
-          // 첫 번째 메시지는 retained 메시지일 수 있으므로 무시
-          const key = `${controllerId}:${topic}`;
-          if (!sensorInitialMessages.current[key]) {
-            sensorInitialMessages.current[key] = true;
-            console.log(`⏭️ Skipping initial retained message for ${controllerId} on ${topic}`);
-            return;
-          }
-
-          // 두 번째 메시지부터는 실제 데이터로 판단
-          heartbeatTimestamps.current[controllerId] = now;
-          setEsp32Status((prev) => ({
-            ...prev,
-            [controllerId]: true,
-          }));
-          console.log(`📡 Sensor data received from ${controllerId}`);
-          return;
+        if (result.success) {
+          const newStatus: Record<string, boolean> = {};
+          Object.entries(result.data.devices).forEach(([controllerId, info]: [string, any]) => {
+            newStatus[controllerId] = info.connected;
+          });
+          setEsp32Status(newStatus);
         }
-      }
-
-      // 나머지 장치는 status 토픽으로 판단
-      const controller = ESP32_CONTROLLERS.find((c) => topic === c.statusTopic);
-      if (controller) {
-        const payload = message.toString().trim();
-
-        // "online" 메시지를 받으면 연결됨으로 표시
-        if (payload.toLowerCase() === "online") {
-          heartbeatTimestamps.current[controller.controllerId] = now;
-          setEsp32Status((prev) => ({
-            ...prev,
-            [controller.controllerId]: true,
-          }));
-          console.log(`✅ ESP32 ${controller.name} (${controller.controllerId}) connected`);
-        }
-        // "offline" 메시지를 받으면 연결 끊김으로 표시
-        else if (payload.toLowerCase() === "offline") {
-          delete heartbeatTimestamps.current[controller.controllerId];
-          setEsp32Status((prev) => ({
-            ...prev,
-            [controller.controllerId]: false,
-          }));
-          console.log(`❌ ESP32 ${controller.name} (${controller.controllerId}) disconnected`);
-        }
+      } catch (error) {
+        console.error("Failed to fetch device status:", error);
       }
     };
 
-    client.on("message", handleMessage);
+    // 즉시 실행
+    fetchDeviceStatus();
 
-    // 온습도 센서 토픽 구독 (ctlr-0001, 0002, 0003)
-    const sensorTopics = [
-      "tansaeng/ctlr-0001/dht11/temperature",
-      "tansaeng/ctlr-0001/dht11/humidity",
-      "tansaeng/ctlr-0002/dht22/temperature",
-      "tansaeng/ctlr-0002/dht22/humidity",
-      "tansaeng/ctlr-0003/dht22/temperature",
-      "tansaeng/ctlr-0003/dht22/humidity",
-    ];
-    sensorTopics.forEach((topic) => {
-      client.subscribe(topic, { qos: 1 });
-    });
-
-    // 나머지 ESP32 status 토픽 구독
-    ESP32_CONTROLLERS.forEach((controller) => {
-      client.subscribe(controller.statusTopic, { qos: 1 });
-    });
-
-    return () => {
-      client.off("message", handleMessage);
-      sensorTopics.forEach((topic) => {
-        client.unsubscribe(topic);
-      });
-      ESP32_CONTROLLERS.forEach((controller) => {
-        client.unsubscribe(controller.statusTopic);
-      });
-    };
+    // 3초마다 갱신
+    const interval = setInterval(fetchDeviceStatus, 3000);
+    return () => clearInterval(interval);
   }, []);
-
-  // 타임아웃 체크: 30초 동안 heartbeat가 없으면 연결 끊김으로 표시
-  useEffect(() => {
-    const TIMEOUT_MS = 30000; // 30초
-
-    const checkInterval = setInterval(() => {
-      const now = Date.now();
-      const newStatus: Record<string, boolean> = {};
-
-      ESP32_CONTROLLERS.forEach((controller) => {
-        const lastHeartbeat = heartbeatTimestamps.current[controller.controllerId];
-
-        if (lastHeartbeat && (now - lastHeartbeat < TIMEOUT_MS)) {
-          newStatus[controller.controllerId] = true;
-        } else {
-          newStatus[controller.controllerId] = false;
-
-          // 타임아웃 발생 시 로그
-          if (lastHeartbeat && esp32Status[controller.controllerId]) {
-            console.log(`⚠️ ESP32 ${controller.name} (${controller.controllerId}) timeout`);
-          }
-        }
-      });
-
-      setEsp32Status(newStatus);
-    }, 5000); // 5초마다 체크
-
-    return () => clearInterval(checkInterval);
-  }, [esp32Status]);
 
   // 센서 데이터는 백그라운드 MQTT 데몬이 수집하고 DB에 저장
   // DevicesControl은 서버 API에서 평균값만 읽어옴 (위의 useEffect 참고)
@@ -545,8 +426,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2">
               {ESP32_CONTROLLERS.map((controller) => {
                 const isConnected = esp32Status[controller.controllerId] === true;
-                const lastHeartbeat = heartbeatTimestamps.current[controller.controllerId];
-                const timeSinceHeartbeat = lastHeartbeat ? Math.floor((Date.now() - lastHeartbeat) / 1000) : null;
 
                 return (
                   <div
@@ -568,9 +447,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </span>
                       <span className="text-xs text-gray-500">
                         {controller.controllerId}
-                        {timeSinceHeartbeat !== null && isConnected && (
-                          <span className="ml-1">({timeSinceHeartbeat}초 전)</span>
-                        )}
                       </span>
                     </div>
                     <span
