@@ -23,7 +23,9 @@ interface DeviceAutoControl {
 interface ValveTimeSlot {
   startTime: string; // HH:mm 형식
   endTime: string; // HH:mm 형식
+  openMinutes: number; // 밸브 열림 시간 (분)
   openSeconds: number; // 밸브 열림 시간 (초)
+  closeMinutes: number; // 밸브 닫힘 시간 (분)
   closeSeconds: number; // 밸브 닫힘 시간 (초)
 }
 
@@ -31,6 +33,9 @@ interface ValveTimeSlot {
 interface ValveSchedule {
   enabled: boolean; // 스케줄 활성화 여부
   timeSlots: ValveTimeSlot[]; // 시간대별 설정 (최대 2개 - 주간/야간)
+  useEnvironmentConditions: boolean; // 온습도 조건 사용 여부
+  maxTemperature: number; // 최대 온도 (°C)
+  maxHumidity: number; // 최대 습도 (%)
 }
 
 export default function DevicesControl({ deviceState, setDeviceState }: DevicesControlProps) {
@@ -61,16 +66,23 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       {
         startTime: "06:00",
         endTime: "18:00",
+        openMinutes: 0,
         openSeconds: 10,
-        closeSeconds: 300, // 5분
+        closeMinutes: 5,
+        closeSeconds: 0,
       },
       {
         startTime: "18:00",
         endTime: "06:00",
+        openMinutes: 0,
         openSeconds: 10,
-        closeSeconds: 600, // 10분
+        closeMinutes: 10,
+        closeSeconds: 0,
       },
     ],
+    useEnvironmentConditions: false,
+    maxTemperature: 30,
+    maxHumidity: 80,
   });
 
   // 메인밸브 제어용 타이머
@@ -318,13 +330,50 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       const topic = "tansaeng/ctlr-0004/valve1/cmd";
       client.publish(topic, command, { qos: 1 });
       setValveCurrentState(command);
-      console.log(`[VALVE] ${command} (${currentSlot.openSeconds}s open / ${currentSlot.closeSeconds}s close)`);
+
+      const openTotal = currentSlot.openMinutes * 60 + currentSlot.openSeconds;
+      const closeTotal = currentSlot.closeMinutes * 60 + currentSlot.closeSeconds;
+      console.log(`[VALVE] ${command} (${openTotal}s open / ${closeTotal}s close)`);
+    };
+
+    // 환경 조건 체크 함수
+    const checkEnvironmentConditions = (): boolean => {
+      if (!valveSchedule.useEnvironmentConditions) {
+        return true; // 환경 조건 사용 안 하면 항상 true
+      }
+
+      const avgTemp = averageValues.avgTemperature;
+      const avgHum = averageValues.avgHumidity;
+
+      if (avgTemp === null || avgHum === null) {
+        return true; // 데이터 없으면 일단 허용
+      }
+
+      // 온도나 습도가 최대값을 초과하면 밸브 정지
+      if (avgTemp > valveSchedule.maxTemperature || avgHum > valveSchedule.maxHumidity) {
+        console.log(`[VALVE] 환경 조건 초과 - 온도: ${avgTemp}°C (최대: ${valveSchedule.maxTemperature}°C), 습도: ${avgHum}% (최대: ${valveSchedule.maxHumidity}%)`);
+        return false;
+      }
+
+      return true;
     };
 
     // 주기적 제어 로직
     const runValveCycle = () => {
       const slot = getCurrentTimeSlot();
       if (!slot) return;
+
+      // 환경 조건 체크
+      if (!checkEnvironmentConditions()) {
+        console.log('[VALVE] 환경 조건 미달, 밸브 정지');
+        // 환경 조건이 좋아질 때까지 5초 후 재시도
+        valveTimerRef.current = setTimeout(runValveCycle, 5000);
+        return;
+      }
+
+      // 분:초를 총 초로 변환
+      const openTotalSeconds = slot.openMinutes * 60 + slot.openSeconds;
+      const closeTotalSeconds = slot.closeMinutes * 60 + slot.closeSeconds;
 
       // 밸브 열기
       controlValve("OPEN");
@@ -334,8 +383,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         controlValve("CLOSE");
 
         // closeSeconds 후에 다시 사이클 시작
-        valveTimerRef.current = setTimeout(runValveCycle, slot.closeSeconds * 1000);
-      }, slot.openSeconds * 1000);
+        valveTimerRef.current = setTimeout(runValveCycle, closeTotalSeconds * 1000);
+      }, openTotalSeconds * 1000);
     };
 
     // 최초 실행
@@ -348,7 +397,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         valveTimerRef.current = null;
       }
     };
-  }, [valveSchedule]);
+  }, [valveSchedule, averageValues]);
 
   const handleToggle = (deviceId: string, isOn: boolean) => {
     const newState = {
@@ -712,6 +761,20 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                               />
                             </div>
                             <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">열림 (분)</label>
+                              <input
+                                type="number"
+                                value={valveSchedule.timeSlots[0].openMinutes}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[0] = { ...newSlots[0], openMinutes: parseInt(e.target.value) || 0 };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                min="0"
+                              />
+                            </div>
+                            <div>
                               <label className="text-xs text-gray-700 font-medium mb-1 block">열림 (초)</label>
                               <input
                                 type="number"
@@ -719,6 +782,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                                 onChange={(e) => {
                                   const newSlots = [...valveSchedule.timeSlots];
                                   newSlots[0] = { ...newSlots[0], openSeconds: parseInt(e.target.value) || 0 };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                min="0"
+                                max="59"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">닫힘 (분)</label>
+                              <input
+                                type="number"
+                                value={valveSchedule.timeSlots[0].closeMinutes}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[0] = { ...newSlots[0], closeMinutes: parseInt(e.target.value) || 0 };
                                   setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
                                 }}
                                 className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
@@ -737,6 +815,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                                 }}
                                 className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
                                 min="0"
+                                max="59"
                               />
                             </div>
                           </div>
@@ -773,6 +852,20 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                               />
                             </div>
                             <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">열림 (분)</label>
+                              <input
+                                type="number"
+                                value={valveSchedule.timeSlots[1].openMinutes}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[1] = { ...newSlots[1], openMinutes: parseInt(e.target.value) || 0 };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                min="0"
+                              />
+                            </div>
+                            <div>
                               <label className="text-xs text-gray-700 font-medium mb-1 block">열림 (초)</label>
                               <input
                                 type="number"
@@ -780,6 +873,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                                 onChange={(e) => {
                                   const newSlots = [...valveSchedule.timeSlots];
                                   newSlots[1] = { ...newSlots[1], openSeconds: parseInt(e.target.value) || 0 };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                min="0"
+                                max="59"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">닫힘 (분)</label>
+                              <input
+                                type="number"
+                                value={valveSchedule.timeSlots[1].closeMinutes}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[1] = { ...newSlots[1], closeMinutes: parseInt(e.target.value) || 0 };
                                   setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
                                 }}
                                 className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
@@ -798,9 +906,86 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                                 }}
                                 className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
                                 min="0"
+                                max="59"
                               />
                             </div>
                           </div>
+                        </div>
+
+                        {/* 환경 조건 설정 */}
+                        <div className="p-3 bg-gray-50 border border-gray-300 rounded mt-3">
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="text-xs font-semibold text-gray-900">🌡️ 환경 조건 (선택)</h5>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={valveSchedule.useEnvironmentConditions}
+                                onChange={(e) =>
+                                  setValveSchedule({
+                                    ...valveSchedule,
+                                    useEnvironmentConditions: e.target.checked,
+                                  })
+                                }
+                                className="w-3 h-3 accent-farm-500"
+                              />
+                              <span className="text-xs text-gray-700">조건 사용</span>
+                            </label>
+                          </div>
+
+                          {valveSchedule.useEnvironmentConditions && (
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-xs text-gray-700 font-medium mb-1 block">
+                                  최대 온도 (°C)
+                                </label>
+                                <input
+                                  type="number"
+                                  value={valveSchedule.maxTemperature}
+                                  onChange={(e) =>
+                                    setValveSchedule({
+                                      ...valveSchedule,
+                                      maxTemperature: parseFloat(e.target.value) || 0,
+                                    })
+                                  }
+                                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                  min="0"
+                                  max="50"
+                                  step="0.5"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                  이 값 초과 시 밸브 정지
+                                </p>
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-700 font-medium mb-1 block">
+                                  최대 습도 (%)
+                                </label>
+                                <input
+                                  type="number"
+                                  value={valveSchedule.maxHumidity}
+                                  onChange={(e) =>
+                                    setValveSchedule({
+                                      ...valveSchedule,
+                                      maxHumidity: parseFloat(e.target.value) || 0,
+                                    })
+                                  }
+                                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                  min="0"
+                                  max="100"
+                                  step="1"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                  이 값 초과 시 밸브 정지
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {!valveSchedule.useEnvironmentConditions && (
+                            <p className="text-xs text-gray-500 italic">
+                              환경 조건을 체크하면 온도/습도가 최대값을 초과할 때 밸브가 자동으로 정지됩니다.
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}
