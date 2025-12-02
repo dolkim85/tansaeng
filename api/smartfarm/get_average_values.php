@@ -21,6 +21,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 try {
+    // 타임존 설정 (한국 시간)
+    date_default_timezone_set('Asia/Seoul');
+
     $base_path = dirname(dirname(__DIR__));
     require_once $base_path . '/classes/Database.php';
 
