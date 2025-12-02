@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# 탄생(Tansaeng) 클라우드 자동 배포 스크립트 v11.0
+# 탄생(Tansaeng) 클라우드 자동 배포 스크립트 v12.0
 # 사용법: ./deploy_to_cloud.sh
 
-echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: v2.2.0-간격축소)..."
+echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: v3.6.0-백그라운드데몬)..."
 
 # 변수 설정
 CLOUD_SERVER="1.201.17.34"
-CLOUD_USER="ubuntu"
-SSH_KEY="/home/spinmoll/.ssh/tansaeng.pem"
+CLOUD_USER="root"
+CLOUD_PASSWORD="qjawns3445"
 CLOUD_PATH="/var/www/html"
 REPO_URL="https://github.com/dolkim85/tansaeng.git"
-DEPLOY_TAG="v3.4.0"
+DEPLOY_TAG="v3.6.0"
 DOMAIN="www.tansaeng.com"
 
 # Git 상태 확인
@@ -29,8 +29,8 @@ git push origin main --tags 2>/dev/null || echo "이미 최신 상태입니다."
 # 2. 클라우드 서버에 배포
 echo "☁️ 클라우드 서버에 배포 중..."
 
-# SSH를 통해 클라우드 서버에서 명령 실행
-ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EOF'
+# sshpass를 통해 클라우드 서버에서 명령 실행
+sshpass -p "$CLOUD_PASSWORD" ssh -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EOF'
     echo "🔄 클라우드 서버에서 최신 코드 가져오는 중..."
 
     # 웹 디렉토리로 이동
@@ -65,7 +65,7 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" << 'EO
         sudo git pull origin main
     fi
 
-    echo "✅ Version v3.4.0 체크아웃 완료"
+    echo "✅ Version v3.6.0 체크아웃 완료"
 
     # 권한 설정
     echo "🔐 파일 권한 설정 중..."
@@ -213,9 +213,34 @@ ENVEOF'
         echo "✅ Alias 이미 존재함"
     fi
 
+    # Composer 설치 및 의존성 설치
+    echo "📦 Composer 의존성 설치 중..."
+    cd /var/www/html
+    if [ -f "composer.json" ]; then
+        if ! command -v composer &> /dev/null; then
+            echo "📥 Composer 설치 중..."
+            curl -sS https://getcomposer.org/installer | php
+            sudo mv composer.phar /usr/local/bin/composer
+            sudo chmod +x /usr/local/bin/composer
+        fi
+        COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader
+        echo "✅ Composer 의존성 설치 완료"
+    fi
+
+    # MQTT 데몬 서비스 설치 및 재시작
+    echo "🔄 MQTT 데몬 서비스 설정 중..."
+    if [ -f "/var/www/html/scripts/tansaeng-mqtt.service" ]; then
+        sudo cp /var/www/html/scripts/tansaeng-mqtt.service /etc/systemd/system/
+        sudo systemctl daemon-reload
+        sudo systemctl enable tansaeng-mqtt
+        sudo systemctl restart tansaeng-mqtt
+        echo "✅ MQTT 데몬 서비스 재시작 완료"
+    fi
+
     # 웹서버 재시작
     echo "🔄 웹서버 재시작 중..."
-    sudo systemctl reload apache2 2>/dev/null || sudo systemctl reload nginx 2>/dev/null
+    sudo systemctl reload apache2
+    sudo systemctl restart apache2
 
     echo "✅ 클라우드 서버 배포 완료!"
 EOF
@@ -225,7 +250,7 @@ echo "🎉 배포가 완료되었습니다!"
 echo "🌐 웹사이트: https://$DOMAIN"
 echo "👨‍💼 관리자: https://$DOMAIN/admin"
 echo "📊 서버 IP: $CLOUD_SERVER"
-echo "🏷️  버전: v3.4.0 - Tapo 카메라 전용 페이지 추가"
+echo "🏷️  버전: v3.6.0 - 백그라운드 MQTT 데몬 및 서버 기반 실시간 모니터링"
 echo ""
 echo "⚠️  배포 후 확인사항:"
 echo "1. 웹사이트 접속 확인"
