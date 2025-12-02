@@ -82,9 +82,9 @@ export default function Environment() {
     return unsubscribe;
   }, []);
 
-  // 센서 타임아웃 체크 (30초 이상 데이터가 없으면 0으로 표시)
+  // 센서 타임아웃 체크 (5초 이상 데이터가 없으면 0으로 표시)
   useEffect(() => {
-    const TIMEOUT_MS = 30000; // 30초
+    const TIMEOUT_MS = 5000; // 5초
     const interval = setInterval(() => {
       const now = Date.now();
 
@@ -108,7 +108,7 @@ export default function Environment() {
         }
         return prev;
       });
-    }, 5000); // 5초마다 체크
+    }, 1000); // 1초마다 체크 (더 빠른 반응)
 
     return () => clearInterval(interval);
   }, []);
