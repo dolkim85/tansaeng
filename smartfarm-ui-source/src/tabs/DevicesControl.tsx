@@ -40,6 +40,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // ESP32 장치별 마지막 heartbeat 시간 저장
   const heartbeatTimestamps = useRef<HeartbeatTimestamps>({});
 
+  // 온습도 센서 초기 메시지 무시용 (retained 메시지 필터링)
+  const sensorInitialMessages = useRef<Record<string, boolean>>({});
+
   // 자동 제어 설정
   const [autoControl, setAutoControl] = useState<AutoControlSettings>({
     mode: "manual",
@@ -74,6 +77,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       if (!connected) {
         setEsp32Status({});
         heartbeatTimestamps.current = {};
+        sensorInitialMessages.current = {}; // 재연결 시 다시 초기 메시지 체크
       }
     });
 
@@ -96,12 +100,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           topic === `tansaeng/${controllerId}/dht22/temperature` ||
           topic === `tansaeng/${controllerId}/dht22/humidity`
         ) {
-          // 온습도 데이터를 받으면 해당 ESP32가 연결된 것으로 판단
+          // 첫 번째 메시지는 retained 메시지일 수 있으므로 무시
+          const key = `${controllerId}:${topic}`;
+          if (!sensorInitialMessages.current[key]) {
+            sensorInitialMessages.current[key] = true;
+            console.log(`⏭️ Skipping initial retained message for ${controllerId} on ${topic}`);
+            return;
+          }
+
+          // 두 번째 메시지부터는 실제 데이터로 판단
           heartbeatTimestamps.current[controllerId] = now;
           setEsp32Status((prev) => ({
             ...prev,
             [controllerId]: true,
           }));
+          console.log(`📡 Sensor data received from ${controllerId}`);
           return;
         }
       }
