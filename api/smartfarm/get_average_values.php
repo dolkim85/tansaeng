@@ -29,23 +29,27 @@ try {
 
     $db = Database::getInstance();
 
-    // 최근 5분간의 평균값 계산
-    $sql = "SELECT
-                AVG(temperature) as avg_temp,
-                AVG(humidity) as avg_hum
-            FROM sensor_data
-            WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
-                AND sensor_location IN ('front', 'back', 'top')
-                AND temperature IS NOT NULL
-                AND humidity IS NOT NULL";
+    // 최근 5분간의 평균값 계산 (온도와 습도 별도 계산)
+    $tempSql = "SELECT AVG(temperature) as avg_temp
+                FROM sensor_data
+                WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                    AND sensor_location IN ('front', 'back', 'top')
+                    AND temperature IS NOT NULL";
 
-    $result = $db->selectOne($sql);
+    $humSql = "SELECT AVG(humidity) as avg_hum
+               FROM sensor_data
+               WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                   AND sensor_location IN ('front', 'back', 'top')
+                   AND humidity IS NOT NULL";
+
+    $tempResult = $db->selectOne($tempSql);
+    $humResult = $db->selectOne($humSql);
 
     echo json_encode([
         'success' => true,
         'data' => [
-            'avgTemperature' => $result['avg_temp'] ? round(floatval($result['avg_temp']), 1) : null,
-            'avgHumidity' => $result['avg_hum'] ? round(floatval($result['avg_hum']), 1) : null,
+            'avgTemperature' => $tempResult['avg_temp'] ? round(floatval($tempResult['avg_temp']), 1) : null,
+            'avgHumidity' => $humResult['avg_hum'] ? round(floatval($humResult['avg_hum']), 1) : null,
             'timestamp' => date('Y-m-d H:i:s')
         ]
     ]);
