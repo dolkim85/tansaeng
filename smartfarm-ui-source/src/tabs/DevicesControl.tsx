@@ -38,15 +38,7 @@ interface ValveSchedule {
   timeSlots: ValveTimeSlot[]; // 시간대별 설정 (최대 2개 - 주간/야간)
 }
 
-// 센서 데이터 인터페이스
-interface SensorData {
-  temperature: number | null;
-  humidity: number | null;
-}
-
 export default function DevicesControl({ deviceState, setDeviceState }: DevicesControlProps) {
-  const [mqttConnected, setMqttConnected] = useState(false);
-
   // ESP32 장치별 연결 상태 (12개)
   const [esp32Status, setEsp32Status] = useState<Record<string, boolean>>({});
 
@@ -96,26 +88,90 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const valveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [valveCurrentState, setValveCurrentState] = useState<"OPEN" | "CLOSE">("CLOSE");
 
-  // 센서 데이터 (평균값 계산용)
-  const [sensorData, setSensorData] = useState<{
-    front: SensorData;
-    back: SensorData;
-    top: SensorData;
+  // 자동 제어 설정 저장 (변경 시마다 API 호출)
+  useEffect(() => {
+    const saveSettings = async () => {
+      try {
+        await fetch('/api/smartfarm/save_auto_control.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled: controlMode === 'auto',
+            devices: deviceAutoControls
+          })
+        });
+        console.log('[AUTO] Settings saved to server');
+      } catch (error) {
+        console.error('[AUTO] Failed to save settings:', error);
+      }
+    };
+
+    // 초기 로딩이 아닐 때만 저장 (debounce 효과)
+    const timer = setTimeout(saveSettings, 1000);
+    return () => clearTimeout(timer);
+  }, [controlMode, deviceAutoControls]);
+
+  // 메인밸브 스케줄 저장 (변경 시마다 API 호출)
+  useEffect(() => {
+    const saveSchedule = async () => {
+      try {
+        await fetch('/api/smartfarm/save_valve_schedule.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(valveSchedule)
+        });
+        console.log('[VALVE] Schedule saved to server');
+      } catch (error) {
+        console.error('[VALVE] Failed to save schedule:', error);
+      }
+    };
+
+    const timer = setTimeout(saveSchedule, 1000);
+    return () => clearTimeout(timer);
+  }, [valveSchedule]);
+
+  // 서버에서 가져온 평균 온습도 (5분 평균)
+  const [averageValues, setAverageValues] = useState<{
+    avgTemperature: number | null;
+    avgHumidity: number | null;
   }>({
-    front: { temperature: null, humidity: null },
-    back: { temperature: null, humidity: null },
-    top: { temperature: null, humidity: null },
+    avgTemperature: null,
+    avgHumidity: null,
   });
 
   const fans = getDevicesByType("fan");
   const vents = getDevicesByType("vent");
   const pumps = getDevicesByType("pump");
 
-  // MQTT 연결 상태 감지
+  // 서버에서 평균 온습도 가져오기 (3초마다)
+  useEffect(() => {
+    const fetchAverageValues = async () => {
+      try {
+        const response = await fetch('/api/smartfarm/get_average_values.php');
+        const data = await response.json();
+
+        if (data.success) {
+          setAverageValues({
+            avgTemperature: data.data.avgTemperature,
+            avgHumidity: data.data.avgHumidity,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch average values:', error);
+      }
+    };
+
+    // 즉시 실행
+    fetchAverageValues();
+
+    // 3초마다 갱신
+    const interval = setInterval(fetchAverageValues, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // MQTT 연결 상태 감지 (장치 제어 명령 전송용)
   useEffect(() => {
     const unsubscribe = onConnectionChange((connected) => {
-      setMqttConnected(connected);
-
       // MQTT 연결이 끊어지면 모든 ESP32 연결 상태를 OFF로 설정
       if (!connected) {
         setEsp32Status({});
@@ -248,65 +304,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => clearInterval(checkInterval);
   }, [esp32Status]);
 
-  // 센서 데이터 구독 (자동 제어용)
-  useEffect(() => {
-    const client = getMqttClient();
+  // 센서 데이터는 백그라운드 MQTT 데몬이 수집하고 DB에 저장
+  // DevicesControl은 서버 API에서 평균값만 읽어옴 (위의 useEffect 참고)
 
-    const handleSensorMessage = (topic: string, message: Buffer) => {
-      const value = parseFloat(message.toString());
-
-      // 내부팬 앞 (ctlr-0001)
-      if (topic === "tansaeng/ctlr-0001/dht11/temperature") {
-        setSensorData((prev) => ({ ...prev, front: { ...prev.front, temperature: value } }));
-      } else if (topic === "tansaeng/ctlr-0001/dht11/humidity") {
-        setSensorData((prev) => ({ ...prev, front: { ...prev.front, humidity: value } }));
-      }
-      // 내부팬 뒤 (ctlr-0002)
-      else if (topic === "tansaeng/ctlr-0002/dht22/temperature") {
-        setSensorData((prev) => ({ ...prev, back: { ...prev.back, temperature: value } }));
-      } else if (topic === "tansaeng/ctlr-0002/dht22/humidity") {
-        setSensorData((prev) => ({ ...prev, back: { ...prev.back, humidity: value } }));
-      }
-      // 천장 (ctlr-0003)
-      else if (topic === "tansaeng/ctlr-0003/dht22/temperature") {
-        setSensorData((prev) => ({ ...prev, top: { ...prev.top, temperature: value } }));
-      } else if (topic === "tansaeng/ctlr-0003/dht22/humidity") {
-        setSensorData((prev) => ({ ...prev, top: { ...prev.top, humidity: value } }));
-      }
-    };
-
-    client.on("message", handleSensorMessage);
-
-    // 센서 토픽 구독
-    const sensorTopics = [
-      "tansaeng/ctlr-0001/dht11/temperature",
-      "tansaeng/ctlr-0001/dht11/humidity",
-      "tansaeng/ctlr-0002/dht22/temperature",
-      "tansaeng/ctlr-0002/dht22/humidity",
-      "tansaeng/ctlr-0003/dht22/temperature",
-      "tansaeng/ctlr-0003/dht22/humidity",
-    ];
-
-    sensorTopics.forEach((topic) => client.subscribe(topic, { qos: 1 }));
-
-    return () => {
-      client.off("message", handleSensorMessage);
-      sensorTopics.forEach((topic) => client.unsubscribe(topic));
-    };
-  }, []);
-
-  // 자동 제어 로직
+  // 자동 제어 로직 (서버에서 가져온 평균값 사용)
   useEffect(() => {
     if (controlMode !== "auto") return;
 
-    // 평균 온습도 계산
-    const temps = [sensorData.front.temperature, sensorData.back.temperature, sensorData.top.temperature].filter((t) => t !== null) as number[];
-    const hums = [sensorData.front.humidity, sensorData.back.humidity, sensorData.top.humidity].filter((h) => h !== null) as number[];
+    // 서버에서 가져온 평균값 사용
+    const avgTemp = averageValues.avgTemperature;
+    const avgHum = averageValues.avgHumidity;
 
-    if (temps.length === 0 || hums.length === 0) return;
-
-    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
-    const avgHum = hums.reduce((a, b) => a + b, 0) / hums.length;
+    if (avgTemp === null || avgHum === null) return;
 
     // 자동 제어가 활성화된 장치들만 제어
     ESP32_CONTROLLERS.forEach((controller) => {
@@ -339,7 +348,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         publishCommand(`tansaeng/${controller.controllerId}/vent_top_right/cmd`, { target: 20 });
       }
     });
-  }, [sensorData, controlMode, deviceAutoControls]);
+  }, [averageValues, controlMode, deviceAutoControls]);
 
   // 메인밸브 자동 제어 (스케줄 기반)
   useEffect(() => {
@@ -515,11 +524,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
               <div
                 className={`
                 w-2.5 h-2.5 rounded-full
-                ${mqttConnected && connectedCount > 0 ? "bg-farm-500 animate-pulse" : "bg-red-500"}
+                ${connectedCount > 0 ? "bg-farm-500 animate-pulse" : "bg-gray-400"}
               `}
               ></div>
               <span className="text-xs font-medium text-gray-900">
-                MQTT {mqttConnected ? "연결됨" : "연결 끊김"} ({connectedCount}/{totalCount} 장치)
+                장치 연결 ({connectedCount}/{totalCount})
               </span>
             </div>
           </div>
@@ -609,31 +618,17 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 <div>
                   <span className="text-xs text-gray-600">평균 온도:</span>
                   <span className="ml-2 text-sm font-semibold text-gray-900">
-                    {(() => {
-                      const temps = [
-                        sensorData.front.temperature,
-                        sensorData.back.temperature,
-                        sensorData.top.temperature,
-                      ].filter((t) => t !== null) as number[];
-                      if (temps.length === 0) return "N/A";
-                      const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
-                      return `${avg.toFixed(2)}°C`;
-                    })()}
+                    {averageValues.avgTemperature !== null
+                      ? `${averageValues.avgTemperature.toFixed(1)}°C`
+                      : "N/A"}
                   </span>
                 </div>
                 <div>
                   <span className="text-xs text-gray-600">평균 습도:</span>
                   <span className="ml-2 text-sm font-semibold text-gray-900">
-                    {(() => {
-                      const hums = [
-                        sensorData.front.humidity,
-                        sensorData.back.humidity,
-                        sensorData.top.humidity,
-                      ].filter((h) => h !== null) as number[];
-                      if (hums.length === 0) return "N/A";
-                      const avg = hums.reduce((a, b) => a + b, 0) / hums.length;
-                      return `${avg.toFixed(2)}%`;
-                    })()}
+                    {averageValues.avgHumidity !== null
+                      ? `${averageValues.avgHumidity.toFixed(1)}%`
+                      : "N/A"}
                   </span>
                 </div>
               </div>

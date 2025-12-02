@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import type { SensorSnapshot } from "../types";
-import { getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
 import SensorRow from "../components/SensorRow";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import DatePicker from "react-datepicker";
@@ -25,7 +24,7 @@ interface ChartDataPoint {
 export default function Environment() {
   const [period, setPeriod] = useState<"current" | "1h" | "1w" | "1m">("current");
   const [selectedZone, setSelectedZone] = useState("all");
-  const [mqttConnected, setMqttConnected] = useState(false);
+  const [serverConnected, setServerConnected] = useState(true); // 서버는 항상 연결됨
 
   // 3개 센서 데이터 (앞, 뒤, 천장)
   const [frontSensor, setFrontSensor] = useState<SensorData>({
@@ -73,154 +72,66 @@ export default function Environment() {
     ppfd: null,
   });
 
-  // MQTT 연결 상태 감지
+  // 서버 연결 상태 체크 (API 응답 확인)
   useEffect(() => {
-    const unsubscribe = onConnectionChange((connected) => {
-      setMqttConnected(connected);
-    });
-
-    return unsubscribe;
-  }, []);
-
-  // 센서 타임아웃 체크 (5초 이상 데이터가 없으면 0으로 표시)
-  useEffect(() => {
-    const TIMEOUT_MS = 5000; // 5초
-    const interval = setInterval(() => {
-      const now = Date.now();
-
-      setFrontSensor((prev) => {
-        if (prev.lastUpdate && now - prev.lastUpdate > TIMEOUT_MS) {
-          return { temperature: null, humidity: null, lastUpdate: null };
-        }
-        return prev;
-      });
-
-      setBackSensor((prev) => {
-        if (prev.lastUpdate && now - prev.lastUpdate > TIMEOUT_MS) {
-          return { temperature: null, humidity: null, lastUpdate: null };
-        }
-        return prev;
-      });
-
-      setTopSensor((prev) => {
-        if (prev.lastUpdate && now - prev.lastUpdate > TIMEOUT_MS) {
-          return { temperature: null, humidity: null, lastUpdate: null };
-        }
-        return prev;
-      });
-    }, 1000); // 1초마다 체크 (더 빠른 반응)
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // 3개 센서 데이터 구독 (앞, 뒤, 천장)
-  useEffect(() => {
-    const client = getMqttClient();
-
-    const sensors = [
-      {
-        name: "front",
-        tempTopic: "tansaeng/ctlr-0001/dht11/temperature",
-        humTopic: "tansaeng/ctlr-0001/dht11/humidity",
-        setter: setFrontSensor,
-      },
-      {
-        name: "back",
-        tempTopic: "tansaeng/ctlr-0002/dht22/temperature",
-        humTopic: "tansaeng/ctlr-0002/dht22/humidity",
-        setter: setBackSensor,
-      },
-      {
-        name: "top",
-        tempTopic: "tansaeng/ctlr-0003/dht22/temperature",
-        humTopic: "tansaeng/ctlr-0003/dht22/humidity",
-        setter: setTopSensor,
-      },
-    ];
-
-    const handleMessage = (topic: string, message: Buffer) => {
-      const value = parseFloat(message.toString());
-      const timestamp = Date.now(); // 타임스탬프로 변경
-
-      sensors.forEach((sensor) => {
-        let dataType: 'temperature' | 'humidity' | null = null;
-        let sensorType = '';
-
-        if (topic === sensor.tempTopic) {
-          sensor.setter((prev) => ({
-            ...prev,
-            temperature: value,
-            lastUpdate: timestamp,
-          }));
-          dataType = 'temperature';
-          sensorType = sensor.tempTopic.includes('dht11') ? 'dht11' : 'dht22';
-        } else if (topic === sensor.humTopic) {
-          sensor.setter((prev) => ({
-            ...prev,
-            humidity: value,
-            lastUpdate: timestamp,
-          }));
-          dataType = 'humidity';
-          sensorType = sensor.humTopic.includes('dht11') ? 'dht11' : 'dht22';
-        }
-
-        // 데이터베이스에 저장
-        if (dataType) {
-          const controllerId = topic.split('/')[1]; // tansaeng/ctlr-0001/dht11/temperature에서 ctlr-0001 추출
-          saveSensorData(controllerId, sensorType, sensor.name, dataType, value);
-        }
-      });
-    };
-
-    // 센서 데이터를 데이터베이스에 저장하는 함수
-    const saveSensorData = async (
-      controllerId: string,
-      sensorType: string,
-      sensorLocation: string,
-      dataType: 'temperature' | 'humidity',
-      value: number
-    ) => {
+    const checkServerConnection = async () => {
       try {
-        const payload: any = {
-          controller_id: controllerId,
-          sensor_type: sensorType,
-          sensor_location: sensorLocation,
-        };
-
-        if (dataType === 'temperature') {
-          payload.temperature = value;
-        } else {
-          payload.humidity = value;
-        }
-
-        await fetch('/api/smartfarm/save_sensor_data.php', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-      } catch (error) {
-        console.error('Failed to save sensor data:', error);
+        const response = await fetch('/api/smartfarm/get_realtime_sensor_data.php');
+        setServerConnected(response.ok);
+      } catch {
+        setServerConnected(false);
       }
     };
 
-    client.on("message", handleMessage);
-
-    // 모든 센서 구독
-    sensors.forEach((sensor) => {
-      client.subscribe(sensor.tempTopic);
-      client.subscribe(sensor.humTopic);
-    });
-
-    return () => {
-      client.off("message", handleMessage);
-      sensors.forEach((sensor) => {
-        client.unsubscribe(sensor.tempTopic);
-        client.unsubscribe(sensor.humTopic);
-      });
-    };
+    checkServerConnection();
+    const interval = setInterval(checkServerConnection, 10000); // 10초마다 체크
+    return () => clearInterval(interval);
   }, []);
+
+  // 서버 API에서 실시간 센서 데이터 가져오기 (1초마다)
+  useEffect(() => {
+    const fetchSensorData = async () => {
+      try {
+        const response = await fetch('/api/smartfarm/get_realtime_sensor_data.php');
+        const result = await response.json();
+
+        if (result.success) {
+          const data = result.data;
+
+          // 각 위치별 데이터 업데이트
+          setFrontSensor({
+            temperature: data.front.temperature,
+            humidity: data.front.humidity,
+            lastUpdate: data.front.lastUpdate ? Date.now() : null,
+          });
+
+          setBackSensor({
+            temperature: data.back.temperature,
+            humidity: data.back.humidity,
+            lastUpdate: data.back.lastUpdate ? Date.now() : null,
+          });
+
+          setTopSensor({
+            temperature: data.top.temperature,
+            humidity: data.top.humidity,
+            lastUpdate: data.top.lastUpdate ? Date.now() : null,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch sensor data:', error);
+      }
+    };
+
+    // 즉시 실행
+    fetchSensorData();
+
+    // 1초마다 갱신 (실시간)
+    const interval = setInterval(fetchSensorData, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 센서 데이터는 백그라운드 MQTT 데몬이 수집하고 DB에 저장
+  // Environment 페이지는 서버 API에서 데이터만 읽어옴 (위의 useEffect 참고)
 
   // 차트 데이터 업데이트 (실시간 데이터를 차트에 추가)
   useEffect(() => {
@@ -321,15 +232,15 @@ export default function Environment() {
                 온도, 습도, EC, pH 등 센서 데이터를 실시간으로 모니터링합니다
               </p>
             </div>
-            {/* MQTT 연결 상태 */}
+            {/* 서버 연결 상태 */}
             <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-lg">
               <div
                 className={`w-3 h-3 rounded-full ${
-                  mqttConnected ? "bg-green-300 animate-pulse" : "bg-red-300"
+                  serverConnected ? "bg-green-300 animate-pulse" : "bg-red-300"
                 }`}
               ></div>
               <span className="text-sm font-medium">
-                MQTT {mqttConnected ? "연결됨" : "연결 끊김"}
+                서버 {serverConnected ? "작동 중" : "연결 끊김"}
               </span>
             </div>
           </div>

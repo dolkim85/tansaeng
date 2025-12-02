@@ -1,0 +1,58 @@
+<?php
+/**
+ * 평균 온습도 조회 API
+ * 최근 5분간의 센서 데이터 평균값 반환
+ */
+
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'error' => 'Method not allowed']);
+    exit;
+}
+
+try {
+    $base_path = dirname(dirname(__DIR__));
+    require_once $base_path . '/classes/Database.php';
+
+    $db = Database::getInstance();
+
+    // 최근 5분간의 평균값 계산
+    $sql = "SELECT
+                AVG(temperature) as avg_temp,
+                AVG(humidity) as avg_hum
+            FROM sensor_data
+            WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                AND sensor_location IN ('front', 'back', 'top')
+                AND temperature IS NOT NULL
+                AND humidity IS NOT NULL";
+
+    $result = $db->selectOne($sql);
+
+    echo json_encode([
+        'success' => true,
+        'data' => [
+            'avgTemperature' => $result['avg_temp'] ? round(floatval($result['avg_temp']), 1) : null,
+            'avgHumidity' => $result['avg_hum'] ? round(floatval($result['avg_hum']), 1) : null,
+            'timestamp' => date('Y-m-d H:i:s')
+        ]
+    ]);
+
+} catch (Exception $e) {
+    error_log("Get average values error: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => $e->getMessage()
+    ]);
+}
+?>
