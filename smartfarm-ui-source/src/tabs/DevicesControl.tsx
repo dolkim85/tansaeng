@@ -24,13 +24,18 @@ interface DeviceAutoControl {
   humMax: number;
 }
 
-// 메인밸브 스케줄 설정
-interface ValveSchedule {
-  enabled: boolean; // 24시간 적용 여부
+// 메인밸브 시간대별 스케줄 설정
+interface ValveTimeSlot {
   startTime: string; // HH:mm 형식
   endTime: string; // HH:mm 형식
   openSeconds: number; // 밸브 열림 시간 (초)
-  closeMinutes: number; // 밸브 닫힘 시간 (분)
+  closeSeconds: number; // 밸브 닫힘 시간 (초)
+}
+
+// 메인밸브 스케줄 설정
+interface ValveSchedule {
+  enabled: boolean; // 스케줄 활성화 여부
+  timeSlots: ValveTimeSlot[]; // 시간대별 설정 (최대 2개 - 주간/야간)
 }
 
 // 센서 데이터 인터페이스
@@ -71,11 +76,25 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 메인밸브 스케줄 설정
   const [valveSchedule, setValveSchedule] = useState<ValveSchedule>({
     enabled: false,
-    startTime: "09:00",
-    endTime: "18:00",
-    openSeconds: 10,
-    closeMinutes: 5,
+    timeSlots: [
+      {
+        startTime: "06:00",
+        endTime: "18:00",
+        openSeconds: 10,
+        closeSeconds: 300, // 5분
+      },
+      {
+        startTime: "18:00",
+        endTime: "06:00",
+        openSeconds: 10,
+        closeSeconds: 600, // 10분
+      },
+    ],
   });
+
+  // 메인밸브 제어용 타이머
+  const valveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [valveCurrentState, setValveCurrentState] = useState<"OPEN" | "CLOSE">("CLOSE");
 
   // 센서 데이터 (평균값 계산용)
   const [sensorData, setSensorData] = useState<{
@@ -321,6 +340,125 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       }
     });
   }, [sensorData, controlMode, deviceAutoControls]);
+
+  // 메인밸브 자동 제어 (스케줄 기반)
+  useEffect(() => {
+    if (!valveSchedule.enabled) {
+      // 스케줄이 비활성화되면 타이머 정리
+      if (valveTimerRef.current) {
+        clearTimeout(valveTimerRef.current);
+        valveTimerRef.current = null;
+      }
+      return;
+    }
+
+    // 현재 시간에 맞는 시간대 찾기
+    const getCurrentTimeSlot = (): ValveTimeSlot | null => {
+      const now = new Date();
+      const currentTime = now.getHours() * 60 + now.getMinutes(); // 분 단위로 변환
+
+      for (const slot of valveSchedule.timeSlots) {
+        const [startHour, startMin] = slot.startTime.split(':').map(Number);
+        const [endHour, endMin] = slot.endTime.split(':').map(Number);
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+
+        // 시간대가 자정을 넘는 경우 처리 (예: 18:00 ~ 06:00)
+        if (startMinutes > endMinutes) {
+          if (currentTime >= startMinutes || currentTime < endMinutes) {
+            return slot;
+          }
+        } else {
+          if (currentTime >= startMinutes && currentTime < endMinutes) {
+            return slot;
+          }
+        }
+      }
+      return null;
+    };
+
+    // 시간대 겹침 체크
+    const checkTimeOverlap = (): boolean => {
+      if (valveSchedule.timeSlots.length < 2) return false;
+
+      const slots = valveSchedule.timeSlots;
+      for (let i = 0; i < slots.length - 1; i++) {
+        for (let j = i + 1; j < slots.length; j++) {
+          const slot1 = slots[i];
+          const slot2 = slots[j];
+
+          const [s1h, s1m] = slot1.startTime.split(':').map(Number);
+          const [e1h, e1m] = slot1.endTime.split(':').map(Number);
+          const [s2h, s2m] = slot2.startTime.split(':').map(Number);
+          const [e2h, e2m] = slot2.endTime.split(':').map(Number);
+
+          const s1 = s1h * 60 + s1m;
+          const e1 = e1h * 60 + e1m;
+          const s2 = s2h * 60 + s2m;
+          const e2 = e2h * 60 + e2m;
+
+          // 겹침 체크 (복잡한 로직이지만 자정 넘김도 고려)
+          const overlap =
+            (s1 <= s2 && s2 < e1) ||
+            (s1 < e2 && e2 <= e1) ||
+            (s2 <= s1 && s1 < e2) ||
+            (s2 < e1 && e1 <= e2);
+
+          if (overlap) return true;
+        }
+      }
+      return false;
+    };
+
+    // 겹침이 있으면 에러 표시하고 중단
+    if (checkTimeOverlap()) {
+      console.error('[VALVE] 시간대가 겹칩니다. 스케줄을 확인해주세요.');
+      return;
+    }
+
+    const currentSlot = getCurrentTimeSlot();
+    if (!currentSlot) {
+      console.log('[VALVE] 현재 시간대에 맞는 스케줄이 없습니다.');
+      return;
+    }
+
+    // 밸브 제어 함수
+    const controlValve = (command: "OPEN" | "CLOSE") => {
+      const client = getMqttClient();
+      const topic = "tansaeng/ctlr-0004/valve1/cmd";
+      client.publish(topic, command, { qos: 1 });
+      setValveCurrentState(command);
+      console.log(`[VALVE] ${command} (${currentSlot.openSeconds}s open / ${currentSlot.closeSeconds}s close)`);
+    };
+
+    // 주기적 제어 로직
+    const runValveCycle = () => {
+      const slot = getCurrentTimeSlot();
+      if (!slot) return;
+
+      // 밸브 열기
+      controlValve("OPEN");
+
+      // openSeconds 후에 밸브 닫기
+      setTimeout(() => {
+        controlValve("CLOSE");
+
+        // closeSeconds 후에 다시 사이클 시작
+        valveTimerRef.current = setTimeout(runValveCycle, slot.closeSeconds * 1000);
+      }, slot.openSeconds * 1000);
+    };
+
+    // 최초 실행
+    runValveCycle();
+
+    // 클린업
+    return () => {
+      if (valveTimerRef.current) {
+        clearTimeout(valveTimerRef.current);
+        valveTimerRef.current = null;
+      }
+    };
+  }, [valveSchedule]);
 
   const handleToggle = (deviceId: string, isOn: boolean) => {
     const newState = {
@@ -642,12 +780,10 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     {/* 메인밸브 스케줄 설정 (ctlr-0004만 표시) */}
                     {isMainValve && (
                       <div className="mt-4 pt-4 border-t border-gray-300">
-                        <h4 className="text-xs font-semibold text-gray-900 mb-3">
-                          메인밸브 스케줄 설정
-                        </h4>
-
-                        {/* 24시간 적용 체크박스 */}
-                        <div className="mb-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-xs font-semibold text-gray-900">
+                            메인밸브 스케줄 설정
+                          </h4>
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
@@ -661,89 +797,138 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                               className="w-4 h-4 text-farm-500 border-gray-300 rounded focus:ring-farm-500"
                             />
                             <span className="text-xs text-gray-700 font-medium">
-                              24시간 적용
+                              스케줄 활성화
                             </span>
                           </label>
                         </div>
 
-                        {/* 시간 범위 및 동작 설정 */}
-                        <div className="grid grid-cols-2 gap-4">
-                          {/* 시작 시간 */}
-                          <div>
-                            <label className="text-xs text-gray-700 font-medium mb-1.5 block">
-                              시작 시간
-                            </label>
-                            <input
-                              type="time"
-                              value={valveSchedule.startTime}
-                              onChange={(e) =>
-                                setValveSchedule({
-                                  ...valveSchedule,
-                                  startTime: e.target.value,
-                                })
-                              }
-                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-farm-500"
-                            />
-                          </div>
+                        {/* 현재 밸브 상태 */}
+                        <div className="mb-3 p-2 bg-gray-100 rounded text-center">
+                          <span className="text-xs text-gray-700">현재 상태: </span>
+                          <span className={`text-xs font-bold ${valveCurrentState === "OPEN" ? "text-green-600" : "text-red-600"}`}>
+                            {valveCurrentState === "OPEN" ? "열림" : "닫힘"}
+                          </span>
+                        </div>
 
-                          {/* 종료 시간 */}
-                          <div>
-                            <label className="text-xs text-gray-700 font-medium mb-1.5 block">
-                              종료 시간
-                            </label>
-                            <input
-                              type="time"
-                              value={valveSchedule.endTime}
-                              onChange={(e) =>
-                                setValveSchedule({
-                                  ...valveSchedule,
-                                  endTime: e.target.value,
-                                })
-                              }
-                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-farm-500"
-                            />
+                        {/* 시간대 1 - 주간 */}
+                        <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                          <h5 className="text-xs font-semibold text-yellow-800 mb-2">☀️ 주간 (시간대 1)</h5>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">시작</label>
+                              <input
+                                type="time"
+                                value={valveSchedule.timeSlots[0].startTime}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[0] = { ...newSlots[0], startTime: e.target.value };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">종료</label>
+                              <input
+                                type="time"
+                                value={valveSchedule.timeSlots[0].endTime}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[0] = { ...newSlots[0], endTime: e.target.value };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">열림 (초)</label>
+                              <input
+                                type="number"
+                                value={valveSchedule.timeSlots[0].openSeconds}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[0] = { ...newSlots[0], openSeconds: parseInt(e.target.value) || 0 };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                min="0"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">닫힘 (초)</label>
+                              <input
+                                type="number"
+                                value={valveSchedule.timeSlots[0].closeSeconds}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[0] = { ...newSlots[0], closeSeconds: parseInt(e.target.value) || 0 };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                min="0"
+                              />
+                            </div>
                           </div>
+                        </div>
 
-                          {/* 밸브 열림 시간 (초) */}
-                          <div>
-                            <label className="text-xs text-gray-700 font-medium mb-1.5 block">
-                              밸브 열림 시간 (초)
-                            </label>
-                            <input
-                              type="number"
-                              value={valveSchedule.openSeconds}
-                              onChange={(e) =>
-                                setValveSchedule({
-                                  ...valveSchedule,
-                                  openSeconds: parseInt(e.target.value) || 0,
-                                })
-                              }
-                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-farm-500"
-                              min="0"
-                              step="1"
-                              placeholder="10"
-                            />
-                          </div>
-
-                          {/* 밸브 닫힘 시간 (분) */}
-                          <div>
-                            <label className="text-xs text-gray-700 font-medium mb-1.5 block">
-                              밸브 닫힘 시간 (분)
-                            </label>
-                            <input
-                              type="number"
-                              value={valveSchedule.closeMinutes}
-                              onChange={(e) =>
-                                setValveSchedule({
-                                  ...valveSchedule,
-                                  closeMinutes: parseInt(e.target.value) || 0,
-                                })
-                              }
-                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-farm-500"
-                              min="0"
-                              step="1"
-                              placeholder="5"
-                            />
+                        {/* 시간대 2 - 야간 */}
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                          <h5 className="text-xs font-semibold text-blue-800 mb-2">🌙 야간 (시간대 2)</h5>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">시작</label>
+                              <input
+                                type="time"
+                                value={valveSchedule.timeSlots[1].startTime}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[1] = { ...newSlots[1], startTime: e.target.value };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">종료</label>
+                              <input
+                                type="time"
+                                value={valveSchedule.timeSlots[1].endTime}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[1] = { ...newSlots[1], endTime: e.target.value };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">열림 (초)</label>
+                              <input
+                                type="number"
+                                value={valveSchedule.timeSlots[1].openSeconds}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[1] = { ...newSlots[1], openSeconds: parseInt(e.target.value) || 0 };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                min="0"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">닫힘 (초)</label>
+                              <input
+                                type="number"
+                                value={valveSchedule.timeSlots[1].closeSeconds}
+                                onChange={(e) => {
+                                  const newSlots = [...valveSchedule.timeSlots];
+                                  newSlots[1] = { ...newSlots[1], closeSeconds: parseInt(e.target.value) || 0 };
+                                  setValveSchedule({ ...valveSchedule, timeSlots: newSlots });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                min="0"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
