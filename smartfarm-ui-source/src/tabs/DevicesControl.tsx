@@ -85,11 +85,31 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     const client = getMqttClient();
 
     const handleMessage = (topic: string, message: Buffer) => {
-      // status 토픽 처리만 사용 (state 토픽은 heartbeat로 사용하지 않음)
+      const now = Date.now();
+
+      // 온습도 센서 토픽 체크 (ctlr-0001, 0002, 0003)
+      const sensorControllers = ["ctlr-0001", "ctlr-0002", "ctlr-0003"];
+      for (const controllerId of sensorControllers) {
+        if (
+          topic === `tansaeng/${controllerId}/dht11/temperature` ||
+          topic === `tansaeng/${controllerId}/dht11/humidity` ||
+          topic === `tansaeng/${controllerId}/dht22/temperature` ||
+          topic === `tansaeng/${controllerId}/dht22/humidity`
+        ) {
+          // 온습도 데이터를 받으면 해당 ESP32가 연결된 것으로 판단
+          heartbeatTimestamps.current[controllerId] = now;
+          setEsp32Status((prev) => ({
+            ...prev,
+            [controllerId]: true,
+          }));
+          return;
+        }
+      }
+
+      // 나머지 장치는 status 토픽으로 판단
       const controller = ESP32_CONTROLLERS.find((c) => topic === c.statusTopic);
       if (controller) {
         const payload = message.toString().trim();
-        const now = Date.now();
 
         // "online" 메시지를 받으면 연결됨으로 표시
         if (payload.toLowerCase() === "online") {
@@ -114,13 +134,29 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     client.on("message", handleMessage);
 
-    // 모든 ESP32 status 토픽만 구독
+    // 온습도 센서 토픽 구독 (ctlr-0001, 0002, 0003)
+    const sensorTopics = [
+      "tansaeng/ctlr-0001/dht11/temperature",
+      "tansaeng/ctlr-0001/dht11/humidity",
+      "tansaeng/ctlr-0002/dht22/temperature",
+      "tansaeng/ctlr-0002/dht22/humidity",
+      "tansaeng/ctlr-0003/dht22/temperature",
+      "tansaeng/ctlr-0003/dht22/humidity",
+    ];
+    sensorTopics.forEach((topic) => {
+      client.subscribe(topic, { qos: 1 });
+    });
+
+    // 나머지 ESP32 status 토픽 구독
     ESP32_CONTROLLERS.forEach((controller) => {
       client.subscribe(controller.statusTopic, { qos: 1 });
     });
 
     return () => {
       client.off("message", handleMessage);
+      sensorTopics.forEach((topic) => {
+        client.unsubscribe(topic);
+      });
       ESP32_CONTROLLERS.forEach((controller) => {
         client.unsubscribe(controller.statusTopic);
       });
