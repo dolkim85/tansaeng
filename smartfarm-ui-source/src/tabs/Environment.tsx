@@ -9,7 +9,7 @@ import "react-datepicker/dist/react-datepicker.css";
 interface SensorData {
   temperature: number | null;
   humidity: number | null;
-  lastUpdate: string | null;
+  lastUpdate: number | null; // timestamp로 변경
 }
 
 interface ChartDataPoint {
@@ -82,6 +82,37 @@ export default function Environment() {
     return unsubscribe;
   }, []);
 
+  // 센서 타임아웃 체크 (30초 이상 데이터가 없으면 0으로 표시)
+  useEffect(() => {
+    const TIMEOUT_MS = 30000; // 30초
+    const interval = setInterval(() => {
+      const now = Date.now();
+
+      setFrontSensor((prev) => {
+        if (prev.lastUpdate && now - prev.lastUpdate > TIMEOUT_MS) {
+          return { temperature: null, humidity: null, lastUpdate: null };
+        }
+        return prev;
+      });
+
+      setBackSensor((prev) => {
+        if (prev.lastUpdate && now - prev.lastUpdate > TIMEOUT_MS) {
+          return { temperature: null, humidity: null, lastUpdate: null };
+        }
+        return prev;
+      });
+
+      setTopSensor((prev) => {
+        if (prev.lastUpdate && now - prev.lastUpdate > TIMEOUT_MS) {
+          return { temperature: null, humidity: null, lastUpdate: null };
+        }
+        return prev;
+      });
+    }, 5000); // 5초마다 체크
+
+    return () => clearInterval(interval);
+  }, []);
+
   // 3개 센서 데이터 구독 (앞, 뒤, 천장)
   useEffect(() => {
     const client = getMqttClient();
@@ -109,7 +140,7 @@ export default function Environment() {
 
     const handleMessage = (topic: string, message: Buffer) => {
       const value = parseFloat(message.toString());
-      const timestamp = new Date().toISOString();
+      const timestamp = Date.now(); // 타임스탬프로 변경
 
       sensors.forEach((sensor) => {
         let dataType: 'temperature' | 'humidity' | null = null;
@@ -271,16 +302,12 @@ export default function Environment() {
     }
   };
 
-  // 평균값 계산
-  const avgTemp =
-    [frontSensor.temperature, backSensor.temperature, topSensor.temperature]
-      .filter((t) => t !== null)
-      .reduce((sum, t) => sum + (t as number), 0) / 3 || null;
+  // 평균값 계산 (DevicesControl과 동일하게 null 제외하고 계산)
+  const temps = [frontSensor.temperature, backSensor.temperature, topSensor.temperature].filter((t) => t !== null) as number[];
+  const hums = [frontSensor.humidity, backSensor.humidity, topSensor.humidity].filter((h) => h !== null) as number[];
 
-  const avgHum =
-    [frontSensor.humidity, backSensor.humidity, topSensor.humidity]
-      .filter((h) => h !== null)
-      .reduce((sum, h) => sum + (h as number), 0) / 3 || null;
+  const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+  const avgHum = hums.length > 0 ? hums.reduce((a, b) => a + b, 0) / hums.length : null;
 
   return (
     <div className="bg-gray-50">
@@ -319,13 +346,13 @@ export default function Environment() {
               <div className="text-center">
                 <div className="text-xs text-gray-600 mb-1">평균 온도</div>
                 <div className="text-2xl font-bold text-green-600">
-                  {avgTemp !== null ? avgTemp.toFixed(2) : 0}°C
+                  {avgTemp !== null ? avgTemp.toFixed(1) : '0.0'}°C
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-xs text-gray-600 mb-1">평균 습도</div>
                 <div className="text-2xl font-bold text-blue-600">
-                  {avgHum !== null ? avgHum.toFixed(2) : 0}%
+                  {avgHum !== null ? avgHum.toFixed(1) : '0.0'}%
                 </div>
               </div>
             </div>
@@ -340,13 +367,13 @@ export default function Environment() {
               <div className="text-center">
                 <div className="text-xs text-gray-600">🌡️ 온도</div>
                 <div className="text-xl font-semibold text-green-600">
-                  {frontSensor.temperature ?? 0}°C
+                  {frontSensor.temperature !== null ? frontSensor.temperature.toFixed(1) : '0.0'}°C
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-xs text-gray-600">💧 습도</div>
                 <div className="text-xl font-semibold text-blue-600">
-                  {frontSensor.humidity ?? 0}%
+                  {frontSensor.humidity !== null ? frontSensor.humidity.toFixed(1) : '0.0'}%
                 </div>
               </div>
             </div>
@@ -361,13 +388,13 @@ export default function Environment() {
               <div className="text-center">
                 <div className="text-xs text-gray-600">🌡️ 온도</div>
                 <div className="text-xl font-semibold text-green-600">
-                  {backSensor.temperature ?? 0}°C
+                  {backSensor.temperature !== null ? backSensor.temperature.toFixed(1) : '0.0'}°C
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-xs text-gray-600">💧 습도</div>
                 <div className="text-xl font-semibold text-blue-600">
-                  {backSensor.humidity ?? 0}%
+                  {backSensor.humidity !== null ? backSensor.humidity.toFixed(1) : '0.0'}%
                 </div>
               </div>
             </div>
@@ -382,13 +409,13 @@ export default function Environment() {
               <div className="text-center">
                 <div className="text-xs text-gray-600">🌡️ 온도</div>
                 <div className="text-xl font-semibold text-green-600">
-                  {topSensor.temperature ?? 0}°C
+                  {topSensor.temperature !== null ? topSensor.temperature.toFixed(1) : '0.0'}°C
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-xs text-gray-600">💧 습도</div>
                 <div className="text-xl font-semibold text-blue-600">
-                  {topSensor.humidity ?? 0}%
+                  {topSensor.humidity !== null ? topSensor.humidity.toFixed(1) : '0.0'}%
                 </div>
               </div>
             </div>
@@ -403,13 +430,13 @@ export default function Environment() {
               <div className="text-center">
                 <div className="text-xs text-gray-600 mb-1">평균 온도</div>
                 <div className="text-2xl font-bold text-green-600">
-                  {tenMinAvg.temperature ?? 0}°C
+                  {tenMinAvg.temperature !== null ? tenMinAvg.temperature.toFixed(1) : '0.0'}°C
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-xs text-gray-600 mb-1">평균 습도</div>
                 <div className="text-2xl font-bold text-blue-600">
-                  {tenMinAvg.humidity ?? 0}%
+                  {tenMinAvg.humidity !== null ? tenMinAvg.humidity.toFixed(1) : '0.0'}%
                 </div>
               </div>
             </div>
