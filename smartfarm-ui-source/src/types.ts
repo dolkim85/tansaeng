@@ -93,4 +93,5 @@ export interface ESP32Controller {
   name: string;         // 화면 표시 이름
   controllerId: string; // 예: "ctlr-0001"
   statusTopic: string;  // 연결 상태 확인용 토픽
+  category?: "skylight" | "vent"; // 장치 카테고리 (천창/측창 구분)
 }
