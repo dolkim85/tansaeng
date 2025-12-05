@@ -15,8 +15,6 @@ interface DeviceAutoControl {
   enabled: boolean;
   tempMin: number;
   tempMax: number;
-  humMin: number;
-  humMax: number;
 }
 
 // 메인밸브 시간대별 스케줄 설정
@@ -55,8 +53,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         enabled: false,
         tempMin: 18,
         tempMax: 28,
-        humMin: 40,
-        humMax: 70,
       };
       return acc;
     }, {} as Record<string, DeviceAutoControl>)
@@ -301,39 +297,59 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     // 서버에서 가져온 평균값 사용
     const avgTemp = averageValues.avgTemperature;
-    const avgHum = averageValues.avgHumidity;
 
-    if (avgTemp === null || avgHum === null) return;
+    if (avgTemp === null) return;
 
     // 자동 제어가 활성화된 장치들만 제어
     ESP32_CONTROLLERS.forEach((controller) => {
       const autoControl = deviceAutoControls[controller.controllerId];
       if (!autoControl?.enabled) return;
 
+      const client = getMqttClient();
+
       // 온도 기반 제어
       if (avgTemp > autoControl.tempMax) {
-        // 온도가 높으면 팬 켜기, 환기 열기
-        publishCommand(`tansaeng/${controller.controllerId}/fan1/cmd`, { power: "on" });
-        publishCommand(`tansaeng/${controller.controllerId}/fan2/cmd`, { power: "on" });
-        publishCommand(`tansaeng/${controller.controllerId}/vent_side_left/cmd`, { target: 80 });
-        publishCommand(`tansaeng/${controller.controllerId}/vent_side_right/cmd`, { target: 80 });
-      } else if (avgTemp < autoControl.tempMin) {
-        // 온도가 낮으면 팬 끄기, 환기 닫기
-        publishCommand(`tansaeng/${controller.controllerId}/fan1/cmd`, { power: "off" });
-        publishCommand(`tansaeng/${controller.controllerId}/fan2/cmd`, { power: "off" });
-        publishCommand(`tansaeng/${controller.controllerId}/vent_side_left/cmd`, { target: 20 });
-        publishCommand(`tansaeng/${controller.controllerId}/vent_side_right/cmd`, { target: 20 });
-      }
+        // 온도가 높으면 팬 켜기, 천창/측창 스크린 열기
 
-      // 습도 기반 제어
-      if (avgHum > autoControl.humMax) {
-        // 습도가 높으면 환기
-        publishCommand(`tansaeng/${controller.controllerId}/vent_top_left/cmd`, { target: 80 });
-        publishCommand(`tansaeng/${controller.controllerId}/vent_top_right/cmd`, { target: 80 });
-      } else if (avgHum < autoControl.humMin) {
-        // 습도가 낮으면 환기 닫기
-        publishCommand(`tansaeng/${controller.controllerId}/vent_top_left/cmd`, { target: 20 });
-        publishCommand(`tansaeng/${controller.controllerId}/vent_top_right/cmd`, { target: 20 });
+        // 팬 제어
+        if (controller.controllerId === "ctlr-0001" || controller.controllerId === "ctlr-0002") {
+          publishCommand(`tansaeng/${controller.controllerId}/fan1/cmd`, { power: "on" });
+        }
+
+        // 천창 스크린 제어 (ctlr-0011)
+        if (controller.controllerId === "ctlr-0011") {
+          client.publish("tansaeng/ctlr-0011/windowL/cmd", "OPEN", { qos: 1 });
+          client.publish("tansaeng/ctlr-0011/windowR/cmd", "OPEN", { qos: 1 });
+          console.log(`[AUTO] 천창 스크린 열기 (온도: ${avgTemp}°C > ${autoControl.tempMax}°C)`);
+        }
+
+        // 측창 스크린 제어 (ctlr-0012)
+        if (controller.controllerId === "ctlr-0012") {
+          publishCommand("tansaeng/esp32-node-2/vent_top_left/cmd", { target: 80 });
+          publishCommand("tansaeng/esp32-node-2/vent_top_right/cmd", { target: 80 });
+          console.log(`[AUTO] 측창 스크린 열기 (온도: ${avgTemp}°C > ${autoControl.tempMax}°C)`);
+        }
+      } else if (avgTemp < autoControl.tempMin) {
+        // 온도가 낮으면 팬 끄기, 천창/측창 스크린 닫기
+
+        // 팬 제어
+        if (controller.controllerId === "ctlr-0001" || controller.controllerId === "ctlr-0002") {
+          publishCommand(`tansaeng/${controller.controllerId}/fan1/cmd`, { power: "off" });
+        }
+
+        // 천창 스크린 제어 (ctlr-0011)
+        if (controller.controllerId === "ctlr-0011") {
+          client.publish("tansaeng/ctlr-0011/windowL/cmd", "CLOSE", { qos: 1 });
+          client.publish("tansaeng/ctlr-0011/windowR/cmd", "CLOSE", { qos: 1 });
+          console.log(`[AUTO] 천창 스크린 닫기 (온도: ${avgTemp}°C < ${autoControl.tempMin}°C)`);
+        }
+
+        // 측창 스크린 제어 (ctlr-0012)
+        if (controller.controllerId === "ctlr-0012") {
+          publishCommand("tansaeng/esp32-node-2/vent_top_left/cmd", { target: 20 });
+          publishCommand("tansaeng/esp32-node-2/vent_top_right/cmd", { target: 20 });
+          console.log(`[AUTO] 측창 스크린 닫기 (온도: ${avgTemp}°C < ${autoControl.tempMin}°C)`);
+        }
       }
     });
   }, [averageValues, controlMode, deviceAutoControls]);
@@ -431,22 +447,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       console.log(`[VALVE] ${command} (${openTotal}s open / ${closeTotal}s close)`);
     };
 
-    // 환경 조건 체크 함수
+    // 환경 조건 체크 함수 (온도만)
     const checkEnvironmentConditions = (): boolean => {
       if (!valveSchedule.useEnvironmentConditions) {
         return true; // 환경 조건 사용 안 하면 항상 true
       }
 
       const avgTemp = averageValues.avgTemperature;
-      const avgHum = averageValues.avgHumidity;
 
-      if (avgTemp === null || avgHum === null) {
+      if (avgTemp === null) {
         return true; // 데이터 없으면 일단 허용
       }
 
-      // 온도나 습도가 최대값을 초과하면 밸브 정지
-      if (avgTemp > valveSchedule.maxTemperature || avgHum > valveSchedule.maxHumidity) {
-        console.log(`[VALVE] 환경 조건 초과 - 온도: ${avgTemp}°C (최대: ${valveSchedule.maxTemperature}°C), 습도: ${avgHum}% (최대: ${valveSchedule.maxHumidity}%)`);
+      // 온도가 최대값을 초과하면 밸브 정지
+      if (avgTemp > valveSchedule.maxTemperature) {
+        console.log(`[VALVE] 환경 조건 초과 - 온도: ${avgTemp}°C (최대: ${valveSchedule.maxTemperature}°C)`);
         return false;
       }
 
@@ -759,90 +774,45 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </button>
                     </div>
 
-                    {/* 온습도 범위 설정 */}
-                    <div className="grid grid-cols-2 gap-4 mb-3">
-                      {/* 온도 범위 */}
-                      <div>
-                        <label className="text-xs text-gray-700 font-medium mb-1.5 block">
-                          온도 범위 (°C)
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            value={autoControl.tempMin}
-                            onChange={(e) =>
-                              setDeviceAutoControls({
-                                ...deviceAutoControls,
-                                [controller.controllerId]: {
-                                  ...autoControl,
-                                  tempMin: parseFloat(e.target.value),
-                                },
-                              })
-                            }
-                            className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-farm-500"
-                            step="0.5"
-                            placeholder="최소"
-                          />
-                          <span className="text-xs text-gray-500">~</span>
-                          <input
-                            type="number"
-                            value={autoControl.tempMax}
-                            onChange={(e) =>
-                              setDeviceAutoControls({
-                                ...deviceAutoControls,
-                                [controller.controllerId]: {
-                                  ...autoControl,
-                                  tempMax: parseFloat(e.target.value),
-                                },
-                              })
-                            }
-                            className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-farm-500"
-                            step="0.5"
-                            placeholder="최대"
-                          />
-                        </div>
-                      </div>
-
-                      {/* 습도 범위 */}
-                      <div>
-                        <label className="text-xs text-gray-700 font-medium mb-1.5 block">
-                          습도 범위 (%)
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            value={autoControl.humMin}
-                            onChange={(e) =>
-                              setDeviceAutoControls({
-                                ...deviceAutoControls,
-                                [controller.controllerId]: {
-                                  ...autoControl,
-                                  humMin: parseFloat(e.target.value),
-                                },
-                              })
-                            }
-                            className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-farm-500"
-                            step="1"
-                            placeholder="최소"
-                          />
-                          <span className="text-xs text-gray-500">~</span>
-                          <input
-                            type="number"
-                            value={autoControl.humMax}
-                            onChange={(e) =>
-                              setDeviceAutoControls({
-                                ...deviceAutoControls,
-                                [controller.controllerId]: {
-                                  ...autoControl,
-                                  humMax: parseFloat(e.target.value),
-                                },
-                              })
-                            }
-                            className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-farm-500"
-                            step="1"
-                            placeholder="최대"
-                          />
-                        </div>
+                    {/* 온도 범위 설정 */}
+                    <div className="mb-3">
+                      <label className="text-xs text-gray-700 font-medium mb-1.5 block">
+                        온도 범위 (°C)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={autoControl.tempMin}
+                          onChange={(e) =>
+                            setDeviceAutoControls({
+                              ...deviceAutoControls,
+                              [controller.controllerId]: {
+                                ...autoControl,
+                                tempMin: parseFloat(e.target.value),
+                              },
+                            })
+                          }
+                          className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-farm-500"
+                          step="0.5"
+                          placeholder="최소"
+                        />
+                        <span className="text-xs text-gray-500">~</span>
+                        <input
+                          type="number"
+                          value={autoControl.tempMax}
+                          onChange={(e) =>
+                            setDeviceAutoControls({
+                              ...deviceAutoControls,
+                              [controller.controllerId]: {
+                                ...autoControl,
+                                tempMax: parseFloat(e.target.value),
+                              },
+                            })
+                          }
+                          className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-farm-500"
+                          step="0.5"
+                          placeholder="최대"
+                        />
                       </div>
                     </div>
 
@@ -1082,57 +1052,33 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                           </div>
 
                           {valveSchedule.useEnvironmentConditions && (
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="text-xs text-gray-700 font-medium mb-1 block">
-                                  최대 온도 (°C)
-                                </label>
-                                <input
-                                  type="number"
-                                  value={valveSchedule.maxTemperature}
-                                  onChange={(e) =>
-                                    setValveSchedule({
-                                      ...valveSchedule,
-                                      maxTemperature: parseFloat(e.target.value) || 0,
-                                    })
-                                  }
-                                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
-                                  min="0"
-                                  max="50"
-                                  step="0.5"
-                                />
-                                <p className="text-xs text-gray-500 mt-1">
-                                  이 값 초과 시 밸브 정지
-                                </p>
-                              </div>
-                              <div>
-                                <label className="text-xs text-gray-700 font-medium mb-1 block">
-                                  최대 습도 (%)
-                                </label>
-                                <input
-                                  type="number"
-                                  value={valveSchedule.maxHumidity}
-                                  onChange={(e) =>
-                                    setValveSchedule({
-                                      ...valveSchedule,
-                                      maxHumidity: parseFloat(e.target.value) || 0,
-                                    })
-                                  }
-                                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
-                                  min="0"
-                                  max="100"
-                                  step="1"
-                                />
-                                <p className="text-xs text-gray-500 mt-1">
-                                  이 값 초과 시 밸브 정지
-                                </p>
-                              </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium mb-1 block">
+                                최대 온도 (°C)
+                              </label>
+                              <input
+                                type="number"
+                                value={valveSchedule.maxTemperature}
+                                onChange={(e) =>
+                                  setValveSchedule({
+                                    ...valveSchedule,
+                                    maxTemperature: parseFloat(e.target.value) || 0,
+                                  })
+                                }
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                min="0"
+                                max="50"
+                                step="0.5"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">
+                                이 값 초과 시 밸브 정지
+                              </p>
                             </div>
                           )}
 
                           {!valveSchedule.useEnvironmentConditions && (
                             <p className="text-xs text-gray-500 italic">
-                              환경 조건을 체크하면 온도/습도가 최대값을 초과할 때 밸브가 자동으로 정지됩니다.
+                              환경 조건을 체크하면 온도가 최대값을 초과할 때 밸브가 자동으로 정지됩니다.
                             </p>
                           )}
                         </div>

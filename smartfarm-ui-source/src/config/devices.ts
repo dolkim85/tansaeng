@@ -38,30 +38,6 @@ export const DEVICES: DeviceConfig[] = [
     stateTopic: "tansaeng/esp32-node-1/fan_top/state",
   },
 
-  // ========== 개폐기 제어 (슬라이더 0~100%) ==========
-  {
-    id: "vent_side_left",
-    name: "측창개폐기 Left",
-    type: "vent",
-    esp32Id: "esp32-node-2",
-    commandTopic: "tansaeng/esp32-node-2/vent_side_left/cmd",
-    stateTopic: "tansaeng/esp32-node-2/vent_side_left/state",
-    extra: {
-      supportsPercentage: true,
-    },
-  },
-  {
-    id: "vent_side_right",
-    name: "측창개폐기 Right",
-    type: "vent",
-    esp32Id: "esp32-node-2",
-    commandTopic: "tansaeng/esp32-node-2/vent_side_right/cmd",
-    stateTopic: "tansaeng/esp32-node-2/vent_side_right/state",
-    extra: {
-      supportsPercentage: true,
-    },
-  },
-
   // ========== 천창 스크린 제어 (OPEN/CLOSE/STOP) ==========
   {
     id: "skylight_left",
