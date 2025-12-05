@@ -176,7 +176,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         console.log(`[HEARTBEAT] ${controller.controllerId}: ${payload}`);
 
         // online 메시지를 받으면 연결됨으로 표시
-        if (payload.toLowerCase() === "online") {
+        // 다양한 형식 지원: "online", "ON", "1", "connected" 등
+        const payloadLower = payload.toLowerCase().trim();
+        if (
+          payloadLower === "online" ||
+          payloadLower === "on" ||
+          payloadLower === "1" ||
+          payloadLower === "connected"
+        ) {
           lastHeartbeat[controller.controllerId] = Date.now();
           setEsp32Status((prev) => ({
             ...prev,
