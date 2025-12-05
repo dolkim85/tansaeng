@@ -3,7 +3,7 @@ import { getDevicesByType } from "../config/devices";
 import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
 import DeviceCard from "../components/DeviceCard";
-import { publishCommand, getMqttClient, onConnectionChange, subscribeToTopic } from "../mqtt/mqttClient";
+import { publishCommand, getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
 
 interface DevicesControlProps {
   deviceState: DeviceDesiredState;
@@ -165,57 +165,31 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     };
   }, []);
 
-  // ESP32 heartbeat 구독 (MQTT 토픽)
+  // 서버에서 장치 연결 상태 가져오기 (3초마다 폴링)
   useEffect(() => {
-    // 마지막 heartbeat 타임스탬프 저장
-    const lastHeartbeat: Record<string, number> = {};
+    const fetchDeviceStatus = async () => {
+      try {
+        const response = await fetch("/api/smartfarm/get_device_status.php");
+        const result = await response.json();
 
-    // 모든 ESP32 장치의 status 토픽 구독
-    ESP32_CONTROLLERS.forEach((controller) => {
-      subscribeToTopic(controller.statusTopic, (payload) => {
-        console.log(`[HEARTBEAT] ${controller.controllerId}: ${payload}`);
-
-        // online 메시지를 받으면 연결됨으로 표시
-        // 다양한 형식 지원: "online", "ON", "1", "connected" 등
-        const payloadLower = payload.toLowerCase().trim();
-        if (
-          payloadLower === "online" ||
-          payloadLower === "on" ||
-          payloadLower === "1" ||
-          payloadLower === "connected"
-        ) {
-          lastHeartbeat[controller.controllerId] = Date.now();
-          setEsp32Status((prev) => ({
-            ...prev,
-            [controller.controllerId]: true,
-          }));
+        if (result.success) {
+          const newStatus: Record<string, boolean> = {};
+          Object.entries(result.data.devices).forEach(([controllerId, info]: [string, any]) => {
+            newStatus[controllerId] = info.connected;
+          });
+          setEsp32Status(newStatus);
         }
-      });
-    });
-
-    // 30초마다 타임아웃 체크 (heartbeat가 60초 이상 없으면 offline)
-    const timeoutChecker = setInterval(() => {
-      const now = Date.now();
-      const TIMEOUT = 90000; // 90초
-
-      setEsp32Status((prev) => {
-        const newStatus = { ...prev };
-
-        Object.keys(lastHeartbeat).forEach((controllerId) => {
-          if (now - lastHeartbeat[controllerId] > TIMEOUT) {
-            newStatus[controllerId] = false;
-            console.log(`[TIMEOUT] ${controllerId} is offline`);
-          }
-        });
-
-        return newStatus;
-      });
-    }, 30000);
-
-    // 클린업
-    return () => {
-      clearInterval(timeoutChecker);
+      } catch (error) {
+        console.error("Failed to fetch device status:", error);
+      }
     };
+
+    // 즉시 실행
+    fetchDeviceStatus();
+
+    // 3초마다 갱신
+    const interval = setInterval(fetchDeviceStatus, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   // 서버에서 평균 온습도 가져오기 (3초마다)
@@ -243,9 +217,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     const interval = setInterval(fetchAverageValues, 3000);
     return () => clearInterval(interval);
   }, []);
-
-  // 서버 API 폴링은 제거 (MQTT heartbeat로 대체)
-  // ESP32가 MQTT로 직접 heartbeat를 보내므로 더 실시간으로 정확함
 
   // 센서 데이터는 백그라운드 MQTT 데몬이 수집하고 DB에 저장
   // DevicesControl은 서버 API에서 평균값만 읽어옴 (위의 useEffect 참고)
