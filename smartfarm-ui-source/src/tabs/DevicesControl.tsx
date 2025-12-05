@@ -701,25 +701,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             </div>
           </header>
           <div className="bg-white shadow-sm rounded-b-lg p-4">
-            {/* 현재 평균 온습도 표시 */}
+            {/* 현재 평균 온도 표시 */}
             <div className="mb-4 p-3 bg-farm-50 rounded-lg border border-farm-200">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-xs text-gray-600">평균 온도:</span>
-                  <span className="ml-2 text-sm font-semibold text-gray-900">
-                    {averageValues.avgTemperature !== null
-                      ? `${averageValues.avgTemperature.toFixed(1)}°C`
-                      : "N/A"}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-xs text-gray-600">평균 습도:</span>
-                  <span className="ml-2 text-sm font-semibold text-gray-900">
-                    {averageValues.avgHumidity !== null
-                      ? `${averageValues.avgHumidity.toFixed(1)}%`
-                      : "N/A"}
-                  </span>
-                </div>
+              <div>
+                <span className="text-xs text-gray-600">평균 온도:</span>
+                <span className="ml-2 text-sm font-semibold text-gray-900">
+                  {averageValues.avgTemperature !== null
+                    ? `${averageValues.avgTemperature.toFixed(1)}°C`
+                    : "N/A"}
+                </span>
               </div>
             </div>
 
