@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# 탄생(Tansaeng) 클라우드 자동 배포 스크립트 v12.0
+# 탄생(Tansaeng) 클라우드 자동 배포 스크립트 v13.0
 # 사용법: ./deploy_to_cloud.sh
 
-echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: v3.7.0-밸브제어고도화)..."
+echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: v3.8.0-천창스크린제어)..."
 
 # 변수 설정
 CLOUD_SERVER="1.201.17.34"
@@ -11,7 +11,7 @@ CLOUD_USER="root"
 CLOUD_PASSWORD="qjawns3445"
 CLOUD_PATH="/var/www/html"
 REPO_URL="https://github.com/dolkim85/tansaeng.git"
-DEPLOY_TAG="v3.7.0"
+DEPLOY_TAG="v3.8.0"
 DOMAIN="www.tansaeng.com"
 
 # Git 상태 확인
@@ -65,7 +65,7 @@ sshpass -p "$CLOUD_PASSWORD" ssh -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD
         sudo git pull origin main
     fi
 
-    echo "✅ Version v3.7.0 체크아웃 완료"
+    echo "✅ Version v3.8.0 체크아웃 완료"
 
     # 권한 설정
     echo "🔐 파일 권한 설정 중..."
