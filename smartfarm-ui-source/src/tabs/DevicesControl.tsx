@@ -3,7 +3,7 @@ import { getDevicesByType } from "../config/devices";
 import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
 import DeviceCard from "../components/DeviceCard";
-import { publishCommand, getMqttClient } from "../mqtt/mqttClient";
+import { publishCommand, getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
 
 interface DevicesControlProps {
   deviceState: DeviceDesiredState;
@@ -41,6 +41,9 @@ interface ValveSchedule {
 export default function DevicesControl({ deviceState, setDeviceState }: DevicesControlProps) {
   // ESP32 장치별 연결 상태 (12개)
   const [esp32Status, setEsp32Status] = useState<Record<string, boolean>>({});
+
+  // HiveMQ 연결 상태
+  const [mqttConnected, setMqttConnected] = useState(false);
 
   // 수동/자동 모드
   const [controlMode, setControlMode] = useState<"manual" | "auto">("manual");
@@ -144,6 +147,23 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const vents = getDevicesByType("vent");
   const pumps = getDevicesByType("pump");
   const skylights = getDevicesByType("skylight");
+
+  // HiveMQ 연결 상태 모니터링
+  useEffect(() => {
+    // MQTT 클라이언트 초기화
+    getMqttClient();
+
+    // 연결 상태 변경 감지
+    const unsubscribe = onConnectionChange((connected) => {
+      setMqttConnected(connected);
+      console.log(`[MQTT] Connection status: ${connected ? 'Connected' : 'Disconnected'}`);
+    });
+
+    // 클린업
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // 서버에서 평균 온습도 가져오기 (3초마다)
   useEffect(() => {
@@ -448,15 +468,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const connectedCount = Object.values(esp32Status).filter(Boolean).length;
   const totalCount = ESP32_CONTROLLERS.length;
 
-  // 천창/측창 스크린 ESP32 필터링
-  const skylightControllers = ESP32_CONTROLLERS.filter(c => c.category === "skylight");
-  const ventControllers = ESP32_CONTROLLERS.filter(c => c.category === "vent");
-  const otherControllers = ESP32_CONTROLLERS.filter(c => !c.category);
-
-  // 천창/측창 연결 개수
-  const skylightConnectedCount = skylightControllers.filter(c => esp32Status[c.controllerId] === true).length;
-  const ventConnectedCount = ventControllers.filter(c => esp32Status[c.controllerId] === true).length;
-
   return (
     <div className="bg-gray-50">
       <div className="max-w-screen-2xl mx-auto p-3">
@@ -469,17 +480,32 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 팬, 개폐기, 펌프 등 장치를 원격으로 제어합니다
               </p>
             </div>
-            {/* ESP32 전체 연결 상태 */}
-            <div className="flex items-center gap-2 bg-farm-50 border border-farm-200 px-3 py-1.5 rounded-md">
-              <div
-                className={`
-                w-2.5 h-2.5 rounded-full
-                ${connectedCount > 0 ? "bg-farm-500 animate-pulse" : "bg-gray-400"}
-              `}
-              ></div>
-              <span className="text-xs font-medium text-gray-900">
-                장치 연결 ({connectedCount}/{totalCount})
-              </span>
+            {/* 연결 상태 표시 */}
+            <div className="flex items-center gap-3">
+              {/* HiveMQ 연결 상태 */}
+              <div className="flex items-center gap-2 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-md">
+                <div
+                  className={`
+                  w-2.5 h-2.5 rounded-full
+                  ${mqttConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}
+                `}
+                ></div>
+                <span className="text-xs font-medium text-gray-900">
+                  HiveMQ {mqttConnected ? "연결됨" : "연결 끊김"}
+                </span>
+              </div>
+              {/* ESP32 전체 연결 상태 */}
+              <div className="flex items-center gap-2 bg-farm-50 border border-farm-200 px-3 py-1.5 rounded-md">
+                <div
+                  className={`
+                  w-2.5 h-2.5 rounded-full
+                  ${connectedCount > 0 ? "bg-farm-500 animate-pulse" : "bg-gray-400"}
+                `}
+                ></div>
+                <span className="text-xs font-medium text-gray-900">
+                  장치 연결 ({connectedCount}/{totalCount})
+                </span>
+              </div>
             </div>
           </div>
         </header>
@@ -491,142 +517,44 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
               🔌 ESP32 장치 연결 상태
             </h2>
           </header>
-          <div className="bg-white shadow-sm rounded-b-lg p-3 space-y-3">
-            {/* 기타 장치 */}
-            {otherControllers.length > 0 && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-700 mb-2">기타 장치</h3>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2">
-                  {otherControllers.map((controller) => {
-                    const isConnected = esp32Status[controller.controllerId] === true;
+          <div className="bg-white shadow-sm rounded-b-lg p-3">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2">
+              {ESP32_CONTROLLERS.map((controller) => {
+                const isConnected = esp32Status[controller.controllerId] === true;
 
-                    return (
-                      <div
-                        key={controller.id}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-md border transition-colors ${
-                          isConnected
-                            ? "bg-green-50 border-green-300"
-                            : "bg-gray-50 border-gray-300"
-                        }`}
-                      >
-                        <div
-                          className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                            isConnected ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                          }`}
-                        ></div>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-gray-900 block truncate">
-                            {controller.name}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {controller.controllerId}
-                          </span>
-                        </div>
-                        <span
-                          className={`text-xs font-medium flex-shrink-0 ${
-                            isConnected ? "text-green-600" : "text-gray-500"
-                          }`}
-                        >
-                          {isConnected ? "ON" : "OFF"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 천창 스크린 */}
-            {skylightControllers.length > 0 && (
-              <div>
-                <h3 className="text-xs font-semibold text-amber-700 mb-2">
-                  ☀️ 천창 스크린 ({skylightConnectedCount}/{skylightControllers.length})
-                </h3>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2">
-                  {skylightControllers.map((controller) => {
-                    const isConnected = esp32Status[controller.controllerId] === true;
-
-                    return (
-                      <div
-                        key={controller.id}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-md border transition-colors ${
-                          isConnected
-                            ? "bg-green-50 border-green-300"
-                            : "bg-gray-50 border-gray-300"
-                        }`}
-                      >
-                        <div
-                          className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                            isConnected ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                          }`}
-                        ></div>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-gray-900 block truncate">
-                            {controller.name}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {controller.controllerId}
-                          </span>
-                        </div>
-                        <span
-                          className={`text-xs font-medium flex-shrink-0 ${
-                            isConnected ? "text-green-600" : "text-gray-500"
-                          }`}
-                        >
-                          {isConnected ? "ON" : "OFF"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 측창 스크린 */}
-            {ventControllers.length > 0 && (
-              <div>
-                <h3 className="text-xs font-semibold text-blue-700 mb-2">
-                  🪟 측창 스크린 ({ventConnectedCount}/{ventControllers.length})
-                </h3>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2">
-                  {ventControllers.map((controller) => {
-                    const isConnected = esp32Status[controller.controllerId] === true;
-
-                    return (
-                      <div
-                        key={controller.id}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-md border transition-colors ${
-                          isConnected
-                            ? "bg-green-50 border-green-300"
-                            : "bg-gray-50 border-gray-300"
-                        }`}
-                      >
-                        <div
-                          className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                            isConnected ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                          }`}
-                        ></div>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-gray-900 block truncate">
-                            {controller.name}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {controller.controllerId}
-                          </span>
-                        </div>
-                        <span
-                          className={`text-xs font-medium flex-shrink-0 ${
-                            isConnected ? "text-green-600" : "text-gray-500"
-                          }`}
-                        >
-                          {isConnected ? "ON" : "OFF"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+                return (
+                  <div
+                    key={controller.id}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-md border transition-colors ${
+                      isConnected
+                        ? "bg-green-50 border-green-300"
+                        : "bg-gray-50 border-gray-300"
+                    }`}
+                  >
+                    <div
+                      className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        isConnected ? "bg-green-500 animate-pulse" : "bg-gray-400"
+                      }`}
+                    ></div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-medium text-gray-900 block truncate">
+                        {controller.name}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {controller.controllerId}
+                      </span>
+                    </div>
+                    <span
+                      className={`text-xs font-medium flex-shrink-0 ${
+                        isConnected ? "text-green-600" : "text-gray-500"
+                      }`}
+                    >
+                      {isConnected ? "ON" : "OFF"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </section>
 

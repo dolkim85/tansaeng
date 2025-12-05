@@ -72,20 +72,18 @@ export const ESP32_CONTROLLERS: ESP32Controller[] = [
     name: "천창 스크린",
     controllerId: "ctlr-0011",
     statusTopic: "tansaeng/ctlr-0011/status",
-    category: "skylight",
   },
   {
     id: "esp32-out-side-screen",
     name: "측창 스크린",
-    controllerId: "esp32-node-2",
-    statusTopic: "tansaeng/esp32-node-2/status",
-    category: "vent",
+    controllerId: "ctlr-0012",
+    statusTopic: "tansaeng/ctlr-0012/status",
   },
   {
     id: "esp32-out-top-chillerline-pump-valve",
     name: "천창 칠러라인 펌프 밸브",
-    controllerId: "ctlr-0012",
-    statusTopic: "tansaeng/ctlr-0012/status",
+    controllerId: "ctlr-0013",
+    statusTopic: "tansaeng/ctlr-0013/status",
   },
 ];
 
