@@ -1,6 +1,6 @@
 // ========== Device Types ==========
 
-export type DeviceType = "fan" | "vent" | "pump" | "camera";
+export type DeviceType = "fan" | "vent" | "pump" | "camera" | "skylight";
 
 export interface DeviceConfig {
   id: string;            // 내부 ID (예: "fan_front")
@@ -10,8 +10,9 @@ export interface DeviceConfig {
   commandTopic: string;  // 제어용 MQTT 토픽
   stateTopic: string;    // 장치 상태 리포트용 MQTT 토픽
   extra?: {
-    supportsPercentage?: boolean; // vent 처럼 0~100% 제어 여부
-    streamUrl?: string;           // camera의 RTSP/HTTP URL (Settings에서 수정 가능)
+    supportsPercentage?: boolean;    // vent 처럼 0~100% 제어 여부
+    streamUrl?: string;              // camera의 RTSP/HTTP URL (Settings에서 수정 가능)
+    supportsWindowControl?: boolean; // skylight의 OPEN/CLOSE/STOP 제어 여부
   };
 }
 

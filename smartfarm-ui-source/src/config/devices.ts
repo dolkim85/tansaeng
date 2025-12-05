@@ -61,9 +61,35 @@ export const DEVICES: DeviceConfig[] = [
       supportsPercentage: true,
     },
   },
+
+  // ========== 천창 스크린 제어 (OPEN/CLOSE/STOP) ==========
+  {
+    id: "skylight_left",
+    name: "천창 좌측",
+    type: "skylight",
+    esp32Id: "ctlr-0011",
+    commandTopic: "tansaeng/ctlr-0011/windowL/cmd",
+    stateTopic: "tansaeng/ctlr-0011/windowL/state",
+    extra: {
+      supportsWindowControl: true,
+    },
+  },
+  {
+    id: "skylight_right",
+    name: "천창 우측",
+    type: "skylight",
+    esp32Id: "ctlr-0011",
+    commandTopic: "tansaeng/ctlr-0011/windowR/cmd",
+    stateTopic: "tansaeng/ctlr-0011/windowR/state",
+    extra: {
+      supportsWindowControl: true,
+    },
+  },
+
+  // ========== 측창 스크린 제어 (기존 개폐기와 분리) ==========
   {
     id: "vent_top_left",
-    name: "천창개폐기 Left",
+    name: "측창 스크린 Left",
     type: "vent",
     esp32Id: "esp32-node-2",
     commandTopic: "tansaeng/esp32-node-2/vent_top_left/cmd",
@@ -74,7 +100,7 @@ export const DEVICES: DeviceConfig[] = [
   },
   {
     id: "vent_top_right",
-    name: "천창개폐기 Right",
+    name: "측창 스크린 Right",
     type: "vent",
     esp32Id: "esp32-node-2",
     commandTopic: "tansaeng/esp32-node-2/vent_top_right/cmd",

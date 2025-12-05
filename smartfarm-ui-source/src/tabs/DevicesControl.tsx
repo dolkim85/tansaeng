@@ -143,6 +143,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const fans = getDevicesByType("fan");
   const vents = getDevicesByType("vent");
   const pumps = getDevicesByType("pump");
+  const skylights = getDevicesByType("skylight");
 
   // 서버에서 평균 온습도 가져오기 (3초마다)
   useEffect(() => {
@@ -430,6 +431,16 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     const device = vents.find((d) => d.id === deviceId);
     if (device) {
       publishCommand(device.commandTopic, { target: percentage });
+    }
+  };
+
+  // 천창 제어 핸들러 (OPEN/CLOSE/STOP)
+  const handleSkylightCommand = (deviceId: string, command: "OPEN" | "CLOSE" | "STOP") => {
+    const device = skylights.find((d) => d.id === deviceId);
+    if (device) {
+      const client = getMqttClient();
+      client.publish(device.commandTopic, command, { qos: 1 });
+      console.log(`[SKYLIGHT] ${device.name} - ${command}`);
     }
   };
 
@@ -1019,11 +1030,61 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           </div>
         </section>
 
-        {/* 개폐기 제어 섹션 */}
+        {/* 천창 스크린 제어 섹션 */}
         <section className="mb-3">
-          <header className="bg-farm-500 px-4 py-2.5 rounded-t-lg flex items-center justify-between">
+          <header className="bg-amber-400 px-4 py-2.5 rounded-t-lg flex items-center justify-between">
             <h2 className="text-base font-semibold flex items-center gap-1.5 text-gray-900">
-              🪟 개폐기 제어
+              ☀️ 천창 스크린 제어
+            </h2>
+            <span className="text-xs text-gray-800">총 {skylights.length}개</span>
+          </header>
+          <div className="bg-white shadow-sm rounded-b-lg p-3">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(350px,1fr))] gap-3">
+              {skylights.map((skylight) => (
+                <div
+                  key={skylight.id}
+                  className="bg-white border-2 border-amber-200 rounded-lg p-4 shadow-sm"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {skylight.name}
+                    </h3>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                      {skylight.esp32Id}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSkylightCommand(skylight.id, "OPEN")}
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-md transition-colors"
+                    >
+                      ▲ 열기
+                    </button>
+                    <button
+                      onClick={() => handleSkylightCommand(skylight.id, "STOP")}
+                      className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-4 rounded-md transition-colors"
+                    >
+                      ■ 정지
+                    </button>
+                    <button
+                      onClick={() => handleSkylightCommand(skylight.id, "CLOSE")}
+                      className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-md transition-colors"
+                    >
+                      ▼ 닫기
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 측창 스크린 제어 섹션 */}
+        <section className="mb-3">
+          <header className="bg-blue-400 px-4 py-2.5 rounded-t-lg flex items-center justify-between">
+            <h2 className="text-base font-semibold flex items-center gap-1.5 text-gray-900">
+              🪟 측창 스크린 제어
             </h2>
             <span className="text-xs text-gray-800">총 {vents.length}개</span>
           </header>
