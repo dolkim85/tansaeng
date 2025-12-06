@@ -29,8 +29,8 @@ echo "[4/6] index.php 업데이트 중..."
 PHP_FILE="../admin/smartfarm/index.php"
 
 # 기존 script/link 태그 찾아서 교체
-sed -i "s|src=\"/smartfarm-ui/assets/index-.*\.js|src=\"/smartfarm-ui/assets/$JS_FILE|g" "$PHP_FILE"
-sed -i "s|href=\"/smartfarm-ui/assets/index-.*\.css|href=\"/smartfarm-ui/assets/$CSS_FILE|g" "$PHP_FILE"
+sed -i "s|src=\"/smartfarm-admin/assets/index.*\.js|src=\"/smartfarm-admin/assets/$JS_FILE|g" "$PHP_FILE"
+sed -i "s|href=\"/smartfarm-admin/assets/index.*\.css|href=\"/smartfarm-admin/assets/$CSS_FILE|g" "$PHP_FILE"
 echo "✓ index.php 업데이트 완료"
 
 # 5. Git 커밋 및 푸시
@@ -68,8 +68,8 @@ echo ""
 echo "=== ✅ 배포 완료! ==="
 echo ""
 echo "버전: $NEW_TAG"
-echo "JS:   /smartfarm-ui/assets/$JS_FILE"
-echo "CSS:  /smartfarm-ui/assets/$CSS_FILE"
+echo "JS:   /smartfarm-admin/assets/$JS_FILE"
+echo "CSS:  /smartfarm-admin/assets/$CSS_FILE"
 echo ""
 echo "⚠️  브라우저에서 Ctrl+Shift+Delete로 캐시를 삭제하세요!"
 echo ""
