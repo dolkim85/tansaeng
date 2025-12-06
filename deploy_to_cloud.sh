@@ -139,9 +139,9 @@ sshpass -p "$CLOUD_PASSWORD" ssh -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD
     fi
 
     # 🏭 스마트팜 React 앱 빌드
-    if [ -d "/var/www/html/smartfarm-ui" ]; then
+    if [ -d "/var/www/html/smartfarm-ui-source" ]; then
         echo "🏭 스마트팜 React 앱 빌드 중..."
-        cd /var/www/html/smartfarm-ui
+        cd /var/www/html/smartfarm-ui-source
 
         # .env 파일 생성 (HiveMQ Cloud + Tapo 카메라 설정)
         echo "📝 HiveMQ Cloud 및 Tapo 카메라 설정 중..."
@@ -200,7 +200,7 @@ ENVEOF'
 
         cd /var/www/html
     else
-        echo "⚠️  smartfarm-ui 디렉토리가 없습니다. 스마트팜 빌드를 건너뜁니다."
+        echo "⚠️  smartfarm-ui-source 디렉토리가 없습니다. 스마트팜 빌드를 건너뜁니다."
     fi
 
     # Apache Alias 설정 (smartfarm-admin -> smartfarm-ui/dist)
