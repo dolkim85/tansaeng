@@ -30,10 +30,10 @@ interface ValveTimeSlot {
 // 메인밸브 스케줄 설정
 interface ValveSchedule {
   enabled: boolean; // 스케줄 활성화 여부
+  mode: "manual" | "auto"; // 수동/자동 모드
   timeSlots: ValveTimeSlot[]; // 시간대별 설정 (최대 2개 - 주간/야간)
-  useEnvironmentConditions: boolean; // 온습도 조건 사용 여부
+  useEnvironmentConditions: boolean; // 온도 조건 사용 여부
   maxTemperature: number; // 최대 온도 (°C)
-  maxHumidity: number; // 최대 습도 (%)
 }
 
 export default function DevicesControl({ deviceState, setDeviceState }: DevicesControlProps) {
@@ -61,6 +61,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 메인밸브 스케줄 설정
   const [valveSchedule, setValveSchedule] = useState<ValveSchedule>({
     enabled: false,
+    mode: "manual",
     timeSlots: [
       {
         startTime: "06:00",
@@ -81,12 +82,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     ],
     useEnvironmentConditions: false,
     maxTemperature: 30,
-    maxHumidity: 80,
   });
 
   // 메인밸브 제어용 타이머
   const valveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [valveCurrentState, setValveCurrentState] = useState<"OPEN" | "CLOSE">("CLOSE");
+  const [manualValveState, setManualValveState] = useState<boolean>(false); // 수동 모드 ON/OFF
 
   // 자동 제어 설정 저장 (변경 시마다 API 호출)
   useEffect(() => {
@@ -282,10 +283,22 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     });
   }, [averageValues, controlMode, deviceAutoControls]);
 
+  // 메인밸브 수동 제어
+  useEffect(() => {
+    if (valveSchedule.mode === "manual") {
+      const client = getMqttClient();
+      const topic = "tansaeng/ctlr-0004/valve1/cmd";
+      const command = manualValveState ? "OPEN" : "CLOSE";
+      client.publish(topic, command, { qos: 1 });
+      setValveCurrentState(command);
+      console.log(`[VALVE MANUAL] ${command}`);
+    }
+  }, [manualValveState, valveSchedule.mode]);
+
   // 메인밸브 자동 제어 (스케줄 기반)
   useEffect(() => {
-    if (!valveSchedule.enabled) {
-      // 스케줄이 비활성화되면 타이머 정리
+    // 자동 모드가 아니거나 스케줄이 비활성화되면 타이머 정리
+    if (valveSchedule.mode !== "auto" || !valveSchedule.enabled) {
       if (valveTimerRef.current) {
         clearTimeout(valveTimerRef.current);
         valveTimerRef.current = null;
@@ -737,26 +750,88 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     {/* 메인밸브 스케줄 설정 (ctlr-0004만 표시) */}
                     {isMainValve && (
                       <div className="mt-4 pt-4 border-t border-gray-300">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-xs font-semibold text-gray-900">
+                        <div className="mb-3">
+                          <h4 className="text-xs font-semibold text-gray-900 mb-3">
                             메인밸브 스케줄 설정
                           </h4>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={valveSchedule.enabled}
-                              onChange={(e) =>
-                                setValveSchedule({
-                                  ...valveSchedule,
-                                  enabled: e.target.checked,
-                                })
-                              }
-                              className="w-4 h-4 text-farm-500 border-gray-300 rounded focus:ring-farm-500"
-                            />
-                            <span className="text-xs text-gray-700 font-medium">
-                              스케줄 활성화
-                            </span>
-                          </label>
+
+                          {/* 수동/자동 전환 스위치 */}
+                          <div className="flex items-center justify-between mb-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                            <span className="text-xs font-medium text-gray-900">제어 모드</span>
+                            <div className="flex items-center gap-3">
+                              <span className={`text-xs font-medium ${valveSchedule.mode === "manual" ? "text-blue-600" : "text-gray-500"}`}>수동</span>
+                              <button
+                                onClick={() => {
+                                  const newMode = valveSchedule.mode === "manual" ? "auto" : "manual";
+                                  setValveSchedule({
+                                    ...valveSchedule,
+                                    mode: newMode,
+                                  });
+                                  // 자동으로 전환 시 수동 스위치 OFF
+                                  if (newMode === "auto") {
+                                    setManualValveState(false);
+                                  }
+                                }}
+                                className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors ${
+                                  valveSchedule.mode === "auto" ? "bg-green-500" : "bg-gray-400"
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    valveSchedule.mode === "auto" ? "translate-x-7" : "translate-x-1"
+                                  }`}
+                                />
+                              </button>
+                              <span className={`text-xs font-medium ${valveSchedule.mode === "auto" ? "text-green-600" : "text-gray-500"}`}>자동</span>
+                            </div>
+                          </div>
+
+                          {/* 수동 모드 ON/OFF 스위치 */}
+                          {valveSchedule.mode === "manual" && (
+                            <div className="flex items-center justify-between mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                              <span className="text-xs font-medium text-gray-900">수동 밸브 제어</span>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-xs font-medium ${!manualValveState ? "text-red-600" : "text-gray-500"}`}>OFF</span>
+                                <button
+                                  onClick={() => setManualValveState(!manualValveState)}
+                                  className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors ${
+                                    manualValveState ? "bg-green-500" : "bg-red-400"
+                                  }`}
+                                >
+                                  <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                      manualValveState ? "translate-x-7" : "translate-x-1"
+                                    }`}
+                                  />
+                                </button>
+                                <span className={`text-xs font-medium ${manualValveState ? "text-green-600" : "text-gray-500"}`}>ON</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 스케줄 활성화 스위치 (자동 모드일 때만 표시) */}
+                          {valveSchedule.mode === "auto" && (
+                            <div className="flex items-center justify-between mb-3 p-3 bg-green-50 border border-green-200 rounded">
+                              <span className="text-xs font-medium text-gray-900">스케줄 활성화</span>
+                              <button
+                                onClick={() =>
+                                  setValveSchedule({
+                                    ...valveSchedule,
+                                    enabled: !valveSchedule.enabled,
+                                  })
+                                }
+                                className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors ${
+                                  valveSchedule.enabled ? "bg-green-500" : "bg-gray-400"
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    valveSchedule.enabled ? "translate-x-7" : "translate-x-1"
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         {/* 현재 밸브 상태 */}
@@ -767,6 +842,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                           </span>
                         </div>
 
+                        {/* 자동 모드일 때만 스케줄 설정 표시 */}
+                        {valveSchedule.mode === "auto" && (
+                          <>
                         {/* 시간대 1 - 주간 */}
                         <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
                           <h5 className="text-xs font-semibold text-yellow-800 mb-2">☀️ 주간 (시간대 1)</h5>
@@ -1000,6 +1078,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                             </p>
                           )}
                         </div>
+                        </>
+                        )}
                       </div>
                     )}
                   </div>
