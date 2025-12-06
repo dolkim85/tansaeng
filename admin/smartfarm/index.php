@@ -89,13 +89,13 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
 </head>
 <body>
     <?php
-    // 캐시 방지 헤더 (Clear-Site-Data 제거 - 무한 새로고침 방지)
-    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    // 강력한 캐시 방지 헤더
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0');
     header('Pragma: no-cache');
-    header('Expires: 0');
+    header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
 
     // 타임스탬프 + 랜덤으로 강력한 캐시 무효화
-    $timestamp = time() . rand(1000, 9999);
+    $timestamp = time() . rand(10000, 99999);
     ?>
     <div id="root"></div>
     <script type="module" crossorigin src="/smartfarm-ui/assets/index-B6iWBjcP.js?v=<?php echo $timestamp; ?>"></script>
