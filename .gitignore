@@ -3,3 +3,8 @@
 .env
 smartfarm-ui/.env
 live/
+
+# MQTT daemon logs
+logs/mqtt_daemon.log
+logs/mqtt_daemon_stdout.log
+logs/mqtt_daemon_stderr.log
