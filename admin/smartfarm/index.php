@@ -98,7 +98,7 @@ if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
     $timestamp = time() . rand(10000, 99999);
     ?>
     <div id="root"></div>
-    <script type="module" crossorigin src="/smartfarm-ui/assets/index-DsnGkhKC.js?v=<?php echo $timestamp; ?>"></script>
-    <link rel="stylesheet" crossorigin href="/smartfarm-ui/assets/index-DzK4_MJv.css?v=<?php echo $timestamp; ?>">
+    <script type="module" crossorigin src="/smartfarm-ui/assets/index-B2FQD0Vg-v1765021825599.js?v=<?php echo $timestamp; ?>"></script>
+    <link rel="stylesheet" crossorigin href="/smartfarm-ui/assets/index-DzK4_MJv-v1765021825599.css?v=<?php echo $timestamp; ?>">
 </body>
 </html>
