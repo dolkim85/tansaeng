@@ -705,10 +705,10 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </button>
                     </div>
 
-                    {/* 온도 범위 설정 */}
+                    {/* 온도 범위 설정 - v3.12.3 습도제거완료 */}
                     <div className="mb-3">
                       <label className="text-xs text-gray-700 font-medium mb-1.5 block">
-                        온도 범위 (°C)
+                        온도 범위 (°C) - 습도 제거됨
                       </label>
                       <div className="flex items-center gap-2">
                         <input
