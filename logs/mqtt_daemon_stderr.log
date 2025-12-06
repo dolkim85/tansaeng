@@ -1,0 +1,12 @@
+PHP Fatal error:  Uncaught Error: Call to undefined function getDBConnection() in /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php:25
+Stack trace:
+#0 {main}
+  thrown in /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php on line 25
+PHP Fatal error:  Uncaught Error: Call to undefined function getDBConnection() in /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php:25
+Stack trace:
+#0 {main}
+  thrown in /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php on line 25
+PHP Fatal error:  Uncaught Error: Call to undefined function getDBConnection() in /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php:25
+Stack trace:
+#0 {main}
+  thrown in /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php on line 25

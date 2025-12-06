@@ -1,5 +1,5 @@
 <?php
-// Database Configuration Template
+// Database Configuration
 class DatabaseConfig {
     private static $host = 'localhost';
     private static $dbname = 'tansaeng_db';
@@ -17,5 +17,10 @@ class DatabaseConfig {
             throw new Exception("데이터베이스 연결 실패: " . $e->getMessage());
         }
     }
+}
+
+// Helper function for convenience
+function getDBConnection() {
+    return DatabaseConfig::getConnection();
 }
 ?>

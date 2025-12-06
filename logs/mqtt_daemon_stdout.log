@@ -1,0 +1,524 @@
+[2025-12-06 01:44:13] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:44:13] MQTT 클라이언트 생성 중...
+[2025-12-06 01:44:13] HiveMQ Cloud 연결 중...
+[2025-12-06 01:44:15] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:44:15] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:44:21] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:44:21] MQTT 클라이언트 생성 중...
+[2025-12-06 01:44:21] HiveMQ Cloud 연결 중...
+[2025-12-06 01:44:23] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:44:23] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:44:36] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:44:36] MQTT 클라이언트 생성 중...
+[2025-12-06 01:44:36] HiveMQ Cloud 연결 중...
+[2025-12-06 01:44:37] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:44:37] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:44:47] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:44:47] MQTT 클라이언트 생성 중...
+[2025-12-06 01:44:47] HiveMQ Cloud 연결 중...
+[2025-12-06 01:44:48] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:44:48] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:44:59] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:44:59] MQTT 클라이언트 생성 중...
+[2025-12-06 01:44:59] HiveMQ Cloud 연결 중...
+[2025-12-06 01:45:00] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:45:00] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:45:13] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:45:13] MQTT 클라이언트 생성 중...
+[2025-12-06 01:45:13] HiveMQ Cloud 연결 중...
+[2025-12-06 01:45:14] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:45:14] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:45:25] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:45:25] MQTT 클라이언트 생성 중...
+[2025-12-06 01:45:25] HiveMQ Cloud 연결 중...
+[2025-12-06 01:45:26] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:45:26] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:45:36] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:45:36] MQTT 클라이언트 생성 중...
+[2025-12-06 01:45:36] HiveMQ Cloud 연결 중...
+[2025-12-06 01:45:37] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:45:37] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:45:51] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:45:51] MQTT 클라이언트 생성 중...
+[2025-12-06 01:45:51] HiveMQ Cloud 연결 중...
+[2025-12-06 01:45:52] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:45:52] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:46:02] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:46:02] MQTT 클라이언트 생성 중...
+[2025-12-06 01:46:02] HiveMQ Cloud 연결 중...
+[2025-12-06 01:46:03] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:46:03] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:46:14] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:46:14] MQTT 클라이언트 생성 중...
+[2025-12-06 01:46:14] HiveMQ Cloud 연결 중...
+[2025-12-06 01:46:18] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:46:18] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:46:28] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:46:28] MQTT 클라이언트 생성 중...
+[2025-12-06 01:46:28] HiveMQ Cloud 연결 중...
+[2025-12-06 01:46:29] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:46:29] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:46:39] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:46:39] MQTT 클라이언트 생성 중...
+[2025-12-06 01:46:39] HiveMQ Cloud 연결 중...
+[2025-12-06 01:46:41] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:46:41] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:46:54] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:46:54] MQTT 클라이언트 생성 중...
+[2025-12-06 01:46:54] HiveMQ Cloud 연결 중...
+[2025-12-06 01:46:55] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:46:55] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:47:05] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:47:05] MQTT 클라이언트 생성 중...
+[2025-12-06 01:47:05] HiveMQ Cloud 연결 중...
+[2025-12-06 01:47:07] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:47:07] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:47:17] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:47:17] MQTT 클라이언트 생성 중...
+[2025-12-06 01:47:17] HiveMQ Cloud 연결 중...
+[2025-12-06 01:47:18] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:47:18] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:47:31] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:47:31] MQTT 클라이언트 생성 중...
+[2025-12-06 01:47:31] HiveMQ Cloud 연결 중...
+[2025-12-06 01:47:33] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:47:33] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:47:43] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:47:43] MQTT 클라이언트 생성 중...
+[2025-12-06 01:47:43] HiveMQ Cloud 연결 중...
+[2025-12-06 01:47:44] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:47:44] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:47:54] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:47:54] MQTT 클라이언트 생성 중...
+[2025-12-06 01:47:54] HiveMQ Cloud 연결 중...
+[2025-12-06 01:47:56] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:47:56] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:48:09] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:48:09] MQTT 클라이언트 생성 중...
+[2025-12-06 01:48:09] HiveMQ Cloud 연결 중...
+[2025-12-06 01:48:10] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:48:10] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:48:20] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:48:20] MQTT 클라이언트 생성 중...
+[2025-12-06 01:48:20] HiveMQ Cloud 연결 중...
+[2025-12-06 01:48:21] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:48:21] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:48:32] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:48:32] MQTT 클라이언트 생성 중...
+[2025-12-06 01:48:32] HiveMQ Cloud 연결 중...
+[2025-12-06 01:48:33] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:48:33] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:48:46] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:48:46] MQTT 클라이언트 생성 중...
+[2025-12-06 01:48:46] HiveMQ Cloud 연결 중...
+[2025-12-06 01:48:47] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:48:47] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:48:58] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:48:58] MQTT 클라이언트 생성 중...
+[2025-12-06 01:48:58] HiveMQ Cloud 연결 중...
+[2025-12-06 01:48:59] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:48:59] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:49:09] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:49:09] MQTT 클라이언트 생성 중...
+[2025-12-06 01:49:09] HiveMQ Cloud 연결 중...
+[2025-12-06 01:49:13] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:49:13] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:49:24] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:49:24] MQTT 클라이언트 생성 중...
+[2025-12-06 01:49:24] HiveMQ Cloud 연결 중...
+[2025-12-06 01:49:25] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:49:25] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:49:35] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:49:35] MQTT 클라이언트 생성 중...
+[2025-12-06 01:49:35] HiveMQ Cloud 연결 중...
+[2025-12-06 01:49:36] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:49:36] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:49:50] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:49:50] MQTT 클라이언트 생성 중...
+[2025-12-06 01:49:50] HiveMQ Cloud 연결 중...
+[2025-12-06 01:49:51] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:49:51] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:50:01] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:50:01] MQTT 클라이언트 생성 중...
+[2025-12-06 01:50:01] HiveMQ Cloud 연결 중...
+[2025-12-06 01:50:02] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:50:02] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:50:13] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:50:13] MQTT 클라이언트 생성 중...
+[2025-12-06 01:50:13] HiveMQ Cloud 연결 중...
+[2025-12-06 01:50:14] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:50:14] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:50:27] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:50:27] MQTT 클라이언트 생성 중...
+[2025-12-06 01:50:27] HiveMQ Cloud 연결 중...
+[2025-12-06 01:50:28] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:50:28] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:50:39] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:50:39] MQTT 클라이언트 생성 중...
+[2025-12-06 01:50:39] HiveMQ Cloud 연결 중...
+[2025-12-06 01:50:40] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:50:40] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:50:50] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:50:50] MQTT 클라이언트 생성 중...
+[2025-12-06 01:50:50] HiveMQ Cloud 연결 중...
+[2025-12-06 01:50:51] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:50:51] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:51:04] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:51:04] MQTT 클라이언트 생성 중...
+[2025-12-06 01:51:04] HiveMQ Cloud 연결 중...
+[2025-12-06 01:51:06] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:51:06] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:51:16] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:51:16] MQTT 클라이언트 생성 중...
+[2025-12-06 01:51:16] HiveMQ Cloud 연결 중...
+[2025-12-06 01:51:17] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:51:17] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:51:28] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:51:28] MQTT 클라이언트 생성 중...
+[2025-12-06 01:51:28] HiveMQ Cloud 연결 중...
+[2025-12-06 01:51:29] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:51:29] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:51:42] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:51:42] MQTT 클라이언트 생성 중...
+[2025-12-06 01:51:42] HiveMQ Cloud 연결 중...
+[2025-12-06 01:51:43] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:51:43] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:51:54] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:51:54] MQTT 클라이언트 생성 중...
+[2025-12-06 01:51:54] HiveMQ Cloud 연결 중...
+[2025-12-06 01:51:55] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:51:55] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:52:05] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:52:05] MQTT 클라이언트 생성 중...
+[2025-12-06 01:52:05] HiveMQ Cloud 연결 중...
+[2025-12-06 01:52:09] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:52:09] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:52:19] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:52:19] MQTT 클라이언트 생성 중...
+[2025-12-06 01:52:19] HiveMQ Cloud 연결 중...
+[2025-12-06 01:52:21] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:52:21] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:52:31] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:52:31] MQTT 클라이언트 생성 중...
+[2025-12-06 01:52:31] HiveMQ Cloud 연결 중...
+[2025-12-06 01:52:32] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:52:32] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:52:45] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:52:45] MQTT 클라이언트 생성 중...
+[2025-12-06 01:52:45] HiveMQ Cloud 연결 중...
+[2025-12-06 01:52:46] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:52:46] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:52:57] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:52:57] MQTT 클라이언트 생성 중...
+[2025-12-06 01:52:57] HiveMQ Cloud 연결 중...
+[2025-12-06 01:52:58] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:52:58] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:53:08] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:53:08] MQTT 클라이언트 생성 중...
+[2025-12-06 01:53:08] HiveMQ Cloud 연결 중...
+[2025-12-06 01:53:09] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:53:09] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:53:23] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:53:23] MQTT 클라이언트 생성 중...
+[2025-12-06 01:53:23] HiveMQ Cloud 연결 중...
+[2025-12-06 01:53:24] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:53:24] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:53:34] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:53:34] MQTT 클라이언트 생성 중...
+[2025-12-06 01:53:34] HiveMQ Cloud 연결 중...
+[2025-12-06 01:53:35] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:53:35] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:53:46] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:53:46] MQTT 클라이언트 생성 중...
+[2025-12-06 01:53:46] HiveMQ Cloud 연결 중...
+[2025-12-06 01:53:47] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:53:47] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:53:48] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:53:48] MQTT 클라이언트 생성 중...
+[2025-12-06 01:53:48] HiveMQ Cloud 연결 중...
+[2025-12-06 01:53:49] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:53:49] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:54:02] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:54:02] MQTT 클라이언트 생성 중...
+[2025-12-06 01:54:02] HiveMQ Cloud 연결 중...
+[2025-12-06 01:54:04] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:54:04] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:54:14] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:54:14] MQTT 클라이언트 생성 중...
+[2025-12-06 01:54:14] HiveMQ Cloud 연결 중...
+[2025-12-06 01:54:15] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:54:15] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:54:25] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:54:25] MQTT 클라이언트 생성 중...
+[2025-12-06 01:54:25] HiveMQ Cloud 연결 중...
+[2025-12-06 01:54:30] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:54:30] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:54:40] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:54:40] MQTT 클라이언트 생성 중...
+[2025-12-06 01:54:40] HiveMQ Cloud 연결 중...
+[2025-12-06 01:54:41] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:54:41] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:54:51] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:54:51] MQTT 클라이언트 생성 중...
+[2025-12-06 01:54:51] HiveMQ Cloud 연결 중...
+[2025-12-06 01:54:53] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:54:53] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06 01:55:06] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06 01:55:06] MQTT 클라이언트 생성 중...
+[2025-12-06 01:55:06] HiveMQ Cloud 연결 중...
+[2025-12-06 01:55:07] 오류 발생: [6] Establishing a connection to the MQTT broker failed: The configured broker responded with unauthorized.
+[2025-12-06 01:55:07] Stack trace: #0 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(353): PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor->handleConnectAcknowledgement()
+#1 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(136): PhpMqtt\Client\MqttClient->performConnectionHandshake()
+#2 /home/spinmoll/tansaeng_new/vendor/php-mqtt/client/src/MqttClient.php(124): PhpMqtt\Client\MqttClient->connectInternal()
+#3 /home/spinmoll/tansaeng_new/daemons/mqtt_heartbeat_daemon.php(126): PhpMqtt\Client\MqttClient->connect()
+#4 {main}
+[2025-12-06T01:55:11.340Z] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06T01:55:11.342Z] 데이터베이스 연결 풀 생성 완료
+[2025-12-06T01:55:11.344Z] MQTT 브로커 연결 중...
+[2025-12-06T01:55:12.742Z] MQTT 오류: Connection refused: Not authorized
+[2025-12-06T01:55:12.746Z] MQTT 연결 끊김 - 재연결 시도 중...
+[2025-12-06T01:55:17.752Z] MQTT 재연결 중...
+[2025-12-06T01:55:19.004Z] MQTT 오류: Connection refused: Not authorized
+[2025-12-06T01:55:24.009Z] MQTT 재연결 중...
+[2025-12-06T01:55:25.240Z] MQTT 오류: Connection refused: Not authorized
+[2025-12-06T01:55:30.245Z] MQTT 재연결 중...
+[2025-12-06T01:55:31.418Z] MQTT 오류: Connection refused: Not authorized
+[2025-12-06T01:55:36.423Z] MQTT 재연결 중...
+[2025-12-06T01:55:40.520Z] MQTT 오류: Connection refused: Not authorized
+[2025-12-06T01:55:45.521Z] MQTT 재연결 중...
+[2025-12-06T01:55:46.738Z] MQTT 오류: Connection refused: Not authorized
+[2025-12-06T01:55:51.743Z] MQTT 재연결 중...
+[2025-12-06T01:55:52.984Z] MQTT 오류: Connection refused: Not authorized
+[2025-12-06T01:55:53.716Z] 종료 시그널 수신 - 정리 중...
+[2025-12-06T01:55:54.063Z] === MQTT Heartbeat Daemon 시작 ===
+[2025-12-06T01:55:54.066Z] 데이터베이스 연결 풀 생성 완료
+[2025-12-06T01:55:54.067Z] MQTT 브로커 연결 중...
+[2025-12-06T01:55:55.278Z] HiveMQ Cloud 연결 성공!
+[2025-12-06T01:55:55.552Z] 구독: tansaeng/ctlr-0001/status
+[2025-12-06T01:55:55.553Z] 구독: tansaeng/ctlr-0002/status
+[2025-12-06T01:55:55.554Z] 구독: tansaeng/ctlr-0003/status
+[2025-12-06T01:55:55.555Z] 구독: tansaeng/ctlr-0004/status
+[2025-12-06T01:55:55.558Z] 구독: tansaeng/ctlr-0005/status
+[2025-12-06T01:55:55.559Z] 구독: tansaeng/ctlr-0006/status
+[2025-12-06T01:55:55.561Z] 구독: tansaeng/ctlr-0007/status
+[2025-12-06T01:55:55.562Z] 구독: tansaeng/ctlr-0008/status
+[2025-12-06T01:55:55.606Z] [ctlr-0004] 메인 밸브 - OFFLINE (offline)
+[2025-12-06T01:55:55.613Z] [ctlr-0006] 가압 펌프 - OFFLINE (offline)
+[2025-12-06T01:55:55.820Z] 구독: tansaeng/ctlr-0009/status
+[2025-12-06T01:55:55.821Z] 구독: tansaeng/ctlr-0010/status
+[2025-12-06T01:55:55.821Z] 구독: tansaeng/ctlr-0011/status
+[2025-12-06T01:55:55.822Z] 구독: tansaeng/ctlr-0012/status
+[2025-12-06T01:55:55.823Z] 구독: tansaeng/ctlr-0013/status
+[2025-12-06T01:55:55.842Z] [ctlr-0011] 천창 스크린 - OFFLINE (offline)

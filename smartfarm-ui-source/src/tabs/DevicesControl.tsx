@@ -3,7 +3,7 @@ import { getDevicesByType } from "../config/devices";
 import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
 import DeviceCard from "../components/DeviceCard";
-import { publishCommand, getMqttClient, onConnectionChange, subscribeToTopic } from "../mqtt/mqttClient";
+import { publishCommand, getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
 
 interface DevicesControlProps {
   deviceState: DeviceDesiredState;
@@ -161,104 +161,32 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     };
   }, []);
 
-  // MQTT heartbeat 구독 (ctlr-0011 방식 - 실시간)
+  // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
-    // 마지막 heartbeat 타임스탬프 저장
-    const lastHeartbeat: Record<string, number> = {};
-
-    // 모든 ESP32 장치의 status 토픽 구독
-    ESP32_CONTROLLERS.forEach((controller) => {
-      subscribeToTopic(controller.statusTopic, (payload) => {
-        const payloadLower = payload.toLowerCase().trim();
-        console.log(`[MQTT] ${controller.controllerId}: ${payload}`);
-
-        // online 신호 받으면 연결됨 (다양한 형식 지원)
-        if (
-          payloadLower === "online" ||
-          payloadLower === "on" ||
-          payloadLower === "1" ||
-          payloadLower === "connected" ||
-          payloadLower === "true" ||
-          payloadLower === "active"
-        ) {
-          lastHeartbeat[controller.controllerId] = Date.now();
-          setEsp32Status((prev) => ({
-            ...prev,
-            [controller.controllerId]: true,
-          }));
-        }
-        // offline 신호 받으면 연결 끊김 (LWT 등)
-        else if (
-          payloadLower === "offline" ||
-          payloadLower === "off" ||
-          payloadLower === "0" ||
-          payloadLower === "disconnected" ||
-          payloadLower === "false" ||
-          payloadLower === "inactive"
-        ) {
-          setEsp32Status((prev) => ({
-            ...prev,
-            [controller.controllerId]: false,
-          }));
-        }
-      });
-    });
-
-    // 30초마다 타임아웃 체크 (90초 동안 heartbeat 없으면 offline)
-    const timeoutChecker = setInterval(() => {
-      const now = Date.now();
-      const TIMEOUT = 90000; // 90초
-
-      setEsp32Status((prev) => {
-        const newStatus = { ...prev };
-
-        Object.keys(lastHeartbeat).forEach((controllerId) => {
-          if (now - lastHeartbeat[controllerId] > TIMEOUT) {
-            newStatus[controllerId] = false;
-            console.log(`[TIMEOUT] ${controllerId} offline (no heartbeat for 90s)`);
-          }
-        });
-
-        return newStatus;
-      });
-    }, 30000);
-
-    // 클린업
-    return () => {
-      clearInterval(timeoutChecker);
-    };
-  }, []);
-
-  // 서버 API 폴링 (백업용 - MQTT가 없는 구형 ESP32용)
-  useEffect(() => {
-    const fetchDeviceStatus = async () => {
+    const fetchESP32Status = async () => {
       try {
-        const response = await fetch("/api/smartfarm/get_device_status.php");
+        const response = await fetch("/api/smartfarm/get_esp32_status.php");
         const result = await response.json();
 
         if (result.success) {
-          // MQTT로 받은 상태가 없는 장치만 서버 API 사용
-          setEsp32Status((prev) => {
-            const newStatus = { ...prev };
-            Object.entries(result.data.devices).forEach(([controllerId, info]: [string, any]) => {
-              // MQTT 상태가 없으면 서버 API 사용
-              if (prev[controllerId] === undefined) {
-                newStatus[controllerId] = info.connected;
-              }
-            });
-            return newStatus;
+          // 데몬이 수집한 상태로 업데이트
+          const newStatus: Record<string, boolean> = {};
+          Object.entries(result.data).forEach(([controllerId, info]: [string, any]) => {
+            newStatus[controllerId] = info.connected;
           });
+          setEsp32Status(newStatus);
+          console.log("[API] ESP32 상태 업데이트:", newStatus);
         }
       } catch (error) {
-        console.error("[API] Failed to fetch device status:", error);
+        console.error("[API] Failed to fetch ESP32 status:", error);
       }
     };
 
     // 즉시 실행
-    fetchDeviceStatus();
+    fetchESP32Status();
 
-    // 10초마다 갱신 (MQTT가 메인이므로 느리게)
-    const interval = setInterval(fetchDeviceStatus, 10000);
+    // 5초마다 갱신 (데몬이 실시간으로 수집하므로 빠르게 폴링)
+    const interval = setInterval(fetchESP32Status, 5000);
     return () => clearInterval(interval);
   }, []);
 
