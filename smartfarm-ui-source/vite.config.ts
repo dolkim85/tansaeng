@@ -6,6 +6,8 @@ export default defineConfig({
   plugins: [react()],
   base: '/smartfarm-admin/',  // Apache Alias와 일치
   build: {
+    outDir: 'dist',
+    emptyOutDir: false,  // 기존 파일 삭제하지 않고 덮어쓰기
     rollupOptions: {
       output: {
         entryFileNames: `assets/[name]-[hash]-v${Date.now()}.js`,

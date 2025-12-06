@@ -5,11 +5,9 @@ set -e  # 에러 발생 시 중단
 
 echo "=== 스마트팜 UI 배포 시작 ==="
 
-# 1. 이전 빌드 파일 완전 삭제
+# 1. 이전 빌드 파일 삭제 (dist_new만)
 echo "[1/6] 이전 빌드 파일 삭제 중..."
-rm -rf dist
-rm -f ../smartfarm-ui/assets/*.js
-rm -f ../smartfarm-ui/assets/*.css
+rm -rf dist_new
 echo "✓ 이전 파일 삭제 완료"
 
 # 2. 새로 빌드
@@ -17,15 +15,30 @@ echo "[2/6] React 앱 빌드 중..."
 npm run build
 echo "✓ 빌드 완료"
 
-# 3. 빌드된 파일명 확인
-echo "[3/6] 빌드 파일 확인 중..."
-JS_FILE=$(ls dist/assets/*.js | head -1 | xargs basename)
-CSS_FILE=$(ls dist/assets/*.css | head -1 | xargs basename)
+# 3. 심볼릭 링크 제거 및 실제 디렉토리 생성
+echo "[3/6] 배포 디렉토리 준비 중..."
+if [ -L "/var/www/html/smartfarm-admin" ]; then
+  sudo rm /var/www/html/smartfarm-admin
+fi
+if [ ! -d "/var/www/html/smartfarm-admin" ]; then
+  sudo mkdir -p /var/www/html/smartfarm-admin
+fi
+sudo rm -rf /var/www/html/smartfarm-admin/*
+echo "✓ 디렉토리 준비 완료"
+
+# 4. 빌드된 파일을 /var/www/html/smartfarm-admin/에 복사
+echo "[4/6] 빌드 파일 복사 중..."
+sudo cp -r dist_new/* /var/www/html/smartfarm-admin/
+sudo chown -R www-data:www-data /var/www/html/smartfarm-admin/
+sudo chmod -R 755 /var/www/html/smartfarm-admin/
+
+JS_FILE=$(ls /var/www/html/smartfarm-admin/assets/*.js | head -1 | xargs basename)
+CSS_FILE=$(ls /var/www/html/smartfarm-admin/assets/*.css | head -1 | xargs basename)
 echo "  JS:  $JS_FILE"
 echo "  CSS: $CSS_FILE"
 
-# 4. index.php 자동 업데이트
-echo "[4/6] index.php 업데이트 중..."
+# 5. index.php 자동 업데이트
+echo "[5/6] index.php 업데이트 중..."
 PHP_FILE="../admin/smartfarm/index.php"
 
 # 기존 script/link 태그 찾아서 교체
@@ -33,8 +46,8 @@ sed -i "s|src=\"/smartfarm-admin/assets/index.*\.js|src=\"/smartfarm-admin/asset
 sed -i "s|href=\"/smartfarm-admin/assets/index.*\.css|href=\"/smartfarm-admin/assets/$CSS_FILE|g" "$PHP_FILE"
 echo "✓ index.php 업데이트 완료"
 
-# 5. Git 커밋 및 푸시
-echo "[5/6] Git 커밋 중..."
+# 6. Git 커밋 및 푸시
+echo "[6/6] Git 커밋 중..."
 cd ..
 git add -A
 
@@ -63,7 +76,7 @@ git tag -a "$NEW_TAG" -m "스마트팜 UI 자동 배포"
 git push origin main --tags
 echo "✓ Git 푸시 완료 ($NEW_TAG)"
 
-# 6. 완료 메시지
+# 완료 메시지
 echo ""
 echo "=== ✅ 배포 완료! ==="
 echo ""
