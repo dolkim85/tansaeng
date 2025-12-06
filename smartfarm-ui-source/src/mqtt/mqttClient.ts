@@ -19,6 +19,9 @@ let client: MqttClient | null = null;
 // 연결 상태 콜백 리스트
 const connectionCallbacks: Array<(connected: boolean) => void> = [];
 
+// 토픽별 메시지 핸들러 맵
+const topicHandlers = new Map<string, Set<(payload: string) => void>>();
+
 export function getMqttClient(): MqttClient {
   if (client) return client;
 
@@ -33,6 +36,9 @@ export function getMqttClient(): MqttClient {
     reconnectPeriod: 3000,
     clientId: `tansaeng-web-${Math.random().toString(16).slice(2, 10)}`,
   });
+
+  // maxListeners 증가 (13개 ESP32 장치)
+  client.setMaxListeners(20);
 
   // 연결 이벤트 로깅
   client.on("connect", () => {
@@ -52,6 +58,15 @@ export function getMqttClient(): MqttClient {
   client.on("offline", () => {
     console.log("⚠️ MQTT Offline");
     connectionCallbacks.forEach(cb => cb(false));
+  });
+
+  // 단일 message 핸들러로 모든 토픽 처리
+  client.on("message", (receivedTopic, message) => {
+    const handlers = topicHandlers.get(receivedTopic);
+    if (handlers) {
+      const payload = message.toString();
+      handlers.forEach(handler => handler(payload));
+    }
   });
 
   return client;
@@ -108,25 +123,46 @@ export function publishCommand(topic: string, payload: object): void {
 }
 
 /**
- * MQTT 토픽 구독 헬퍼 함수
+ * MQTT 토픽 구독 헬퍼 함수 (메모리 누수 방지)
  */
 export function subscribeToTopic(
   topic: string,
   callback: (payload: string) => void
-): void {
+): () => void {
   const client = getMqttClient();
 
-  client.subscribe(topic, { qos: 1 }, (err) => {
-    if (err) {
-      console.error(`❌ Failed to subscribe to ${topic}:`, err);
-    } else {
-      console.log(`📥 Subscribed to ${topic}`);
-    }
-  });
+  // 토픽에 대한 핸들러 Set 가져오기 또는 생성
+  if (!topicHandlers.has(topic)) {
+    topicHandlers.set(topic, new Set());
 
-  client.on("message", (receivedTopic, message) => {
-    if (receivedTopic === topic) {
-      callback(message.toString());
+    // 실제 MQTT 구독 (토픽당 한 번만)
+    client.subscribe(topic, { qos: 1 }, (err) => {
+      if (err) {
+        console.error(`❌ Failed to subscribe to ${topic}:`, err);
+      } else {
+        console.log(`📥 Subscribed to ${topic}`);
+      }
+    });
+  }
+
+  // 핸들러 추가
+  const handlers = topicHandlers.get(topic)!;
+  handlers.add(callback);
+
+  // unsubscribe 함수 반환
+  return () => {
+    handlers.delete(callback);
+
+    // 더 이상 핸들러가 없으면 토픽 구독 해제
+    if (handlers.size === 0) {
+      topicHandlers.delete(topic);
+      client.unsubscribe(topic, (err) => {
+        if (err) {
+          console.error(`❌ Failed to unsubscribe from ${topic}:`, err);
+        } else {
+          console.log(`📤 Unsubscribed from ${topic}`);
+        }
+      });
     }
-  });
+  };
 }
