@@ -37,7 +37,7 @@ function updateDeviceStatus($db, $controllerId, $status) {
                 status = VALUES(status),
                 last_seen = NOW()";
 
-        $db->execute($sql, [$controllerId, $status]);
+        $db->query($sql, [$controllerId, $status]);
         echo "[DEVICE] {$controllerId} status: {$status}\n";
     } catch (Exception $e) {
         echo "[ERROR] Failed to update device status: " . $e->getMessage() . "\n";
@@ -51,6 +51,7 @@ function saveSensorData($db, $controllerId, $sensorType, $dataType, $value) {
             'ctlr-0001' => 'front',
             'ctlr-0002' => 'back',
             'ctlr-0003' => 'top',
+            'ctlr-0011' => 'window',
             default => 'unknown'
         };
 
@@ -154,6 +155,8 @@ try {
         'tansaeng/ctlr-0002/+/humidity',
         'tansaeng/ctlr-0003/+/temperature',
         'tansaeng/ctlr-0003/+/humidity',
+        'tansaeng/ctlr-0011/+/temperature',
+        'tansaeng/ctlr-0011/+/humidity',
     ];
 
     foreach ($sensorTopics as $topic) {
@@ -176,6 +179,7 @@ try {
         'tansaeng/ctlr-0002/status',
         'tansaeng/ctlr-0003/status',
         'tansaeng/ctlr-0004/status',
+        'tansaeng/ctlr-0011/status',
     ];
 
     foreach ($statusTopics as $topic) {
@@ -212,16 +216,36 @@ try {
         }, 0);
     }
 
-    echo "[MQTT] Subscribed to sensor, status, and pong topics\n\n";
+    // 장치 state 토픽 구독 (밸브, 팬, 창문 등의 상태 메시지)
+    $stateTopics = [
+        'tansaeng/ctlr-0004/+/state',  // 밸브 상태
+        'tansaeng/ctlr-0011/+/state',  // 천창 상태
+        'tansaeng/+/+/state',          // 모든 장치의 state 토픽
+    ];
+
+    foreach ($stateTopics as $topic) {
+        $mqtt->subscribe($topic, function ($topic, $message) use ($db) {
+            echo "[STATE] {$topic}: {$message}\n";
+
+            // 토픽 파싱: tansaeng/ctlr-0004/valve1/state
+            $parts = explode('/', $topic);
+            $controllerId = $parts[1];
+
+            // state 메시지를 받으면 장치가 연결된 것으로 간주
+            updateDeviceStatus($db, $controllerId, 'online');
+        }, 0);
+    }
+
+    echo "[MQTT] Subscribed to sensor, status, state, and pong topics\n\n";
 
     // 메인 루프
     $lastAutoControl = 0;
     $lastValveControl = 0;
     $lastDeviceCheck = 0;
     $valveState = 'CLOSE';
-    $valveTimer = 0;
+    $valveStartTime = 0; // 밸브 상태 시작 시간 (Unix timestamp with microseconds)
 
-    $mqtt->registerLoopEventHandler(function (MqttClient $mqtt) use ($db, &$lastAutoControl, &$lastValveControl, &$lastDeviceCheck, &$valveState, &$valveTimer) {
+    $mqtt->registerLoopEventHandler(function (MqttClient $mqtt) use ($db, &$lastAutoControl, &$lastValveControl, &$lastDeviceCheck, &$valveState, &$valveStartTime) {
         $now = time();
 
         // 장치 상태 체크 (30초마다)
@@ -229,7 +253,7 @@ try {
             $lastDeviceCheck = $now;
 
             // 모든 장치에 ping 요청 전송
-            $devices = ['ctlr-0001', 'ctlr-0002', 'ctlr-0003', 'ctlr-0004'];
+            $devices = ['ctlr-0001', 'ctlr-0002', 'ctlr-0003', 'ctlr-0004', 'ctlr-0011'];
             foreach ($devices as $deviceId) {
                 // ping 요청 전송 (ESP32가 pong으로 응답해야 함)
                 $mqtt->publish("tansaeng/{$deviceId}/ping", "ping", 0);
@@ -241,7 +265,7 @@ try {
                     SET status = 'offline'
                     WHERE status = 'online'
                     AND last_seen < DATE_SUB(NOW(), INTERVAL 2 MINUTE)";
-            $db->execute($sql);
+            $db->query($sql);
         }
 
         // 자동 제어 (30초마다)
@@ -282,23 +306,48 @@ try {
                 $currentSlot = getCurrentTimeSlot($schedule['timeSlots']);
 
                 if ($currentSlot) {
-                    // 타이머 로직
-                    if ($valveTimer <= 0) {
-                        if ($valveState === 'CLOSE') {
-                            // 밸브 열기
+                    // 실제 시간 기반 로직
+                    $currentTime = microtime(true);
+
+                    // 열림/닫힘 총 시간 계산 (초)
+                    $openTotalSeconds = ($currentSlot['openMinutes'] * 60) + $currentSlot['openSeconds'];
+                    $closeTotalSeconds = ($currentSlot['closeMinutes'] * 60) + $currentSlot['closeSeconds'];
+                    $cycleTotal = $openTotalSeconds + $closeTotalSeconds;
+
+                    // 시작 시간이 없으면 초기화
+                    if ($valveStartTime == 0) {
+                        $valveStartTime = $currentTime;
+                        $valveState = 'CLOSE';
+                    }
+
+                    // 현재 사이클에서 경과 시간
+                    $elapsed = $currentTime - $valveStartTime;
+
+                    // 사이클 완료 시 리셋
+                    if ($elapsed >= $cycleTotal) {
+                        $valveStartTime = $currentTime;
+                        $elapsed = 0;
+                    }
+
+                    // 현재 상태 판단
+                    if ($elapsed < $openTotalSeconds) {
+                        // 열림 시간대
+                        if ($valveState !== 'OPEN') {
                             $mqtt->publish('tansaeng/ctlr-0004/valve1/cmd', 'OPEN', 1);
                             $valveState = 'OPEN';
-                            $valveTimer = $currentSlot['openSeconds'];
-                            echo "[VALVE] OPEN for {$currentSlot['openSeconds']}s\n";
-                        } else {
-                            // 밸브 닫기
+                            echo "[" . date('H:i:s') . "] [VALVE] OPEN for {$openTotalSeconds}s - elapsed: " . round($elapsed, 2) . "s / cycle: {$cycleTotal}s\n";
+                        }
+                    } else {
+                        // 닫힘 시간대
+                        if ($valveState !== 'CLOSE') {
                             $mqtt->publish('tansaeng/ctlr-0004/valve1/cmd', 'CLOSE', 1);
                             $valveState = 'CLOSE';
-                            $valveTimer = $currentSlot['closeSeconds'];
-                            echo "[VALVE] CLOSE for {$currentSlot['closeSeconds']}s\n";
+                            echo "[" . date('H:i:s') . "] [VALVE] CLOSE for {$closeTotalSeconds}s - elapsed: " . round($elapsed, 2) . "s / cycle: {$cycleTotal}s\n";
                         }
                     }
-                    $valveTimer--;
+                } else {
+                    // 현재 시간대가 아니면 초기화
+                    $valveStartTime = 0;
                 }
             }
         }
