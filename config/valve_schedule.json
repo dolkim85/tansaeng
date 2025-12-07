@@ -1,0 +1,24 @@
+{
+  "enabled": true,
+  "mode": "auto",
+  "timeSlots": [
+    {
+      "startTime": "06:00",
+      "endTime": "18:00",
+      "openMinutes": 0,
+      "openSeconds": 5,
+      "closeMinutes": 0,
+      "closeSeconds": 10
+    },
+    {
+      "startTime": "18:00",
+      "endTime": "06:00",
+      "openMinutes": 0,
+      "openSeconds": 8,
+      "closeMinutes": 0,
+      "closeSeconds": 5
+    }
+  ],
+  "useEnvironmentConditions": false,
+  "maxTemperature": 30
+}

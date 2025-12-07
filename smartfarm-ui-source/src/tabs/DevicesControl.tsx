@@ -410,6 +410,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     };
 
     // 주기적 제어 로직
+    let openTimer: NodeJS.Timeout | null = null;
+    let closeTimer: NodeJS.Timeout | null = null;
+
     const runValveCycle = () => {
       const slot = getCurrentTimeSlot();
       if (!slot) return;
@@ -430,19 +433,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       controlValve("OPEN");
 
       // openSeconds 후에 밸브 닫기
-      setTimeout(() => {
+      openTimer = setTimeout(() => {
         controlValve("CLOSE");
 
         // closeSeconds 후에 다시 사이클 시작
-        valveTimerRef.current = setTimeout(runValveCycle, closeTotalSeconds * 1000);
+        closeTimer = setTimeout(runValveCycle, closeTotalSeconds * 1000);
       }, openTotalSeconds * 1000);
     };
 
     // 최초 실행
     runValveCycle();
 
-    // 클린업
+    // 클린업 - 모든 타이머 정리
     return () => {
+      if (openTimer) clearTimeout(openTimer);
+      if (closeTimer) clearTimeout(closeTimer);
       if (valveTimerRef.current) {
         clearTimeout(valveTimerRef.current);
         valveTimerRef.current = null;
@@ -642,13 +647,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             </div>
           </header>
           <div className="bg-white shadow-sm rounded-b-lg p-4">
-            {/* 현재 평균 온도 표시 */}
-            <div className="mb-4 p-3 bg-farm-50 rounded-lg border border-farm-200">
-              <div>
+            {/* 현재 평균 온습도 표시 */}
+            <div className="mb-4 grid grid-cols-2 gap-3">
+              <div className="p-3 bg-farm-50 rounded-lg border border-farm-200">
                 <span className="text-xs text-gray-600">평균 온도:</span>
                 <span className="ml-2 text-sm font-semibold text-gray-900">
                   {averageValues.avgTemperature !== null
                     ? `${averageValues.avgTemperature.toFixed(1)}°C`
+                    : "N/A"}
+                </span>
+              </div>
+              <div className="p-3 bg-farm-50 rounded-lg border border-farm-200">
+                <span className="text-xs text-gray-600">평균 습도:</span>
+                <span className="ml-2 text-sm font-semibold text-gray-900">
+                  {averageValues.avgHumidity !== null
+                    ? `${averageValues.avgHumidity.toFixed(1)}%`
                     : "N/A"}
                 </span>
               </div>
@@ -751,9 +764,22 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     {isMainValve && (
                       <div className="mt-4 pt-4 border-t border-gray-300">
                         <div className="mb-3">
-                          <h4 className="text-xs font-semibold text-gray-900 mb-3">
-                            메인밸브 스케줄 설정
-                          </h4>
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-xs font-semibold text-gray-900">
+                              메인밸브 스케줄 설정
+                            </h4>
+                            {/* 실시간 상태 표시 LED */}
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex items-center">
+                                <div className={`w-3 h-3 rounded-full ${valveCurrentState === "OPEN" ? "bg-green-500" : "bg-red-500"}`}>
+                                  <div className={`absolute inset-0 rounded-full ${valveCurrentState === "OPEN" ? "bg-green-500" : "bg-red-500"} ${valveCurrentState === "OPEN" ? "animate-ping" : ""} opacity-75`}></div>
+                                </div>
+                              </div>
+                              <span className={`text-xs font-bold ${valveCurrentState === "OPEN" ? "text-green-600" : "text-red-600"}`}>
+                                {valveCurrentState === "OPEN" ? "열림" : "닫힘"}
+                              </span>
+                            </div>
+                          </div>
 
                           {/* 수동/자동 전환 스위치 */}
                           <div className="flex items-center justify-between mb-3 p-3 bg-blue-50 border border-blue-200 rounded">
@@ -832,14 +858,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                               </button>
                             </div>
                           )}
-                        </div>
-
-                        {/* 현재 밸브 상태 */}
-                        <div className="mb-3 p-2 bg-gray-100 rounded text-center">
-                          <span className="text-xs text-gray-700">현재 상태: </span>
-                          <span className={`text-xs font-bold ${valveCurrentState === "OPEN" ? "text-green-600" : "text-red-600"}`}>
-                            {valveCurrentState === "OPEN" ? "열림" : "닫힘"}
-                          </span>
                         </div>
 
                         {/* 자동 모드일 때만 스케줄 설정 표시 */}
@@ -1077,6 +1095,58 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                               환경 조건을 체크하면 온도가 최대값을 초과할 때 밸브가 자동으로 정지됩니다.
                             </p>
                           )}
+                        </div>
+
+                        {/* 저장 및 초기화 버튼 */}
+                        <div className="mt-4 flex gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                await fetch('/api/smartfarm/save_valve_schedule.php', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify(valveSchedule),
+                                });
+                                alert('스케줄이 저장되었습니다.');
+                              } catch (error) {
+                                alert('저장 실패');
+                              }
+                            }}
+                            className="flex-1 px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded hover:bg-blue-600"
+                          >
+                            저장
+                          </button>
+                          <button
+                            onClick={() => {
+                              setValveSchedule({
+                                enabled: false,
+                                mode: "manual",
+                                timeSlots: [
+                                  {
+                                    startTime: "06:00",
+                                    endTime: "18:00",
+                                    openMinutes: 0,
+                                    openSeconds: 10,
+                                    closeMinutes: 5,
+                                    closeSeconds: 0,
+                                  },
+                                  {
+                                    startTime: "18:00",
+                                    endTime: "06:00",
+                                    openMinutes: 0,
+                                    openSeconds: 10,
+                                    closeMinutes: 10,
+                                    closeSeconds: 0,
+                                  },
+                                ],
+                                useEnvironmentConditions: false,
+                                maxTemperature: 30,
+                              });
+                            }}
+                            className="flex-1 px-4 py-2 bg-gray-500 text-white text-sm font-medium rounded hover:bg-gray-600"
+                          >
+                            초기화
+                          </button>
                         </div>
                         </>
                         )}
