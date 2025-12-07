@@ -27,6 +27,23 @@ $password = 'Qjawns3445';
 // 데이터베이스 연결
 $db = Database::getInstance();
 
+// ESP32 장치 연결 상태 업데이트 함수
+function updateDeviceStatus($db, $controllerId, $status) {
+    try {
+        // device_status 테이블에 상태 저장/업데이트
+        $sql = "INSERT INTO device_status (controller_id, status, last_seen)
+                VALUES (?, ?, NOW())
+                ON DUPLICATE KEY UPDATE
+                status = VALUES(status),
+                last_seen = NOW()";
+
+        $db->execute($sql, [$controllerId, $status]);
+        echo "[DEVICE] {$controllerId} status: {$status}\n";
+    } catch (Exception $e) {
+        echo "[ERROR] Failed to update device status: " . $e->getMessage() . "\n";
+    }
+}
+
 // 센서 데이터 저장 함수
 function saveSensorData($db, $controllerId, $sensorType, $dataType, $value) {
     try {
@@ -46,6 +63,9 @@ function saveSensorData($db, $controllerId, $sensorType, $dataType, $value) {
 
         $db->insert('sensor_data', $data);
         echo "[DB] Saved {$dataType}: {$value} from {$controllerId}\n";
+
+        // 센서 데이터가 오면 장치가 연결된 것으로 간주
+        updateDeviceStatus($db, $controllerId, 'online');
     } catch (Exception $e) {
         echo "[ERROR] Failed to save sensor data: " . $e->getMessage() . "\n";
     }
@@ -150,16 +170,79 @@ try {
         }, 0);
     }
 
-    echo "[MQTT] Subscribed to sensor topics\n\n";
+    // ESP32 heartbeat/status 토픽 구독
+    $statusTopics = [
+        'tansaeng/ctlr-0001/status',
+        'tansaeng/ctlr-0002/status',
+        'tansaeng/ctlr-0003/status',
+        'tansaeng/ctlr-0004/status',
+    ];
+
+    foreach ($statusTopics as $topic) {
+        $mqtt->subscribe($topic, function ($topic, $message) use ($db) {
+            echo "[MQTT] {$topic}: {$message}\n";
+
+            // 토픽 파싱: tansaeng/ctlr-0001/status
+            $parts = explode('/', $topic);
+            $controllerId = $parts[1];
+
+            // 상태 메시지: "online" 또는 "offline"
+            updateDeviceStatus($db, $controllerId, $message);
+        }, 0);
+    }
+
+    // ESP32 pong 응답 토픽 구독
+    $pongTopics = [
+        'tansaeng/ctlr-0001/pong',
+        'tansaeng/ctlr-0002/pong',
+        'tansaeng/ctlr-0003/pong',
+        'tansaeng/ctlr-0004/pong',
+    ];
+
+    foreach ($pongTopics as $topic) {
+        $mqtt->subscribe($topic, function ($topic, $message) use ($db) {
+            // 토픽 파싱: tansaeng/ctlr-0001/pong
+            $parts = explode('/', $topic);
+            $controllerId = $parts[1];
+
+            echo "[PONG] Received from {$controllerId}\n";
+
+            // pong 응답을 받으면 장치가 연결된 것으로 간주
+            updateDeviceStatus($db, $controllerId, 'online');
+        }, 0);
+    }
+
+    echo "[MQTT] Subscribed to sensor, status, and pong topics\n\n";
 
     // 메인 루프
     $lastAutoControl = 0;
     $lastValveControl = 0;
+    $lastDeviceCheck = 0;
     $valveState = 'CLOSE';
     $valveTimer = 0;
 
-    $mqtt->registerLoopEventHandler(function (MqttClient $mqtt) use ($db, &$lastAutoControl, &$lastValveControl, &$valveState, &$valveTimer) {
+    $mqtt->registerLoopEventHandler(function (MqttClient $mqtt) use ($db, &$lastAutoControl, &$lastValveControl, &$lastDeviceCheck, &$valveState, &$valveTimer) {
         $now = time();
+
+        // 장치 상태 체크 (30초마다)
+        if ($now - $lastDeviceCheck >= 30) {
+            $lastDeviceCheck = $now;
+
+            // 모든 장치에 ping 요청 전송
+            $devices = ['ctlr-0001', 'ctlr-0002', 'ctlr-0003', 'ctlr-0004'];
+            foreach ($devices as $deviceId) {
+                // ping 요청 전송 (ESP32가 pong으로 응답해야 함)
+                $mqtt->publish("tansaeng/{$deviceId}/ping", "ping", 0);
+            }
+            echo "[PING] Sent ping to all devices\n";
+
+            // 2분 이상 응답이 없는 장치를 offline으로 표시
+            $sql = "UPDATE device_status
+                    SET status = 'offline'
+                    WHERE status = 'online'
+                    AND last_seen < DATE_SUB(NOW(), INTERVAL 2 MINUTE)";
+            $db->execute($sql);
+        }
 
         // 자동 제어 (30초마다)
         if ($now - $lastAutoControl >= 30) {
