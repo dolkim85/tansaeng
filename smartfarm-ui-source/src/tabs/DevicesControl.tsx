@@ -166,14 +166,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   useEffect(() => {
     const fetchESP32Status = async () => {
       try {
-        const response = await fetch("/api/smartfarm/get_esp32_status.php");
+        const response = await fetch("/api/device_status.php");
         const result = await response.json();
 
         if (result.success) {
           // 데몬이 수집한 상태로 업데이트
           const newStatus: Record<string, boolean> = {};
-          Object.entries(result.data).forEach(([controllerId, info]: [string, any]) => {
-            newStatus[controllerId] = info.connected;
+          Object.entries(result.devices).forEach(([controllerId, info]: [string, any]) => {
+            newStatus[controllerId] = info.is_online;
           });
           setEsp32Status(newStatus);
           console.log("[API] ESP32 상태 업데이트:", newStatus);
