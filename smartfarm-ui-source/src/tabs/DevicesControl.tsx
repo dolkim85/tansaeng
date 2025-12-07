@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { getDevicesByType } from "../config/devices";
 import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
@@ -84,8 +84,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     maxTemperature: 30,
   });
 
-  // 메인밸브 제어용 타이머
-  const valveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // 메인밸브 상태
   const [valveCurrentState, setValveCurrentState] = useState<"OPEN" | "CLOSE">("CLOSE");
   const [manualValveState, setManualValveState] = useState<boolean>(false); // 수동 모드 ON/OFF
 
@@ -295,165 +294,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     }
   }, [manualValveState, valveSchedule.mode]);
 
-  // 메인밸브 자동 제어 (스케줄 기반)
-  useEffect(() => {
-    // 자동 모드가 아니거나 스케줄이 비활성화되면 타이머 정리
-    if (valveSchedule.mode !== "auto" || !valveSchedule.enabled) {
-      if (valveTimerRef.current) {
-        clearTimeout(valveTimerRef.current);
-        valveTimerRef.current = null;
-      }
-      return;
-    }
-
-    // 현재 시간에 맞는 시간대 찾기
-    const getCurrentTimeSlot = (): ValveTimeSlot | null => {
-      const now = new Date();
-      const currentTime = now.getHours() * 60 + now.getMinutes(); // 분 단위로 변환
-
-      for (const slot of valveSchedule.timeSlots) {
-        const [startHour, startMin] = slot.startTime.split(':').map(Number);
-        const [endHour, endMin] = slot.endTime.split(':').map(Number);
-        const startMinutes = startHour * 60 + startMin;
-        const endMinutes = endHour * 60 + endMin;
-
-        // 시간대가 자정을 넘는 경우 처리 (예: 18:00 ~ 06:00)
-        if (startMinutes > endMinutes) {
-          if (currentTime >= startMinutes || currentTime < endMinutes) {
-            return slot;
-          }
-        } else {
-          if (currentTime >= startMinutes && currentTime < endMinutes) {
-            return slot;
-          }
-        }
-      }
-      return null;
-    };
-
-    // 시간대 겹침 체크
-    const checkTimeOverlap = (): boolean => {
-      if (valveSchedule.timeSlots.length < 2) return false;
-
-      const slots = valveSchedule.timeSlots;
-      for (let i = 0; i < slots.length - 1; i++) {
-        for (let j = i + 1; j < slots.length; j++) {
-          const slot1 = slots[i];
-          const slot2 = slots[j];
-
-          const [s1h, s1m] = slot1.startTime.split(':').map(Number);
-          const [e1h, e1m] = slot1.endTime.split(':').map(Number);
-          const [s2h, s2m] = slot2.startTime.split(':').map(Number);
-          const [e2h, e2m] = slot2.endTime.split(':').map(Number);
-
-          const s1 = s1h * 60 + s1m;
-          const e1 = e1h * 60 + e1m;
-          const s2 = s2h * 60 + s2m;
-          const e2 = e2h * 60 + e2m;
-
-          // 겹침 체크 (복잡한 로직이지만 자정 넘김도 고려)
-          const overlap =
-            (s1 <= s2 && s2 < e1) ||
-            (s1 < e2 && e2 <= e1) ||
-            (s2 <= s1 && s1 < e2) ||
-            (s2 < e1 && e1 <= e2);
-
-          if (overlap) return true;
-        }
-      }
-      return false;
-    };
-
-    // 겹침이 있으면 에러 표시하고 중단
-    if (checkTimeOverlap()) {
-      console.error('[VALVE] 시간대가 겹칩니다. 스케줄을 확인해주세요.');
-      return;
-    }
-
-    const currentSlot = getCurrentTimeSlot();
-    if (!currentSlot) {
-      console.log('[VALVE] 현재 시간대에 맞는 스케줄이 없습니다.');
-      return;
-    }
-
-    // 밸브 제어 함수
-    const controlValve = (command: "OPEN" | "CLOSE") => {
-      const client = getMqttClient();
-      const topic = "tansaeng/ctlr-0004/valve1/cmd";
-      client.publish(topic, command, { qos: 1 });
-      setValveCurrentState(command);
-
-      const openTotal = currentSlot.openMinutes * 60 + currentSlot.openSeconds;
-      const closeTotal = currentSlot.closeMinutes * 60 + currentSlot.closeSeconds;
-      console.log(`[VALVE] ${command} (${openTotal}s open / ${closeTotal}s close)`);
-    };
-
-    // 환경 조건 체크 함수 (온도만)
-    const checkEnvironmentConditions = (): boolean => {
-      if (!valveSchedule.useEnvironmentConditions) {
-        return true; // 환경 조건 사용 안 하면 항상 true
-      }
-
-      const avgTemp = averageValues.avgTemperature;
-
-      if (avgTemp === null) {
-        return true; // 데이터 없으면 일단 허용
-      }
-
-      // 온도가 최대값을 초과하면 밸브 정지
-      if (avgTemp > valveSchedule.maxTemperature) {
-        console.log(`[VALVE] 환경 조건 초과 - 온도: ${avgTemp}°C (최대: ${valveSchedule.maxTemperature}°C)`);
-        return false;
-      }
-
-      return true;
-    };
-
-    // 주기적 제어 로직
-    let openTimer: NodeJS.Timeout | null = null;
-    let closeTimer: NodeJS.Timeout | null = null;
-
-    const runValveCycle = () => {
-      const slot = getCurrentTimeSlot();
-      if (!slot) return;
-
-      // 환경 조건 체크
-      if (!checkEnvironmentConditions()) {
-        console.log('[VALVE] 환경 조건 미달, 밸브 정지');
-        // 환경 조건이 좋아질 때까지 5초 후 재시도
-        valveTimerRef.current = setTimeout(runValveCycle, 5000);
-        return;
-      }
-
-      // 분:초를 총 초로 변환
-      const openTotalSeconds = slot.openMinutes * 60 + slot.openSeconds;
-      const closeTotalSeconds = slot.closeMinutes * 60 + slot.closeSeconds;
-
-      // 밸브 열기
-      controlValve("OPEN");
-
-      // openSeconds 후에 밸브 닫기
-      openTimer = setTimeout(() => {
-        controlValve("CLOSE");
-
-        // closeSeconds 후에 다시 사이클 시작
-        closeTimer = setTimeout(runValveCycle, closeTotalSeconds * 1000);
-      }, openTotalSeconds * 1000);
-    };
-
-    // 최초 실행
-    runValveCycle();
-
-    // 클린업 - 모든 타이머 정리
-    return () => {
-      if (openTimer) clearTimeout(openTimer);
-      if (closeTimer) clearTimeout(closeTimer);
-      if (valveTimerRef.current) {
-        clearTimeout(valveTimerRef.current);
-        valveTimerRef.current = null;
-      }
-    };
-  }, [valveSchedule, averageValues]);
+  // 메인밸브 자동 제어 - PHP 데몬이 담당 (React는 관여하지 않음)
+  // 자동 모드에서는 서버의 PHP 데몬이 밸브를 제어합니다.
 
   const handleToggle = (deviceId: string, isOn: boolean) => {
     const newState = {
