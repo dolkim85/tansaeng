@@ -62,27 +62,27 @@ export const DEVICES: DeviceConfig[] = [
     },
   },
 
-  // ========== 측창 스크린 제어 (기존 개폐기와 분리) ==========
+  // ========== 측창 스크린 제어 (OPEN/CLOSE/STOP) ==========
   {
-    id: "vent_top_left",
-    name: "측창 스크린 Left",
-    type: "vent",
-    esp32Id: "esp32-node-2",
-    commandTopic: "tansaeng/esp32-node-2/vent_top_left/cmd",
-    stateTopic: "tansaeng/esp32-node-2/vent_top_left/state",
+    id: "sidescreen_left",
+    name: "측창 좌측",
+    type: "sidescreen",
+    esp32Id: "ctlr-0021",
+    commandTopic: "tansaeng/ctlr-0021/sideL/cmd",
+    stateTopic: "tansaeng/ctlr-0021/sideL/state",
     extra: {
-      supportsPercentage: true,
+      supportsWindowControl: true,
     },
   },
   {
-    id: "vent_top_right",
-    name: "측창 스크린 Right",
-    type: "vent",
-    esp32Id: "esp32-node-2",
-    commandTopic: "tansaeng/esp32-node-2/vent_top_right/cmd",
-    stateTopic: "tansaeng/esp32-node-2/vent_top_right/state",
+    id: "sidescreen_right",
+    name: "측창 우측",
+    type: "sidescreen",
+    esp32Id: "ctlr-0021",
+    commandTopic: "tansaeng/ctlr-0021/sideR/cmd",
+    stateTopic: "tansaeng/ctlr-0021/sideR/state",
     extra: {
-      supportsPercentage: true,
+      supportsWindowControl: true,
     },
   },
 

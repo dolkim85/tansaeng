@@ -55,6 +55,7 @@ function saveSensorData($db, $controllerId, $sensorType, $dataType, $value) {
             'ctlr-0002' => 'back',
             'ctlr-0003' => 'top',
             'ctlr-0011' => 'window',
+            'ctlr-0021' => 'sidescreen',
             default => 'unknown'
         };
 
@@ -183,6 +184,7 @@ try {
         'tansaeng/ctlr-0003/status',
         'tansaeng/ctlr-0004/status',
         'tansaeng/ctlr-0011/status',
+        'tansaeng/ctlr-0021/status',
     ];
 
     foreach ($statusTopics as $topic) {
@@ -223,6 +225,7 @@ try {
     $stateTopics = [
         'tansaeng/ctlr-0004/+/state',  // 밸브 상태
         'tansaeng/ctlr-0011/+/state',  // 천창 상태
+        'tansaeng/ctlr-0021/+/state',  // 측창 상태
         'tansaeng/+/+/state',          // 모든 장치의 state 토픽
     ];
 

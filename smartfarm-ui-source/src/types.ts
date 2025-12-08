@@ -1,6 +1,6 @@
 // ========== Device Types ==========
 
-export type DeviceType = "fan" | "vent" | "pump" | "camera" | "skylight";
+export type DeviceType = "fan" | "vent" | "pump" | "camera" | "skylight" | "sidescreen";
 
 export interface DeviceConfig {
   id: string;            // 내부 ID (예: "fan_front")

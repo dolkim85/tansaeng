@@ -76,8 +76,8 @@ export const ESP32_CONTROLLERS: ESP32Controller[] = [
   {
     id: "esp32-out-side-screen",
     name: "측창 스크린",
-    controllerId: "ctlr-0012",
-    statusTopic: "tansaeng/ctlr-0012/status",
+    controllerId: "ctlr-0021",
+    statusTopic: "tansaeng/ctlr-0021/status",
   },
   {
     id: "esp32-out-top-chillerline-pump-valve",

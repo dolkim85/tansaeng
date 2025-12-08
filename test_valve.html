@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Valve Test Monitor</title>
+    <script src="https://unpkg.com/mqtt@5.3.5/dist/mqtt.min.js"></script>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #000; color: #0f0; }
+        #log {
+            border: 1px solid #0f0;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            background: #001100;
+        }
+        .timestamp { color: #0ff; }
+        .open { color: #0f0; font-weight: bold; }
+        .close { color: #f00; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>밸브 명령 모니터</h2>
+    <div id="status">연결 중...</div>
+    <div id="log"></div>
+
+    <script>
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+
+        function addLog(msg, className = '') {
+            const now = new Date();
+            const time = now.toTimeString().split(' ')[0];
+            const line = document.createElement('div');
+            line.innerHTML = `<span class="timestamp">[${time}]</span> <span class="${className}">${msg}</span>`;
+            log.appendChild(line);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        const client = mqtt.connect('wss://22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud:8884/mqtt', {
+            username: 'esp32-client-01',
+            password: 'Qjawns3445',
+            clientId: 'test_monitor_' + Math.random().toString(16).substring(2, 8)
+        });
+
+        client.on('connect', () => {
+            status.textContent = '✓ MQTT 연결됨';
+            status.style.color = '#0f0';
+            addLog('MQTT 브로커 연결 성공');
+
+            client.subscribe('tansaeng/ctlr-0004/valve1/cmd', { qos: 1 }, (err) => {
+                if (err) {
+                    addLog('구독 실패: ' + err.message);
+                } else {
+                    addLog('밸브 명령 토픽 구독 완료');
+                    addLog('모니터링 시작... (3초 열림 / 5초 닫힘 예상)');
+                }
+            });
+        });
+
+        client.on('message', (topic, message) => {
+            const cmd = message.toString();
+            const className = cmd === 'OPEN' ? 'open' : 'close';
+            addLog(`${topic}: ${cmd}`, className);
+        });
+
+        client.on('error', (error) => {
+            status.textContent = '✗ 연결 오류';
+            status.style.color = '#f00';
+            addLog('오류: ' + error.message);
+        });
+
+        // 30초 후 자동 종료
+        setTimeout(() => {
+            addLog('=== 30초 모니터링 완료 ===');
+            client.end();
+        }, 30000);
+    </script>
+</body>
+</html>

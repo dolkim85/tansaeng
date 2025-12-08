@@ -143,6 +143,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const vents = getDevicesByType("vent");
   const pumps = getDevicesByType("pump");
   const skylights = getDevicesByType("skylight");
+  const sidescreens = getDevicesByType("sidescreen");
 
   // HiveMQ 연결 상태 모니터링
   useEffect(() => {
@@ -314,23 +315,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     }
   };
 
-  const handlePercentageChange = (deviceId: string, percentage: number) => {
-    const newState = {
-      ...deviceState,
-      [deviceId]: {
-        ...deviceState[deviceId],
-        targetPercentage: percentage,
-        lastSavedAt: new Date().toISOString(),
-      },
-    };
-    setDeviceState(newState);
-
-    const device = vents.find((d) => d.id === deviceId);
-    if (device) {
-      publishCommand(device.commandTopic, { target: percentage });
-    }
-  };
-
   // 천창 제어 핸들러 (OPEN/CLOSE/STOP)
   const handleSkylightCommand = (deviceId: string, command: "OPEN" | "CLOSE" | "STOP") => {
     const device = skylights.find((d) => d.id === deviceId);
@@ -357,16 +341,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     if (device) {
       publishCommand(device.commandTopic, { target: percentage });
       console.log(`[SKYLIGHT] ${device.name} - ${percentage}%`);
-    }
-  };
-
-  // 측창 버튼 제어 핸들러 (OPEN/CLOSE/STOP)
-  const handleVentCommand = (deviceId: string, command: "OPEN" | "CLOSE" | "STOP") => {
-    const device = vents.find((d) => d.id === deviceId);
-    if (device) {
-      const client = getMqttClient();
-      client.publish(device.commandTopic, command, { qos: 1 });
-      console.log(`[VENT] ${device.name} - ${command}`);
     }
   };
 
@@ -1102,64 +1076,64 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             <h2 className="text-base font-semibold flex items-center gap-1.5 text-gray-900">
               🪟 측창 스크린 제어
             </h2>
-            <span className="text-xs text-gray-800">총 {vents.length}개</span>
+            <span className="text-xs text-gray-800">총 {sidescreens.length}개</span>
           </header>
           <div className="bg-white shadow-sm rounded-b-lg p-3">
             <div className="grid grid-cols-[repeat(auto-fit,minmax(350px,1fr))] gap-3">
-              {vents.map((vent) => (
+              {sidescreens.map((sidescreen) => (
                 <div
-                  key={vent.id}
+                  key={sidescreen.id}
                   className="bg-white border-2 border-blue-200 rounded-lg p-4 shadow-sm"
                 >
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold text-gray-900">
-                      {vent.name}
+                      {sidescreen.name}
                     </h3>
                     <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                      {vent.esp32Id}
+                      {sidescreen.esp32Id}
                     </span>
                   </div>
 
-                  {/* 슬라이더 제어 */}
+                  {/* 버튼 제어 */}
                   <div className="mb-4">
+                    <p className="text-xs text-gray-600 font-medium mb-2">버튼 제어</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleSkylightCommand(sidescreen.id, "OPEN")}
+                        className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-md transition-colors"
+                      >
+                        ▲ 열기
+                      </button>
+                      <button
+                        onClick={() => handleSkylightCommand(sidescreen.id, "STOP")}
+                        className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-4 rounded-md transition-colors"
+                      >
+                        ■ 정지
+                      </button>
+                      <button
+                        onClick={() => handleSkylightCommand(sidescreen.id, "CLOSE")}
+                        className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-md transition-colors"
+                      >
+                        ▼ 닫기
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 슬라이더 제어 */}
+                  <div>
                     <p className="text-xs text-gray-600 font-medium mb-2">슬라이더 제어</p>
                     <div className="flex items-center gap-3">
                       <input
                         type="range"
                         min="0"
                         max="100"
-                        value={deviceState[vent.id]?.targetPercentage ?? 0}
-                        onChange={(e) => handlePercentageChange(vent.id, parseInt(e.target.value))}
+                        value={deviceState[sidescreen.id]?.targetPercentage ?? 0}
+                        onChange={(e) => handleSkylightPercentageChange(sidescreen.id, parseInt(e.target.value))}
                         className="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:cursor-pointer"
                       />
                       <span className="text-sm font-semibold text-gray-900 min-w-[3rem] text-right">
-                        {deviceState[vent.id]?.targetPercentage ?? 0}%
+                        {deviceState[sidescreen.id]?.targetPercentage ?? 0}%
                       </span>
-                    </div>
-                  </div>
-
-                  {/* 버튼 제어 */}
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium mb-2">버튼 제어</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleVentCommand(vent.id, "OPEN")}
-                        className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-md transition-colors"
-                      >
-                        ▲ 열기
-                      </button>
-                      <button
-                        onClick={() => handleVentCommand(vent.id, "STOP")}
-                        className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-4 rounded-md transition-colors"
-                      >
-                        ■ 정지
-                      </button>
-                      <button
-                        onClick={() => handleVentCommand(vent.id, "CLOSE")}
-                        className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-md transition-colors"
-                      >
-                        ▼ 닫기
-                      </button>
                     </div>
                   </div>
                 </div>
