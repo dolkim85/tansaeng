@@ -7,6 +7,9 @@
  * - 메인밸브 스케줄 제어
  */
 
+// 한국 시간대 설정
+date_default_timezone_set('Asia/Seoul');
+
 // Composer autoload
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../classes/Database.php';
