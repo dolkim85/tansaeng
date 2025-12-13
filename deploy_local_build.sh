@@ -193,10 +193,108 @@ sshpass -p "$CLOUD_PASSWORD" ssh -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD
 
     echo "✅ dist 파일 배치 완료"
 
+    # Apache 설정 수정
+    echo "🔧 Apache 설정 수정 중..."
+
+    # default-ssl.conf 비활성화
+    if [ -L "/etc/apache2/sites-enabled/default-ssl.conf" ]; then
+        echo "  - default-ssl.conf 비활성화 중..."
+        sudo a2dissite default-ssl.conf 2>&1 | grep -v "Site default-ssl disabled" || true
+    fi
+
+    # Apache 설정 파일 생성
+    echo "  - Apache 설정 파일 업데이트 중..."
+    sudo tee /etc/apache2/sites-enabled/www.tansaeng.com.conf > /dev/null << 'APACHECONF'
+<VirtualHost *:80>
+    ServerName www.tansaeng.com
+    ServerAlias tansaeng.com
+    DocumentRoot /var/www/html
+
+    # HTTP to HTTPS redirect
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName www.tansaeng.com
+    ServerAlias tansaeng.com
+
+    # SSL Configuration
+    SSLEngine on
+    SSLCertificateFile /etc/ssl/tansaeng/www.tansaeng.com.crt
+    SSLCertificateKeyFile /etc/ssl/tansaeng/www.tansaeng.com.key
+
+    # Security Headers
+    Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    Header always set X-Frame-Options DENY
+    Header always set X-Content-Type-Options nosniff
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # React 스마트팜 Alias - MUST BE BEFORE DocumentRoot
+    Alias /smartfarm-ui /var/www/html/smartfarm-ui-source/dist
+
+    <Directory /var/www/html/smartfarm-ui-source/dist>
+        # Force correct MIME types
+        AddType text/html .html
+        AddType text/css .css
+        AddType application/javascript .js
+        Options -Indexes +FollowSymLinks
+        AllowOverride None
+        Require all granted
+        DirectoryIndex index.html
+
+        # Disable caching for development
+        <IfModule mod_headers.c>
+            Header set Cache-Control "no-cache, no-store, must-revalidate"
+            Header set Pragma "no-cache"
+            Header set Expires 0
+        </IfModule>
+    </Directory>
+
+    DocumentRoot /var/www/html
+
+    # Directory Settings
+    <Directory /var/www/html>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # PHP Configuration
+    <FilesMatch \.php$>
+        SetHandler "proxy:unix:/var/run/php/php8.3-fpm.sock|fcgi://localhost"
+    </FilesMatch>
+
+    # Error and Access Logs
+    ErrorLog ${APACHE_LOG_DIR}/tansaeng_error.log
+    CustomLog ${APACHE_LOG_DIR}/tansaeng_access.log combined
+</VirtualHost>
+APACHECONF
+
+    # Apache 설정 테스트
+    echo "  - Apache 설정 테스트 중..."
+    if sudo apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
+        echo "  ✅ Apache 설정 검증 완료"
+    else
+        echo "  ❌ Apache 설정 오류 발생"
+        sudo apache2ctl configtest
+        exit 1
+    fi
+
     # 웹서버 재시작
     echo "🔄 웹서버 재시작 중..."
     sudo systemctl reload apache2
     sudo systemctl restart apache2
+
+    # Apache 상태 확인
+    if systemctl is-active --quiet apache2; then
+        echo "✅ Apache 정상 작동 중"
+    else
+        echo "❌ Apache 재시작 실패"
+        systemctl status apache2
+        exit 1
+    fi
 
     echo "✅ 클라우드 서버 배포 완료!"
 EOF
