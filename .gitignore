@@ -8,3 +8,4 @@ live/
 logs/mqtt_daemon.log
 logs/mqtt_daemon_stdout.log
 logs/mqtt_daemon_stderr.log
+logs/*.log
