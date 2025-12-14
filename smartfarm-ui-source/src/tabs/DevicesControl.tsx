@@ -4,6 +4,7 @@ import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
 import DeviceCard from "../components/DeviceCard";
 import { publishCommand, getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
+import { sendDeviceCommand } from "../api/deviceControl";
 
 interface DevicesControlProps {
   deviceState: DeviceDesiredState;
@@ -220,7 +221,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 센서 데이터는 백그라운드 MQTT 데몬이 수집하고 DB에 저장
   // DevicesControl은 서버 API에서 평균값만 읽어옴 (위의 useEffect 참고)
 
-  // 자동 제어 로직 (서버에서 가져온 평균값 사용)
+  // 자동 제어 로직 (서버에서 가져온 평균값 사용) - API 호출
   useEffect(() => {
     if (controlMode !== "auto") return;
 
@@ -230,11 +231,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     if (avgTemp === null) return;
 
     // 자동 제어가 활성화된 장치들만 제어
-    ESP32_CONTROLLERS.forEach((controller) => {
+    ESP32_CONTROLLERS.forEach(async (controller) => {
       const autoControl = deviceAutoControls[controller.controllerId];
       if (!autoControl?.enabled) return;
-
-      const client = getMqttClient();
 
       // 온도 기반 제어
       if (avgTemp > autoControl.tempMax) {
@@ -242,20 +241,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
         // 팬 제어
         if (controller.controllerId === "ctlr-0001" || controller.controllerId === "ctlr-0002") {
-          publishCommand(`tansaeng/${controller.controllerId}/fan1/cmd`, { power: "on" });
+          await sendDeviceCommand(controller.controllerId, "fan1", "ON");
+          console.log(`[AUTO] ${controller.name} 팬 ON (온도: ${avgTemp}°C > ${autoControl.tempMax}°C)`);
         }
 
         // 천창 스크린 제어 (ctlr-0011)
         if (controller.controllerId === "ctlr-0011") {
-          client.publish("tansaeng/ctlr-0011/windowL/cmd", "OPEN", { qos: 1 });
-          client.publish("tansaeng/ctlr-0011/windowR/cmd", "OPEN", { qos: 1 });
+          await sendDeviceCommand("ctlr-0011", "windowL", "OPEN");
+          await sendDeviceCommand("ctlr-0011", "windowR", "OPEN");
           console.log(`[AUTO] 천창 스크린 열기 (온도: ${avgTemp}°C > ${autoControl.tempMax}°C)`);
         }
 
-        // 측창 스크린 제어 (ctlr-0012)
-        if (controller.controllerId === "ctlr-0012") {
-          publishCommand("tansaeng/esp32-node-2/vent_top_left/cmd", { target: 80 });
-          publishCommand("tansaeng/esp32-node-2/vent_top_right/cmd", { target: 80 });
+        // 측창 스크린 제어 (ctlr-0021)
+        if (controller.controllerId === "ctlr-0021") {
+          await sendDeviceCommand("ctlr-0021", "sideL", "OPEN");
+          await sendDeviceCommand("ctlr-0021", "sideR", "OPEN");
           console.log(`[AUTO] 측창 스크린 열기 (온도: ${avgTemp}°C > ${autoControl.tempMax}°C)`);
         }
       } else if (avgTemp < autoControl.tempMin) {
@@ -263,20 +263,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
         // 팬 제어
         if (controller.controllerId === "ctlr-0001" || controller.controllerId === "ctlr-0002") {
-          publishCommand(`tansaeng/${controller.controllerId}/fan1/cmd`, { power: "off" });
+          await sendDeviceCommand(controller.controllerId, "fan1", "OFF");
+          console.log(`[AUTO] ${controller.name} 팬 OFF (온도: ${avgTemp}°C < ${autoControl.tempMin}°C)`);
         }
 
         // 천창 스크린 제어 (ctlr-0011)
         if (controller.controllerId === "ctlr-0011") {
-          client.publish("tansaeng/ctlr-0011/windowL/cmd", "CLOSE", { qos: 1 });
-          client.publish("tansaeng/ctlr-0011/windowR/cmd", "CLOSE", { qos: 1 });
+          await sendDeviceCommand("ctlr-0011", "windowL", "CLOSE");
+          await sendDeviceCommand("ctlr-0011", "windowR", "CLOSE");
           console.log(`[AUTO] 천창 스크린 닫기 (온도: ${avgTemp}°C < ${autoControl.tempMin}°C)`);
         }
 
-        // 측창 스크린 제어 (ctlr-0012)
-        if (controller.controllerId === "ctlr-0012") {
-          publishCommand("tansaeng/esp32-node-2/vent_top_left/cmd", { target: 20 });
-          publishCommand("tansaeng/esp32-node-2/vent_top_right/cmd", { target: 20 });
+        // 측창 스크린 제어 (ctlr-0021)
+        if (controller.controllerId === "ctlr-0021") {
+          await sendDeviceCommand("ctlr-0021", "sideL", "CLOSE");
+          await sendDeviceCommand("ctlr-0021", "sideR", "CLOSE");
           console.log(`[AUTO] 측창 스크린 닫기 (온도: ${avgTemp}°C < ${autoControl.tempMin}°C)`);
         }
       }
@@ -298,7 +299,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 메인밸브 자동 제어 - PHP 데몬이 담당 (React는 관여하지 않음)
   // 자동 모드에서는 서버의 PHP 데몬이 밸브를 제어합니다.
 
-  const handleToggle = (deviceId: string, isOn: boolean) => {
+  const handleToggle = async (deviceId: string, isOn: boolean) => {
     const newState = {
       ...deviceState,
       [deviceId]: {
@@ -311,17 +312,42 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     const device = [...fans, ...vents, ...pumps].find((d) => d.id === deviceId);
     if (device) {
-      publishCommand(device.commandTopic, { power: isOn ? "on" : "off" });
+      // commandTopic에서 실제 MQTT deviceId 추출
+      // 예: "tansaeng/ctlr-0001/fan1/cmd" → "fan1"
+      const topicParts = device.commandTopic.split('/');
+      const mqttDeviceId = topicParts[2];
+
+      // API를 통해 명령 전송
+      const command = isOn ? "ON" : "OFF";
+      const result = await sendDeviceCommand(device.esp32Id, mqttDeviceId, command);
+
+      if (result.success) {
+        console.log(`[API SUCCESS] ${device.name} - ${command}`);
+      } else {
+        console.error(`[API ERROR] ${result.message}`);
+      }
     }
   };
 
-  // 천창 제어 핸들러 (OPEN/CLOSE/STOP)
-  const handleSkylightCommand = (deviceId: string, command: "OPEN" | "CLOSE" | "STOP") => {
+  // 천창 제어 핸들러 (OPEN/CLOSE/STOP) - API 호출
+  const handleSkylightCommand = async (deviceId: string, command: "OPEN" | "CLOSE" | "STOP") => {
     const device = skylights.find((d) => d.id === deviceId);
     if (device) {
-      const client = getMqttClient();
-      client.publish(device.commandTopic, command, { qos: 1 });
       console.log(`[SKYLIGHT] ${device.name} - ${command}`);
+
+      // commandTopic에서 실제 MQTT deviceId 추출
+      // 예: "tansaeng/ctlr-0011/windowL/cmd" → "windowL"
+      const topicParts = device.commandTopic.split('/');
+      const mqttDeviceId = topicParts[2]; // windowL 또는 windowR
+
+      // API를 통해 명령 전송 (데몬이 MQTT 발행)
+      const result = await sendDeviceCommand(device.esp32Id, mqttDeviceId, command);
+
+      if (result.success) {
+        console.log(`[API SUCCESS] ${result.message}`);
+      } else {
+        console.error(`[API ERROR] ${result.message}`);
+      }
     }
   };
 
