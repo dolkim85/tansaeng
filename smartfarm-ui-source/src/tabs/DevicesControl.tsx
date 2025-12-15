@@ -245,10 +245,10 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           console.log(`[AUTO] ${controller.name} 팬 ON (온도: ${avgTemp}°C > ${autoControl.tempMax}°C)`);
         }
 
-        // 천창 스크린 제어 (ctlr-0011)
-        if (controller.controllerId === "ctlr-0011") {
-          await sendDeviceCommand("ctlr-0011", "windowL", "OPEN");
-          await sendDeviceCommand("ctlr-0011", "windowR", "OPEN");
+        // 천창 스크린 제어 (ctlr-0012)
+        if (controller.controllerId === "ctlr-0012") {
+          await sendDeviceCommand("ctlr-0012", "windowL", "OPEN");
+          await sendDeviceCommand("ctlr-0012", "windowR", "OPEN");
           console.log(`[AUTO] 천창 스크린 열기 (온도: ${avgTemp}°C > ${autoControl.tempMax}°C)`);
         }
 
@@ -267,10 +267,10 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           console.log(`[AUTO] ${controller.name} 팬 OFF (온도: ${avgTemp}°C < ${autoControl.tempMin}°C)`);
         }
 
-        // 천창 스크린 제어 (ctlr-0011)
-        if (controller.controllerId === "ctlr-0011") {
-          await sendDeviceCommand("ctlr-0011", "windowL", "CLOSE");
-          await sendDeviceCommand("ctlr-0011", "windowR", "CLOSE");
+        // 천창 스크린 제어 (ctlr-0012)
+        if (controller.controllerId === "ctlr-0012") {
+          await sendDeviceCommand("ctlr-0012", "windowL", "CLOSE");
+          await sendDeviceCommand("ctlr-0012", "windowR", "CLOSE");
           console.log(`[AUTO] 천창 스크린 닫기 (온도: ${avgTemp}°C < ${autoControl.tempMin}°C)`);
         }
 

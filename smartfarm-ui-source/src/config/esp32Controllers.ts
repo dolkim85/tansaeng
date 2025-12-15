@@ -70,8 +70,8 @@ export const ESP32_CONTROLLERS: ESP32Controller[] = [
   {
     id: "esp32-out-skylight-screen",
     name: "천창 스크린",
-    controllerId: "ctlr-0011",
-    statusTopic: "tansaeng/ctlr-0011/status",
+    controllerId: "ctlr-0012",
+    statusTopic: "tansaeng/ctlr-0012/status",
   },
   {
     id: "esp32-out-side-screen",
