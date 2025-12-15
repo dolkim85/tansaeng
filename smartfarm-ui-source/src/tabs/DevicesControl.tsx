@@ -3,7 +3,7 @@ import { getDevicesByType } from "../config/devices";
 import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
 import DeviceCard from "../components/DeviceCard";
-import { publishCommand, getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
+import { getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
 import { sendDeviceCommand } from "../api/deviceControl";
 
 interface DevicesControlProps {
@@ -351,8 +351,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     }
   };
 
-  // 천창 퍼센트 제어 핸들러 (슬라이더)
-  const handleSkylightPercentageChange = (deviceId: string, percentage: number) => {
+  // 천창/측창 퍼센트 제어 핸들러 (슬라이더)
+  const handleSkylightPercentageChange = async (deviceId: string, percentage: number) => {
     const newState = {
       ...deviceState,
       [deviceId]: {
@@ -363,10 +363,52 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     };
     setDeviceState(newState);
 
-    const device = skylights.find((d) => d.id === deviceId);
-    if (device) {
-      publishCommand(device.commandTopic, { target: percentage });
-      console.log(`[SKYLIGHT] ${device.name} - ${percentage}%`);
+    // 천창과 측창 모두에서 장치 찾기
+    const device = [...skylights, ...sidescreens].find((d) => d.id === deviceId);
+    if (!device) return;
+
+    // 전체 시간 설정 (0% → 100%)
+    // ctlr-0012: 천창 스크린 = 5분 = 300초
+    // ctlr-0021: 측창 스크린 = 2분 = 120초
+    const fullTimeSeconds = device.esp32Id === "ctlr-0012" ? 300 : 120;
+
+    // 퍼센트에 따른 시간 계산 (초)
+    const targetTimeSeconds = (percentage / 100) * fullTimeSeconds;
+
+    console.log(`[SLIDER] ${device.name} - ${percentage}% (${targetTimeSeconds.toFixed(1)}초)`);
+
+    // commandTopic에서 실제 MQTT deviceId 추출
+    const topicParts = device.commandTopic.split('/');
+    const mqttDeviceId = topicParts[2]; // windowL, windowR, sideL, sideR
+
+    try {
+      if (percentage === 0) {
+        // 0%면 완전히 닫기
+        await sendDeviceCommand(device.esp32Id, mqttDeviceId, "CLOSE");
+        console.log(`[SLIDER] ${device.name} - 완전히 닫기`);
+      } else if (percentage === 100) {
+        // 100%면 완전히 열기
+        await sendDeviceCommand(device.esp32Id, mqttDeviceId, "OPEN");
+        console.log(`[SLIDER] ${device.name} - 완전히 열기`);
+      } else {
+        // 중간 값: 먼저 완전히 닫은 후, 계산된 시간만큼 열기
+        console.log(`[SLIDER] ${device.name} - 먼저 완전히 닫기...`);
+        await sendDeviceCommand(device.esp32Id, mqttDeviceId, "CLOSE");
+
+        // 완전히 닫힐 때까지 대기 (전체 시간 + 여유 2초)
+        await new Promise(resolve => setTimeout(resolve, (fullTimeSeconds + 2) * 1000));
+
+        console.log(`[SLIDER] ${device.name} - ${percentage}%까지 열기 (${targetTimeSeconds.toFixed(1)}초)...`);
+        await sendDeviceCommand(device.esp32Id, mqttDeviceId, "OPEN");
+
+        // 목표 시간만큼 열린 후 정지
+        setTimeout(async () => {
+          await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
+          console.log(`[SLIDER] ${device.name} - ${percentage}% 위치에서 정지`);
+        }, targetTimeSeconds * 1000);
+      }
+    } catch (error) {
+      console.error(`[SLIDER ERROR] ${device.name}:`, error);
     }
   };
 
