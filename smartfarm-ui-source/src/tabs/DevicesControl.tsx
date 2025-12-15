@@ -375,7 +375,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     // 퍼센트에 따른 시간 계산 (초)
     const targetTimeSeconds = (percentage / 100) * fullTimeSeconds;
 
-    console.log(`[SLIDER] ${device.name} - ${percentage}% (${targetTimeSeconds.toFixed(1)}초)`);
+    console.log(`[SLIDER] ${device.name} - ${percentage}% (${targetTimeSeconds.toFixed(1)}초 동안 작동)`);
 
     // commandTopic에서 실제 MQTT deviceId 추출
     const topicParts = device.commandTopic.split('/');
@@ -383,25 +383,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     try {
       if (percentage === 0) {
-        // 0%면 완전히 닫기
+        // 0%면 완전히 닫기 (시간 제한 없음)
         await sendDeviceCommand(device.esp32Id, mqttDeviceId, "CLOSE");
         console.log(`[SLIDER] ${device.name} - 완전히 닫기`);
-      } else if (percentage === 100) {
-        // 100%면 완전히 열기
-        await sendDeviceCommand(device.esp32Id, mqttDeviceId, "OPEN");
-        console.log(`[SLIDER] ${device.name} - 완전히 열기`);
       } else {
-        // 중간 값: 먼저 완전히 닫은 후, 계산된 시간만큼 열기
-        console.log(`[SLIDER] ${device.name} - 먼저 완전히 닫기...`);
-        await sendDeviceCommand(device.esp32Id, mqttDeviceId, "CLOSE");
-
-        // 완전히 닫힐 때까지 대기 (전체 시간 + 여유 2초)
-        await new Promise(resolve => setTimeout(resolve, (fullTimeSeconds + 2) * 1000));
-
-        console.log(`[SLIDER] ${device.name} - ${percentage}%까지 열기 (${targetTimeSeconds.toFixed(1)}초)...`);
+        // 1~100%: 계산된 시간만큼 열기
+        console.log(`[SLIDER] ${device.name} - ${targetTimeSeconds.toFixed(1)}초 동안 열기 시작`);
         await sendDeviceCommand(device.esp32Id, mqttDeviceId, "OPEN");
 
-        // 목표 시간만큼 열린 후 정지
+        // 목표 시간만큼 열린 후 자동 정지
         setTimeout(async () => {
           await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
           console.log(`[SLIDER] ${device.name} - ${percentage}% 위치에서 정지`);
