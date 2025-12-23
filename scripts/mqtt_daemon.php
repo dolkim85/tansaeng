@@ -323,7 +323,7 @@ try {
                     // 사이클이 0이면 건너뛰기
                     if ($cycleTotal == 0) {
                         echo "[VALVE] Warning: Cycle total is 0, skipping valve control\n";
-                        continue;
+                        return;
                     }
 
                     // 시작 시간이 없으면 초기화
