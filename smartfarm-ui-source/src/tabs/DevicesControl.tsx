@@ -88,6 +88,29 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 메인밸브 상태
   const [valveCurrentState, setValveCurrentState] = useState<"OPEN" | "CLOSE">("CLOSE");
   const [manualValveState, setManualValveState] = useState<boolean>(false); // 수동 모드 ON/OFF
+  const [scheduleLoaded, setScheduleLoaded] = useState(false); // 스케줄 로딩 완료 플래그
+
+  // 메인밸브 스케줄 불러오기 (페이지 로드 시)
+  useEffect(() => {
+    const loadSchedule = async () => {
+      try {
+        const response = await fetch('/api/smartfarm/get_valve_schedule.php');
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          setValveSchedule(result.data);
+          console.log('[VALVE] Schedule loaded from server:', result.data);
+        }
+      } catch (error) {
+        console.error('[VALVE] Failed to load schedule:', error);
+      } finally {
+        // 로딩 완료 표시 (성공/실패 무관)
+        setScheduleLoaded(true);
+      }
+    };
+
+    loadSchedule();
+  }, []); // 빈 배열: 컴포넌트 마운트 시 한 번만 실행
 
   // 자동 제어 설정 저장 (변경 시마다 API 호출)
   useEffect(() => {
@@ -114,6 +137,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
   // 메인밸브 스케줄 저장 (변경 시마다 API 호출)
   useEffect(() => {
+    // 초기 로딩 중에는 저장하지 않음
+    if (!scheduleLoaded) return;
+
     const saveSchedule = async () => {
       try {
         await fetch('/api/smartfarm/save_valve_schedule.php', {
@@ -129,7 +155,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     const timer = setTimeout(saveSchedule, 1000);
     return () => clearTimeout(timer);
-  }, [valveSchedule]);
+  }, [valveSchedule, scheduleLoaded]);
 
   // 서버에서 가져온 평균 온습도 (5분 평균)
   const [averageValues, setAverageValues] = useState<{
