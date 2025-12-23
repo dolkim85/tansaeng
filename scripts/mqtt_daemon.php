@@ -320,6 +320,12 @@ try {
                     $closeTotalSeconds = ($currentSlot['closeMinutes'] * 60) + $currentSlot['closeSeconds'];
                     $cycleTotal = $openTotalSeconds + $closeTotalSeconds;
 
+                    // 사이클이 0이면 건너뛰기
+                    if ($cycleTotal == 0) {
+                        echo "[VALVE] Warning: Cycle total is 0, skipping valve control\n";
+                        continue;
+                    }
+
                     // 시작 시간이 없으면 초기화
                     if ($valveStartTime == 0) {
                         $valveStartTime = $currentTime;
@@ -329,26 +335,25 @@ try {
                     // 현재 사이클에서 경과 시간
                     $elapsed = $currentTime - $valveStartTime;
 
-                    // 사이클 완료 시 리셋
-                    if ($elapsed >= $cycleTotal) {
-                        $valveStartTime = $currentTime;
-                        $elapsed = 0;
-                    }
+                    // fmod를 사용하여 사이클 내에서의 정확한 위치 계산
+                    // 이렇게 하면 사이클이 반복적으로 정확하게 진행됩니다
+                    $cycleElapsed = fmod($elapsed, $cycleTotal);
 
                     // 현재 상태 판단
-                    if ($elapsed < $openTotalSeconds) {
+                    if ($cycleElapsed < $openTotalSeconds) {
                         // 열림 시간대
                         if ($valveState !== 'OPEN') {
                             $mqtt->publish('tansaeng/ctlr-0004/valve1/cmd', 'OPEN', 1);
                             $valveState = 'OPEN';
-                            echo "[" . date('H:i:s') . "] [VALVE] OPEN for {$openTotalSeconds}s - elapsed: " . round($elapsed, 2) . "s / cycle: {$cycleTotal}s\n";
+                            echo "[" . date('H:i:s') . "] [VALVE] OPEN for {$openTotalSeconds}s - cycle elapsed: " . round($cycleElapsed, 2) . "s / cycle: {$cycleTotal}s\n";
                         }
                     } else {
                         // 닫힘 시간대
                         if ($valveState !== 'CLOSE') {
                             $mqtt->publish('tansaeng/ctlr-0004/valve1/cmd', 'CLOSE', 1);
                             $valveState = 'CLOSE';
-                            echo "[" . date('H:i:s') . "] [VALVE] CLOSE for {$closeTotalSeconds}s - elapsed: " . round($elapsed, 2) . "s / cycle: {$cycleTotal}s\n";
+                            $remainingClose = $cycleTotal - $cycleElapsed;
+                            echo "[" . date('H:i:s') . "] [VALVE] CLOSE for {$closeTotalSeconds}s - cycle elapsed: " . round($cycleElapsed, 2) . "s / remaining: " . round($remainingClose, 2) . "s / cycle: {$cycleTotal}s\n";
                         }
                     }
                 } else {
