@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getDevicesByType } from "../config/devices";
 import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
@@ -89,6 +89,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [valveCurrentState, setValveCurrentState] = useState<"OPEN" | "CLOSE">("CLOSE");
   const [manualValveState, setManualValveState] = useState<boolean>(false); // 수동 모드 ON/OFF
   const [scheduleLoaded, setScheduleLoaded] = useState(false); // 스케줄 로딩 완료 플래그
+
+  // 천창/측창 퍼센트 입력 임시 상태
+  const [percentageInputs, setPercentageInputs] = useState<Record<string, string>>({});
+
+  // 천창/측창 타이머 참조 (작동 중 타이머를 추적하여 취소 가능)
+  const percentageTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
   // 메인밸브 스케줄 불러오기 (페이지 로드 시)
   useEffect(() => {
@@ -377,8 +383,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     }
   };
 
-  // 천창/측창 퍼센트 제어 핸들러 (슬라이더)
-  const handleSkylightPercentageChange = async (deviceId: string, percentage: number) => {
+  // 천창/측창 퍼센트 저장 핸들러
+  const handleSavePercentage = (deviceId: string) => {
+    const inputValue = percentageInputs[deviceId];
+    if (!inputValue) return;
+
+    const percentage = parseInt(inputValue);
+    if (isNaN(percentage) || percentage < 0 || percentage > 100) {
+      alert('0~100 사이의 숫자를 입력해주세요.');
+      return;
+    }
+
+    // 상태 저장
     const newState = {
       ...deviceState,
       [deviceId]: {
@@ -388,10 +404,22 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       },
     };
     setDeviceState(newState);
+    console.log(`[SAVE] ${deviceId} - ${percentage}% 저장됨`);
+  };
+
+  // 천창/측창 퍼센트 작동 핸들러
+  const handleExecutePercentage = async (deviceId: string) => {
+    const percentage = deviceState[deviceId]?.targetPercentage ?? 0;
 
     // 천창과 측창 모두에서 장치 찾기
     const device = [...skylights, ...sidescreens].find((d) => d.id === deviceId);
     if (!device) return;
+
+    // 이전 타이머가 있으면 취소
+    if (percentageTimers.current[deviceId]) {
+      clearTimeout(percentageTimers.current[deviceId]);
+      delete percentageTimers.current[deviceId];
+    }
 
     // 전체 시간 설정 (0% → 100%)
     // ctlr-0012: 천창 스크린 = 5분 = 300초
@@ -401,7 +429,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     // 퍼센트에 따른 시간 계산 (초)
     const targetTimeSeconds = (percentage / 100) * fullTimeSeconds;
 
-    console.log(`[SLIDER] ${device.name} - ${percentage}% (${targetTimeSeconds.toFixed(1)}초 동안 작동)`);
+    console.log(`[EXECUTE] ${device.name} - ${percentage}% (${targetTimeSeconds.toFixed(1)}초 동안 작동)`);
 
     // commandTopic에서 실제 MQTT deviceId 추출
     const topicParts = device.commandTopic.split('/');
@@ -411,20 +439,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       if (percentage === 0) {
         // 0%면 완전히 닫기 (시간 제한 없음)
         await sendDeviceCommand(device.esp32Id, mqttDeviceId, "CLOSE");
-        console.log(`[SLIDER] ${device.name} - 완전히 닫기`);
+        console.log(`[EXECUTE] ${device.name} - 완전히 닫기`);
       } else {
         // 1~100%: 계산된 시간만큼 열기
-        console.log(`[SLIDER] ${device.name} - ${targetTimeSeconds.toFixed(1)}초 동안 열기 시작`);
+        console.log(`[EXECUTE] ${device.name} - ${targetTimeSeconds.toFixed(1)}초 동안 열기 시작`);
         await sendDeviceCommand(device.esp32Id, mqttDeviceId, "OPEN");
 
         // 목표 시간만큼 열린 후 자동 정지
-        setTimeout(async () => {
+        percentageTimers.current[deviceId] = setTimeout(async () => {
           await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
-          console.log(`[SLIDER] ${device.name} - ${percentage}% 위치에서 정지`);
+          console.log(`[EXECUTE] ${device.name} - ${percentage}% 위치에서 정지`);
+          delete percentageTimers.current[deviceId];
         }, targetTimeSeconds * 1000);
       }
     } catch (error) {
-      console.error(`[SLIDER ERROR] ${device.name}:`, error);
+      console.error(`[EXECUTE ERROR] ${device.name}:`, error);
     }
   };
 
@@ -1131,21 +1160,42 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                   </div>
 
-                  {/* 슬라이더 제어 */}
+                  {/* 퍼센트 입력 제어 */}
                   <div>
-                    <p className="text-xs text-gray-600 font-medium mb-2">슬라이더 제어</p>
-                    <div className="flex items-center gap-3">
+                    <p className="text-xs text-gray-600 font-medium mb-2">개폐 퍼센트 설정</p>
+                    <div className="flex items-center gap-2 mb-2">
                       <input
-                        type="range"
+                        type="number"
                         min="0"
                         max="100"
-                        value={deviceState[skylight.id]?.targetPercentage ?? 0}
-                        onChange={(e) => handleSkylightPercentageChange(skylight.id, parseInt(e.target.value))}
-                        className="flex-1 h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:cursor-pointer"
+                        value={percentageInputs[skylight.id] ?? (deviceState[skylight.id]?.targetPercentage ?? 0)}
+                        onChange={(e) => setPercentageInputs({
+                          ...percentageInputs,
+                          [skylight.id]: e.target.value
+                        })}
+                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        placeholder="0-100"
                       />
-                      <span className="text-sm font-semibold text-gray-900 min-w-[3rem] text-right">
-                        {deviceState[skylight.id]?.targetPercentage ?? 0}%
-                      </span>
+                      <span className="text-sm font-semibold text-gray-900 min-w-[2rem]">%</span>
+                      <button
+                        onClick={() => handleSavePercentage(skylight.id)}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-md transition-colors"
+                      >
+                        저장
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 text-xs text-gray-600">
+                        저장된 값: <span className="font-semibold text-amber-600">
+                          {deviceState[skylight.id]?.targetPercentage ?? 0}%
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleExecutePercentage(skylight.id)}
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-md transition-colors"
+                      >
+                        작동
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1203,21 +1253,42 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                   </div>
 
-                  {/* 슬라이더 제어 */}
+                  {/* 퍼센트 입력 제어 */}
                   <div>
-                    <p className="text-xs text-gray-600 font-medium mb-2">슬라이더 제어</p>
-                    <div className="flex items-center gap-3">
+                    <p className="text-xs text-gray-600 font-medium mb-2">개폐 퍼센트 설정</p>
+                    <div className="flex items-center gap-2 mb-2">
                       <input
-                        type="range"
+                        type="number"
                         min="0"
                         max="100"
-                        value={deviceState[sidescreen.id]?.targetPercentage ?? 0}
-                        onChange={(e) => handleSkylightPercentageChange(sidescreen.id, parseInt(e.target.value))}
-                        className="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:cursor-pointer"
+                        value={percentageInputs[sidescreen.id] ?? (deviceState[sidescreen.id]?.targetPercentage ?? 0)}
+                        onChange={(e) => setPercentageInputs({
+                          ...percentageInputs,
+                          [sidescreen.id]: e.target.value
+                        })}
+                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="0-100"
                       />
-                      <span className="text-sm font-semibold text-gray-900 min-w-[3rem] text-right">
-                        {deviceState[sidescreen.id]?.targetPercentage ?? 0}%
-                      </span>
+                      <span className="text-sm font-semibold text-gray-900 min-w-[2rem]">%</span>
+                      <button
+                        onClick={() => handleSavePercentage(sidescreen.id)}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-md transition-colors"
+                      >
+                        저장
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 text-xs text-gray-600">
+                        저장된 값: <span className="font-semibold text-blue-600">
+                          {deviceState[sidescreen.id]?.targetPercentage ?? 0}%
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleExecutePercentage(sidescreen.id)}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-md transition-colors"
+                      >
+                        작동
+                      </button>
                     </div>
                   </div>
                 </div>
