@@ -44,27 +44,49 @@ try {
     $connectedCount = 0;
 
     foreach ($controllers as $controllerId) {
-        // 해당 컨트롤러의 최신 데이터 조회 (온도 또는 습도)
-        $sql = "SELECT MAX(recorded_at) as last_seen
-                FROM sensor_data
-                WHERE controller_id = ?
-                AND (temperature IS NOT NULL OR humidity IS NOT NULL)";
-
-        $result = $db->selectOne($sql, [$controllerId]);
-
         $isConnected = false;
         $lastSeen = null;
 
-        if ($result && $result['last_seen']) {
-            $lastSeenTime = strtotime($result['last_seen']);
-            $now = time();
+        // 1. 먼저 device_status 테이블에서 확인 (ping/pong 시스템)
+        $statusSql = "SELECT status, last_seen
+                      FROM device_status
+                      WHERE controller_id = ?";
 
-            if (($now - $lastSeenTime) <= $HEARTBEAT_TIMEOUT) {
-                $isConnected = true;
-                $connectedCount++;
+        $statusResult = $db->selectOne($statusSql, [$controllerId]);
+
+        if ($statusResult) {
+            // device_status 테이블에 데이터가 있으면 이것 사용
+            if ($statusResult['status'] === 'online' && $statusResult['last_seen']) {
+                $lastSeenTime = strtotime($statusResult['last_seen']);
+                $now = time();
+
+                // 2분 이내면 online
+                if (($now - $lastSeenTime) <= 120) {
+                    $isConnected = true;
+                    $connectedCount++;
+                }
             }
+            $lastSeen = $statusResult['last_seen'];
+        } else {
+            // 2. device_status에 없으면 sensor_data에서 확인 (센서 장치)
+            $sensorSql = "SELECT MAX(recorded_at) as last_seen
+                          FROM sensor_data
+                          WHERE controller_id = ?
+                          AND (temperature IS NOT NULL OR humidity IS NOT NULL)";
 
-            $lastSeen = $result['last_seen'];
+            $sensorResult = $db->selectOne($sensorSql, [$controllerId]);
+
+            if ($sensorResult && $sensorResult['last_seen']) {
+                $lastSeenTime = strtotime($sensorResult['last_seen']);
+                $now = time();
+
+                if (($now - $lastSeenTime) <= $HEARTBEAT_TIMEOUT) {
+                    $isConnected = true;
+                    $connectedCount++;
+                }
+
+                $lastSeen = $sensorResult['last_seen'];
+            }
         }
 
         $deviceStatus[$controllerId] = [
