@@ -96,6 +96,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 천창/측창 타이머 참조 (작동 중 타이머를 추적하여 취소 가능)
   const percentageTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
+  // 천창/측창 작동 상태 (idle: 대기중, running: 작동중, completed: 완료)
+  const [operationStatus, setOperationStatus] = useState<Record<string, 'idle' | 'running' | 'completed'>>({});
+
   // 메인밸브 스케줄 불러오기 (페이지 로드 시)
   useEffect(() => {
     const loadSchedule = async () => {
@@ -421,6 +424,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       delete percentageTimers.current[deviceId];
     }
 
+    // 작동 시작 - 상태를 "작동중"으로 변경
+    setOperationStatus({
+      ...operationStatus,
+      [deviceId]: 'running'
+    });
+
     // 전체 시간 설정 (0% → 100%)
     // ctlr-0012: 천창 스크린 = 5분 = 300초
     // ctlr-0021: 측창 스크린 = 2분 = 120초
@@ -440,6 +449,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         // 0%면 완전히 닫기 (시간 제한 없음)
         await sendDeviceCommand(device.esp32Id, mqttDeviceId, "CLOSE");
         console.log(`[EXECUTE] ${device.name} - 완전히 닫기`);
+
+        // 닫기 완료 - 상태를 "완료"로 변경
+        setOperationStatus({
+          ...operationStatus,
+          [deviceId]: 'completed'
+        });
       } else {
         // 1~100%: 계산된 시간만큼 열기
         console.log(`[EXECUTE] ${device.name} - ${targetTimeSeconds.toFixed(1)}초 동안 열기 시작`);
@@ -450,10 +465,22 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
           console.log(`[EXECUTE] ${device.name} - ${percentage}% 위치에서 정지`);
           delete percentageTimers.current[deviceId];
+
+          // 작동 완료 - 상태를 "완료"로 변경
+          setOperationStatus(prev => ({
+            ...prev,
+            [deviceId]: 'completed'
+          }));
         }, targetTimeSeconds * 1000);
       }
     } catch (error) {
       console.error(`[EXECUTE ERROR] ${device.name}:`, error);
+
+      // 에러 발생 시 상태 초기화
+      setOperationStatus({
+        ...operationStatus,
+        [deviceId]: 'idle'
+      });
     }
   };
 
@@ -1162,7 +1189,20 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
                   {/* 퍼센트 입력 제어 */}
                   <div>
-                    <p className="text-xs text-gray-600 font-medium mb-2">개폐 퍼센트 설정</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-gray-600 font-medium">개폐 퍼센트 설정</p>
+                      {/* 작동 상태 표시 */}
+                      {operationStatus[skylight.id] === 'running' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                          <span className="animate-pulse">●</span> 작동중
+                        </span>
+                      )}
+                      {operationStatus[skylight.id] === 'completed' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                          ✓ 완료
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mb-2">
                       <input
                         type="number"
@@ -1193,6 +1233,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       <button
                         onClick={() => handleExecutePercentage(skylight.id)}
                         className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-md transition-colors"
+                        disabled={operationStatus[skylight.id] === 'running'}
                       >
                         작동
                       </button>
@@ -1255,7 +1296,20 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
                   {/* 퍼센트 입력 제어 */}
                   <div>
-                    <p className="text-xs text-gray-600 font-medium mb-2">개폐 퍼센트 설정</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-gray-600 font-medium">개폐 퍼센트 설정</p>
+                      {/* 작동 상태 표시 */}
+                      {operationStatus[sidescreen.id] === 'running' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                          <span className="animate-pulse">●</span> 작동중
+                        </span>
+                      )}
+                      {operationStatus[sidescreen.id] === 'completed' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                          ✓ 완료
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mb-2">
                       <input
                         type="number"
@@ -1286,6 +1340,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       <button
                         onClick={() => handleExecutePercentage(sidescreen.id)}
                         className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-md transition-colors"
+                        disabled={operationStatus[sidescreen.id] === 'running'}
                       >
                         작동
                       </button>
