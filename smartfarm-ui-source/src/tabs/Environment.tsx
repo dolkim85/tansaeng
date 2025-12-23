@@ -133,8 +133,93 @@ export default function Environment() {
   // 센서 데이터는 백그라운드 MQTT 데몬이 수집하고 DB에 저장
   // Environment 페이지는 서버 API에서 데이터만 읽어옴 (위의 useEffect 참고)
 
-  // 차트 데이터 업데이트 (실시간 데이터를 차트에 추가)
+  // 기간별 과거 데이터 로드
   useEffect(() => {
+    const loadHistoricalChartData = async () => {
+      if (period === "current") {
+        // current 모드는 실시간 데이터만 사용
+        return;
+      }
+
+      try {
+        // 기간에 따른 시작일 계산
+        const endDate = new Date();
+        const startDate = new Date();
+
+        if (period === "1h") {
+          startDate.setHours(startDate.getHours() - 1);
+        } else if (period === "1w") {
+          startDate.setDate(startDate.getDate() - 7);
+        } else if (period === "1m") {
+          startDate.setMonth(startDate.getMonth() - 1);
+        }
+
+        const startStr = startDate.toISOString().split('T')[0];
+        const endStr = endDate.toISOString().split('T')[0];
+
+        const response = await fetch(
+          `/api/smartfarm/get_sensor_data.php?start_date=${startStr}&end_date=${endStr}`
+        );
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          // 데이터를 timestamp별로 그룹화
+          const dataByTimestamp = new Map<string, ChartDataPoint>();
+
+          result.data.forEach((record: any) => {
+            const timestamp = new Date(record.recorded_at).toLocaleString("ko-KR", {
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+            if (!dataByTimestamp.has(timestamp)) {
+              dataByTimestamp.set(timestamp, {
+                timestamp,
+                frontTemp: null,
+                backTemp: null,
+                topTemp: null,
+                frontHum: null,
+                backHum: null,
+                topHum: null,
+              });
+            }
+
+            const point = dataByTimestamp.get(timestamp)!;
+            const location = record.sensor_location;
+
+            if (location === 'front') {
+              if (record.temperature !== null) point.frontTemp = parseFloat(record.temperature);
+              if (record.humidity !== null) point.frontHum = parseFloat(record.humidity);
+            } else if (location === 'back') {
+              if (record.temperature !== null) point.backTemp = parseFloat(record.temperature);
+              if (record.humidity !== null) point.backHum = parseFloat(record.humidity);
+            } else if (location === 'top') {
+              if (record.temperature !== null) point.topTemp = parseFloat(record.temperature);
+              if (record.humidity !== null) point.topHum = parseFloat(record.humidity);
+            }
+          });
+
+          // Map을 배열로 변환하고 시간순 정렬
+          const chartDataArray = Array.from(dataByTimestamp.values()).reverse();
+          setChartData(chartDataArray);
+        }
+      } catch (error) {
+        console.error('Failed to load historical chart data:', error);
+      }
+    };
+
+    loadHistoricalChartData();
+  }, [period]);
+
+  // 차트 데이터 업데이트 (실시간 데이터를 차트에 추가 - current 모드일 때만)
+  useEffect(() => {
+    if (period !== "current") {
+      // current 모드가 아니면 실시간 업데이트 하지 않음
+      return;
+    }
+
     if (
       frontSensor.temperature !== null ||
       backSensor.temperature !== null ||
@@ -155,8 +240,8 @@ export default function Environment() {
 
       setChartData((prev) => {
         const updated = [...prev, newDataPoint];
-        // 기간에 따라 데이터 포인트 제한
-        const maxPoints = period === "current" ? 20 : period === "1h" ? 60 : period === "1w" ? 168 : 720;
+        // current 모드는 최대 20개 포인트
+        const maxPoints = 20;
         return updated.slice(-maxPoints);
       });
     }
