@@ -99,6 +99,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 천창/측창 작동 상태 (idle: 대기중, running: 작동중, completed: 완료)
   const [operationStatus, setOperationStatus] = useState<Record<string, 'idle' | 'running' | 'completed'>>({});
 
+  // 천창/측창 현재 위치 추적 (0~100%)
+  const [currentPosition, setCurrentPosition] = useState<Record<string, number>>({});
+
   // 메인밸브 스케줄 불러오기 (페이지 로드 시)
   useEffect(() => {
     const loadSchedule = async () => {
@@ -410,13 +413,23 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     console.log(`[SAVE] ${deviceId} - ${percentage}% 저장됨`);
   };
 
-  // 천창/측창 퍼센트 작동 핸들러
+  // 천창/측창 퍼센트 작동 핸들러 (절대 위치 기반)
   const handleExecutePercentage = async (deviceId: string) => {
-    const percentage = deviceState[deviceId]?.targetPercentage ?? 0;
+    const targetPercentage = deviceState[deviceId]?.targetPercentage ?? 0;
+    const currentPos = currentPosition[deviceId] ?? 0;
 
     // 천창과 측창 모두에서 장치 찾기
     const device = [...skylights, ...sidescreens].find((d) => d.id === deviceId);
     if (!device) return;
+
+    // 이동해야 할 거리 계산 (목표 - 현재)
+    const difference = targetPercentage - currentPos;
+
+    // 이미 목표 위치에 있으면 작동하지 않음
+    if (difference === 0) {
+      alert(`이미 ${targetPercentage}% 위치에 있습니다.`);
+      return;
+    }
 
     // 이전 타이머가 있으면 취소
     if (percentageTimers.current[deviceId]) {
@@ -435,44 +448,43 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     // ctlr-0021: 측창 스크린 = 2분 = 120초
     const fullTimeSeconds = device.esp32Id === "ctlr-0012" ? 300 : 120;
 
-    // 퍼센트에 따른 시간 계산 (초)
-    const targetTimeSeconds = (percentage / 100) * fullTimeSeconds;
+    // 이동 거리(절대값)에 따른 시간 계산 (초)
+    const movementPercentage = Math.abs(difference);
+    const targetTimeSeconds = (movementPercentage / 100) * fullTimeSeconds;
 
-    console.log(`[EXECUTE] ${device.name} - ${percentage}% (${targetTimeSeconds.toFixed(1)}초 동안 작동)`);
+    // 열기 또는 닫기 결정
+    const command = difference > 0 ? "OPEN" : "CLOSE";
+    const action = difference > 0 ? "열기" : "닫기";
+
+    console.log(`[EXECUTE] ${device.name} - 현재: ${currentPos}%, 목표: ${targetPercentage}%, 이동: ${difference > 0 ? '+' : ''}${difference}% (${targetTimeSeconds.toFixed(1)}초 ${action})`);
 
     // commandTopic에서 실제 MQTT deviceId 추출
     const topicParts = device.commandTopic.split('/');
     const mqttDeviceId = topicParts[2]; // windowL, windowR, sideL, sideR
 
     try {
-      if (percentage === 0) {
-        // 0%면 완전히 닫기 (시간 제한 없음)
-        await sendDeviceCommand(device.esp32Id, mqttDeviceId, "CLOSE");
-        console.log(`[EXECUTE] ${device.name} - 완전히 닫기`);
+      // 명령 전송
+      await sendDeviceCommand(device.esp32Id, mqttDeviceId, command);
+      console.log(`[EXECUTE] ${device.name} - ${targetTimeSeconds.toFixed(1)}초 동안 ${action} 시작`);
 
-        // 닫기 완료 - 상태를 "완료"로 변경
-        setOperationStatus({
-          ...operationStatus,
+      // 목표 시간만큼 작동 후 자동 정지
+      percentageTimers.current[deviceId] = setTimeout(async () => {
+        await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
+        console.log(`[EXECUTE] ${device.name} - ${targetPercentage}% 위치에서 정지`);
+        delete percentageTimers.current[deviceId];
+
+        // 현재 위치를 목표 위치로 업데이트
+        setCurrentPosition(prev => ({
+          ...prev,
+          [deviceId]: targetPercentage
+        }));
+
+        // 작동 완료 - 상태를 "완료"로 변경
+        setOperationStatus(prev => ({
+          ...prev,
           [deviceId]: 'completed'
-        });
-      } else {
-        // 1~100%: 계산된 시간만큼 열기
-        console.log(`[EXECUTE] ${device.name} - ${targetTimeSeconds.toFixed(1)}초 동안 열기 시작`);
-        await sendDeviceCommand(device.esp32Id, mqttDeviceId, "OPEN");
-
-        // 목표 시간만큼 열린 후 자동 정지
-        percentageTimers.current[deviceId] = setTimeout(async () => {
-          await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
-          console.log(`[EXECUTE] ${device.name} - ${percentage}% 위치에서 정지`);
-          delete percentageTimers.current[deviceId];
-
-          // 작동 완료 - 상태를 "완료"로 변경
-          setOperationStatus(prev => ({
-            ...prev,
-            [deviceId]: 'completed'
-          }));
-        }, targetTimeSeconds * 1000);
-      }
+        }));
+      }, targetTimeSeconds * 1000);
     } catch (error) {
       console.error(`[EXECUTE ERROR] ${device.name}:`, error);
 
@@ -1225,14 +1237,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 text-xs text-gray-600">
-                        저장된 값: <span className="font-semibold text-amber-600">
-                          {deviceState[skylight.id]?.targetPercentage ?? 0}%
-                        </span>
+                      <div className="flex-1 text-xs text-gray-600 space-y-1">
+                        <div>
+                          현재 위치: <span className="font-semibold text-gray-800">
+                            {currentPosition[skylight.id] ?? 0}%
+                          </span>
+                        </div>
+                        <div>
+                          저장된 값: <span className="font-semibold text-amber-600">
+                            {deviceState[skylight.id]?.targetPercentage ?? 0}%
+                          </span>
+                        </div>
                       </div>
                       <button
                         onClick={() => handleExecutePercentage(skylight.id)}
-                        className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-md transition-colors"
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                         disabled={operationStatus[skylight.id] === 'running'}
                       >
                         작동
@@ -1332,14 +1351,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 text-xs text-gray-600">
-                        저장된 값: <span className="font-semibold text-blue-600">
-                          {deviceState[sidescreen.id]?.targetPercentage ?? 0}%
-                        </span>
+                      <div className="flex-1 text-xs text-gray-600 space-y-1">
+                        <div>
+                          현재 위치: <span className="font-semibold text-gray-800">
+                            {currentPosition[sidescreen.id] ?? 0}%
+                          </span>
+                        </div>
+                        <div>
+                          저장된 값: <span className="font-semibold text-blue-600">
+                            {deviceState[sidescreen.id]?.targetPercentage ?? 0}%
+                          </span>
+                        </div>
                       </div>
                       <button
                         onClick={() => handleExecutePercentage(sidescreen.id)}
-                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-md transition-colors"
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                         disabled={operationStatus[sidescreen.id] === 'running'}
                       >
                         작동
