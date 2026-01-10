@@ -1193,7 +1193,20 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
                   {/* 버튼 제어 */}
                   <div className="mb-4">
-                    <p className="text-xs text-gray-600 font-medium mb-2">버튼 제어</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-gray-600 font-medium">버튼 제어</p>
+                      {/* 작동 상태 표시 */}
+                      {operationStatus[skylight.id] === 'running' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                          <span className="animate-pulse">●</span> 작동중
+                        </span>
+                      )}
+                      {operationStatus[skylight.id] === 'completed' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                          ✓ 완료
+                        </span>
+                      )}
+                    </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleSkylightCommand(skylight.id, "OPEN")}
@@ -1307,7 +1320,20 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
                   {/* 버튼 제어 */}
                   <div className="mb-4">
-                    <p className="text-xs text-gray-600 font-medium mb-2">버튼 제어</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-gray-600 font-medium">버튼 제어</p>
+                      {/* 작동 상태 표시 */}
+                      {operationStatus[sidescreen.id] === 'running' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                          <span className="animate-pulse">●</span> 작동중
+                        </span>
+                      )}
+                      {operationStatus[sidescreen.id] === 'completed' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                          ✓ 완료
+                        </span>
+                      )}
+                    </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleSkylightCommand(sidescreen.id, "OPEN")}
