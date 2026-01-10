@@ -367,16 +367,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     }
   };
 
-  // 천창 제어 핸들러 (OPEN/CLOSE/STOP) - API 호출
+  // 천창/측창 제어 핸들러 (OPEN/CLOSE/STOP) - API 호출
   const handleSkylightCommand = async (deviceId: string, command: "OPEN" | "CLOSE" | "STOP") => {
-    const device = skylights.find((d) => d.id === deviceId);
+    // 천창과 측창 모두에서 장치 찾기
+    const device = [...skylights, ...sidescreens].find((d) => d.id === deviceId);
     if (device) {
-      console.log(`[SKYLIGHT] ${device.name} - ${command}`);
+      console.log(`[WINDOW] ${device.name} - ${command}`);
 
       // commandTopic에서 실제 MQTT deviceId 추출
       // 예: "tansaeng/ctlr-0011/windowL/cmd" → "windowL"
+      // 예: "tansaeng/ctlr-0021/sideL/cmd" → "sideL"
       const topicParts = device.commandTopic.split('/');
-      const mqttDeviceId = topicParts[2]; // windowL 또는 windowR
+      const mqttDeviceId = topicParts[2]; // windowL, windowR, sideL, sideR
 
       // API를 통해 명령 전송 (데몬이 MQTT 발행)
       const result = await sendDeviceCommand(device.esp32Id, mqttDeviceId, command);
