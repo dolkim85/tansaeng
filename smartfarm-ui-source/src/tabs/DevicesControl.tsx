@@ -380,6 +380,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       const topicParts = device.commandTopic.split('/');
       const mqttDeviceId = topicParts[2]; // windowL, windowR, sideL, sideR
 
+      // 작동 상태 업데이트
+      if (command === "OPEN" || command === "CLOSE") {
+        // 열기/닫기 명령 시 작동중 상태로 변경
+        setOperationStatus(prev => ({
+          ...prev,
+          [deviceId]: 'running'
+        }));
+      } else if (command === "STOP") {
+        // 정지 명령 시 idle 상태로 변경
+        setOperationStatus(prev => ({
+          ...prev,
+          [deviceId]: 'idle'
+        }));
+      }
+
       // API를 통해 명령 전송 (데몬이 MQTT 발행)
       const result = await sendDeviceCommand(device.esp32Id, mqttDeviceId, command);
 
