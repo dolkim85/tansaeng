@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { MistZoneConfig, MistMode, MistScheduleSettings } from "../types";
 import { publishCommand, getMqttClient } from "../mqtt/mqttClient";
 
@@ -25,6 +25,13 @@ const ZONE_CONTROLLER_MAP: Record<string, string> = {
   zone_e: "ctlr-0008",
 };
 
+// AUTO 사이클 타이머 타입
+interface CycleTimer {
+  stopTimer: NodeJS.Timeout | null;
+  sprayTimer: NodeJS.Timeout | null;
+  isRunning: boolean;
+}
+
 export default function MistControl({ zones, setZones }: MistControlProps) {
   // ESP32 밸브 상태
   const [valveStatus, setValveStatus] = useState<ValveStatus>({});
@@ -34,6 +41,12 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
   // 수동 분무 상태 (UI 표시용)
   const [manualSprayState, setManualSprayState] = useState<{[zoneId: string]: "spraying" | "stopped" | "idle"}>({});
+
+  // AUTO 사이클 상태 (UI 표시용)
+  const [autoCycleState, setAutoCycleState] = useState<{[zoneId: string]: "waiting" | "spraying" | "idle"}>({});
+
+  // AUTO 사이클 타이머 참조
+  const cycleTimers = useRef<Record<string, CycleTimer>>({});
 
   // ESP32 상태 API 폴링 (DevicesControl과 동일한 방식)
   useEffect(() => {
@@ -218,14 +231,16 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   const handleSaveZone = (zone: MistZoneConfig) => {
     if (zone.mode === "AUTO") {
       if (zone.daySchedule.enabled) {
-        if (!zone.daySchedule.intervalMinutes || !zone.daySchedule.spraySeconds) {
-          alert("주간 모드가 활성화되어 있습니다. 분무 주기와 분무 시간을 입력해야 합니다.");
+        // 작동분무주기만 필수 (정지분무주기는 선택)
+        if (!zone.daySchedule.sprayDurationSeconds) {
+          alert("주간 모드가 활성화되어 있습니다. 작동분무주기(초)를 입력해야 합니다.");
           return;
         }
       }
       if (zone.nightSchedule.enabled) {
-        if (!zone.nightSchedule.intervalMinutes || !zone.nightSchedule.spraySeconds) {
-          alert("야간 모드가 활성화되어 있습니다. 분무 주기와 분무 시간을 입력해야 합니다.");
+        // 작동분무주기만 필수 (정지분무주기는 선택)
+        if (!zone.nightSchedule.sprayDurationSeconds) {
+          alert("야간 모드가 활성화되어 있습니다. 작동분무주기(초)를 입력해야 합니다.");
           return;
         }
       }
@@ -248,6 +263,102 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     alert(`${zone.name} 설정이 저장되었습니다.`);
   };
 
+  // AUTO 사이클 중지 함수
+  const stopAutoCycle = (zoneId: string) => {
+    const timer = cycleTimers.current[zoneId];
+    if (timer) {
+      if (timer.stopTimer) clearTimeout(timer.stopTimer);
+      if (timer.sprayTimer) clearTimeout(timer.sprayTimer);
+      timer.isRunning = false;
+    }
+    setAutoCycleState(prev => ({ ...prev, [zoneId]: "idle" }));
+  };
+
+  // AUTO 사이클 시작 함수 (정지대기 → 분무 → 반복)
+  const startAutoCycle = (zone: MistZoneConfig, schedule: MistScheduleSettings) => {
+    const zoneId = zone.id;
+    const controllerId = zone.controllerId;
+    if (!controllerId) return;
+
+    const cmdTopic = getValveCmdTopic(controllerId);
+    const sprayDuration = (schedule.sprayDurationSeconds ?? 0) * 1000; // ms
+    const stopDuration = (schedule.stopDurationSeconds ?? 0) * 1000;   // ms
+
+    // 기존 타이머 정리
+    stopAutoCycle(zoneId);
+
+    // 타이머 초기화
+    cycleTimers.current[zoneId] = {
+      stopTimer: null,
+      sprayTimer: null,
+      isRunning: true,
+    };
+
+    const runCycle = () => {
+      if (!cycleTimers.current[zoneId]?.isRunning) return;
+
+      // 1. 정지 대기 (밸브 닫힘)
+      publishCommand(cmdTopic, { power: "off" });
+      setAutoCycleState(prev => ({ ...prev, [zoneId]: "waiting" }));
+      console.log(`[AUTO] ${zone.name}: 정지대기 ${stopDuration/1000}초`);
+
+      cycleTimers.current[zoneId].stopTimer = setTimeout(() => {
+        if (!cycleTimers.current[zoneId]?.isRunning) return;
+
+        // 2. 분무 (밸브 열림)
+        publishCommand(cmdTopic, { power: "on" });
+        setAutoCycleState(prev => ({ ...prev, [zoneId]: "spraying" }));
+        console.log(`[AUTO] ${zone.name}: 분무 ${sprayDuration/1000}초`);
+
+        cycleTimers.current[zoneId].sprayTimer = setTimeout(() => {
+          if (!cycleTimers.current[zoneId]?.isRunning) return;
+          // 3. 다음 사이클 시작
+          runCycle();
+        }, sprayDuration);
+      }, stopDuration);
+    };
+
+    // 사이클 시작
+    runCycle();
+  };
+
+  // 현재 시간대에 맞는 스케줄 가져오기
+  const getCurrentSchedule = (zone: MistZoneConfig): MistScheduleSettings | null => {
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+
+    const parseTime = (timeStr: string): number => {
+      if (!timeStr) return 0;
+      const [h, m] = timeStr.split(":").map(Number);
+      return h * 60 + m;
+    };
+
+    // 주간 스케줄 확인
+    if (zone.daySchedule.enabled) {
+      const start = parseTime(zone.daySchedule.startTime);
+      const end = parseTime(zone.daySchedule.endTime);
+      if (start <= currentTime && currentTime < end) {
+        return zone.daySchedule;
+      }
+    }
+
+    // 야간 스케줄 확인
+    if (zone.nightSchedule.enabled) {
+      const start = parseTime(zone.nightSchedule.startTime);
+      const end = parseTime(zone.nightSchedule.endTime);
+      // 야간은 시작 > 종료 (예: 18:00 ~ 06:00)
+      if (start > end) {
+        if (currentTime >= start || currentTime < end) {
+          return zone.nightSchedule;
+        }
+      } else if (start <= currentTime && currentTime < end) {
+        return zone.nightSchedule;
+      }
+    }
+
+    return null;
+  };
+
   // 시스템 작동 시작
   const handleStartOperation = (zone: MistZoneConfig) => {
     if (!zone.controllerId) {
@@ -260,13 +371,27 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       return;
     }
 
-    publishCommand(`tansaeng/mist/${zone.id}/control`, {
-      action: "start",
-      controllerId: zone.controllerId,
-    });
+    if (zone.mode === "AUTO") {
+      // 현재 시간대에 맞는 스케줄 확인
+      const schedule = getCurrentSchedule(zone);
+      if (!schedule) {
+        alert("현재 시간대에 활성화된 스케줄이 없습니다. 주간/야간 설정을 확인해주세요.");
+        return;
+      }
 
-    updateZone(zone.id, { isRunning: true });
-    alert(`${zone.name} 작동을 시작했습니다.`);
+      // AUTO 사이클 시작
+      startAutoCycle(zone, schedule);
+      updateZone(zone.id, { isRunning: true });
+      alert(`${zone.name} AUTO 사이클을 시작합니다.\n정지대기 ${schedule.stopDurationSeconds ?? 0}초 → 분무 ${schedule.sprayDurationSeconds ?? 0}초 → 반복`);
+    } else {
+      // MANUAL 모드 (기존 로직)
+      publishCommand(`tansaeng/mist/${zone.id}/control`, {
+        action: "start",
+        controllerId: zone.controllerId,
+      });
+      updateZone(zone.id, { isRunning: true });
+      alert(`${zone.name} 작동을 시작했습니다.`);
+    }
   };
 
   // 시스템 작동 중지
@@ -275,6 +400,9 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       alert("컨트롤러가 연결되어 있지 않습니다.");
       return;
     }
+
+    // AUTO 사이클 중지
+    stopAutoCycle(zone.id);
 
     // ESP32에 CLOSE 명령 전송
     const cmdTopic = getValveCmdTopic(zone.controllerId);
@@ -288,6 +416,15 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     updateZone(zone.id, { isRunning: false });
     alert(`${zone.name} 작동을 중지했습니다.`);
   };
+
+  // 컴포넌트 언마운트 시 모든 타이머 정리
+  useEffect(() => {
+    return () => {
+      Object.keys(cycleTimers.current).forEach(zoneId => {
+        stopAutoCycle(zoneId);
+      });
+    };
+  }, []);
 
   // 수동 분무 실행 - ESP32에 직접 명령
   const handleManualSpray = (zone: MistZoneConfig) => {
@@ -382,7 +519,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       <div className="text-xs bg-white/80 rounded px-2 py-1 border">
         <span className="font-medium">{label}:</span>{" "}
         {schedule.startTime || "--:--"} ~ {schedule.endTime || "--:--"},{" "}
-        주기 {schedule.intervalMinutes ?? "-"}분, 분무 {schedule.spraySeconds ?? "-"}초
+        정지 {schedule.stopDurationSeconds ?? 0}초 → 작동 {schedule.sprayDurationSeconds ?? 0}초
       </div>
     );
   };
@@ -511,66 +648,78 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                     </div>
 
                     {zone.daySchedule.enabled && (
-                      <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3 mb-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            시작 시간
-                          </label>
-                          <input
-                            type="time"
-                            value={zone.daySchedule.startTime}
-                            onChange={(e) =>
-                              updateDaySchedule(zone.id, { startTime: e.target.value })
-                            }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
-                          />
+                      <div className="space-y-3">
+                        {/* 운영 시간대 */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              시작 시간
+                            </label>
+                            <input
+                              type="time"
+                              value={zone.daySchedule.startTime}
+                              onChange={(e) =>
+                                updateDaySchedule(zone.id, { startTime: e.target.value })
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              종료 시간
+                            </label>
+                            <input
+                              type="time"
+                              value={zone.daySchedule.endTime}
+                              onChange={(e) =>
+                                updateDaySchedule(zone.id, { endTime: e.target.value })
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            종료 시간
-                          </label>
-                          <input
-                            type="time"
-                            value={zone.daySchedule.endTime}
-                            onChange={(e) =>
-                              updateDaySchedule(zone.id, { endTime: e.target.value })
-                            }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
-                          />
+                        {/* 분무 주기 설정 */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                            <label className="block text-sm font-medium text-green-700 mb-1">
+                              🟢 작동분무주기 (초)
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={zone.daySchedule.sprayDurationSeconds ?? ""}
+                              onChange={(e) =>
+                                updateDaySchedule(zone.id, {
+                                  sprayDurationSeconds: Number(e.target.value) || null,
+                                })
+                              }
+                              placeholder="밸브 열림 시간"
+                              className="w-full px-3 py-2 border border-green-300 rounded-lg text-base"
+                            />
+                            <p className="text-xs text-green-600 mt-1">밸브가 열려있는 시간</p>
+                          </div>
+                          <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                            <label className="block text-sm font-medium text-red-700 mb-1">
+                              🔴 정지분무주기 (초)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={zone.daySchedule.stopDurationSeconds ?? ""}
+                              onChange={(e) =>
+                                updateDaySchedule(zone.id, {
+                                  stopDurationSeconds: Number(e.target.value) || null,
+                                })
+                              }
+                              placeholder="밸브 닫힘 대기 시간"
+                              className="w-full px-3 py-2 border border-red-300 rounded-lg text-base"
+                            />
+                            <p className="text-xs text-red-600 mt-1">밸브가 닫혀있는 대기 시간</p>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            분무 주기 (분)
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={zone.daySchedule.intervalMinutes ?? ""}
-                            onChange={(e) =>
-                              updateDaySchedule(zone.id, {
-                                intervalMinutes: Number(e.target.value) || null,
-                              })
-                            }
-                            placeholder="예: 30"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            분무 시간 (초)
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={zone.daySchedule.spraySeconds ?? ""}
-                            onChange={(e) =>
-                              updateDaySchedule(zone.id, {
-                                spraySeconds: Number(e.target.value) || null,
-                              })
-                            }
-                            placeholder="예: 10"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
-                          />
+                        {/* 사이클 설명 */}
+                        <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded">
+                          💡 사이클: 정지대기({zone.daySchedule.stopDurationSeconds ?? 0}초) → 분무({zone.daySchedule.sprayDurationSeconds ?? 0}초) → 반복
                         </div>
                       </div>
                     )}
@@ -594,66 +743,78 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                     </div>
 
                     {zone.nightSchedule.enabled && (
-                      <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3 mb-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            시작 시간
-                          </label>
-                          <input
-                            type="time"
-                            value={zone.nightSchedule.startTime}
-                            onChange={(e) =>
-                              updateNightSchedule(zone.id, { startTime: e.target.value })
-                            }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
-                          />
+                      <div className="space-y-3">
+                        {/* 운영 시간대 */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              시작 시간
+                            </label>
+                            <input
+                              type="time"
+                              value={zone.nightSchedule.startTime}
+                              onChange={(e) =>
+                                updateNightSchedule(zone.id, { startTime: e.target.value })
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              종료 시간
+                            </label>
+                            <input
+                              type="time"
+                              value={zone.nightSchedule.endTime}
+                              onChange={(e) =>
+                                updateNightSchedule(zone.id, { endTime: e.target.value })
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            종료 시간
-                          </label>
-                          <input
-                            type="time"
-                            value={zone.nightSchedule.endTime}
-                            onChange={(e) =>
-                              updateNightSchedule(zone.id, { endTime: e.target.value })
-                            }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
-                          />
+                        {/* 분무 주기 설정 */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                            <label className="block text-sm font-medium text-green-700 mb-1">
+                              🟢 작동분무주기 (초)
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={zone.nightSchedule.sprayDurationSeconds ?? ""}
+                              onChange={(e) =>
+                                updateNightSchedule(zone.id, {
+                                  sprayDurationSeconds: Number(e.target.value) || null,
+                                })
+                              }
+                              placeholder="밸브 열림 시간"
+                              className="w-full px-3 py-2 border border-green-300 rounded-lg text-base"
+                            />
+                            <p className="text-xs text-green-600 mt-1">밸브가 열려있는 시간</p>
+                          </div>
+                          <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                            <label className="block text-sm font-medium text-red-700 mb-1">
+                              🔴 정지분무주기 (초)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={zone.nightSchedule.stopDurationSeconds ?? ""}
+                              onChange={(e) =>
+                                updateNightSchedule(zone.id, {
+                                  stopDurationSeconds: Number(e.target.value) || null,
+                                })
+                              }
+                              placeholder="밸브 닫힘 대기 시간"
+                              className="w-full px-3 py-2 border border-red-300 rounded-lg text-base"
+                            />
+                            <p className="text-xs text-red-600 mt-1">밸브가 닫혀있는 대기 시간</p>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            분무 주기 (분)
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={zone.nightSchedule.intervalMinutes ?? ""}
-                            onChange={(e) =>
-                              updateNightSchedule(zone.id, {
-                                intervalMinutes: Number(e.target.value) || null,
-                              })
-                            }
-                            placeholder="예: 60"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            분무 시간 (초)
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={zone.nightSchedule.spraySeconds ?? ""}
-                            onChange={(e) =>
-                              updateNightSchedule(zone.id, {
-                                spraySeconds: Number(e.target.value) || null,
-                              })
-                            }
-                            placeholder="예: 5"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base"
-                          />
+                        {/* 사이클 설명 */}
+                        <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded">
+                          💡 사이클: 정지대기({zone.nightSchedule.stopDurationSeconds ?? 0}초) → 분무({zone.nightSchedule.sprayDurationSeconds ?? 0}초) → 반복
                         </div>
                       </div>
                     )}
@@ -664,6 +825,43 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                     <SavedSettingsDisplay schedule={zone.daySchedule} label="☀️ 주간" />
                     <SavedSettingsDisplay schedule={zone.nightSchedule} label="🌙 야간" />
                   </div>
+
+                  {/* AUTO 사이클 상태 표시 */}
+                  {zone.isRunning && (
+                    <div className={`mb-4 p-3 rounded-lg border flex items-center gap-3 ${
+                      autoCycleState[zone.id] === "spraying"
+                        ? "bg-green-100 border-green-300"
+                        : autoCycleState[zone.id] === "waiting"
+                        ? "bg-yellow-100 border-yellow-300"
+                        : "bg-gray-100 border-gray-300"
+                    }`}>
+                      <div className="relative">
+                        <div className={`w-4 h-4 rounded-full ${
+                          autoCycleState[zone.id] === "spraying"
+                            ? "bg-green-500 animate-pulse"
+                            : autoCycleState[zone.id] === "waiting"
+                            ? "bg-yellow-500"
+                            : "bg-gray-400"
+                        }`}></div>
+                        {autoCycleState[zone.id] === "spraying" && (
+                          <div className="absolute inset-0 w-4 h-4 bg-green-400 rounded-full animate-ping opacity-75"></div>
+                        )}
+                      </div>
+                      <span className={`font-semibold ${
+                        autoCycleState[zone.id] === "spraying"
+                          ? "text-green-700"
+                          : autoCycleState[zone.id] === "waiting"
+                          ? "text-yellow-700"
+                          : "text-gray-600"
+                      }`}>
+                        {autoCycleState[zone.id] === "spraying"
+                          ? "💧 분무 중..."
+                          : autoCycleState[zone.id] === "waiting"
+                          ? "⏳ 정지 대기 중..."
+                          : "대기"}
+                      </span>
+                    </div>
+                  )}
 
                   {/* 제어 버튼들 */}
                   <div className="grid grid-cols-3 gap-3">

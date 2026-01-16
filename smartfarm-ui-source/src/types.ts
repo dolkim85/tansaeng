@@ -40,11 +40,11 @@ export type MistMode = "OFF" | "MANUAL" | "AUTO";
 
 // 주간/야간 스케줄 설정
 export interface MistScheduleSettings {
-  intervalMinutes: number | null;  // 분무 주기 (분)
-  spraySeconds: number | null;     // 분무 시간 (초)
-  startTime: string;               // 시작 시간 "HH:MM"
-  endTime: string;                 // 종료 시간 "HH:MM"
-  enabled: boolean;                // 활성화 여부
+  sprayDurationSeconds: number | null;  // 작동분무주기 - 밸브 열림 시간 (초)
+  stopDurationSeconds: number | null;   // 정지분무주기 - 밸브 닫힘 대기 시간 (초)
+  startTime: string;                    // 시작 시간 "HH:MM"
+  endTime: string;                      // 종료 시간 "HH:MM"
+  enabled: boolean;                     // 활성화 여부
 }
 
 export interface MistZoneConfig {

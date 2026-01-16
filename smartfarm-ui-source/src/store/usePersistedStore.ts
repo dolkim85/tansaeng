@@ -41,8 +41,8 @@ export function usePersistedDeviceState() {
 
 // 기본 스케줄 설정
 const DEFAULT_SCHEDULE_SETTINGS = {
-  intervalMinutes: null,
-  spraySeconds: null,
+  sprayDurationSeconds: null,   // 작동분무주기 (밸브 열림 시간)
+  stopDurationSeconds: null,    // 정지분무주기 (밸브 닫힘 대기 시간)
   startTime: "",
   endTime: "",
   enabled: false,
@@ -131,10 +131,34 @@ function fixControllerId(controllerId: string | undefined): string {
   return controllerId;
 }
 
+// 스케줄 데이터 마이그레이션 (이전 필드명 → 새 필드명)
+function migrateScheduleData(oldSchedule: any): typeof DEFAULT_SCHEDULE_SETTINGS {
+  if (!oldSchedule) return { ...DEFAULT_SCHEDULE_SETTINGS };
+
+  return {
+    // 새 필드가 있으면 사용, 없으면 기존 필드에서 변환
+    sprayDurationSeconds: oldSchedule.sprayDurationSeconds ?? oldSchedule.spraySeconds ?? null,
+    stopDurationSeconds: oldSchedule.stopDurationSeconds ?? (oldSchedule.intervalMinutes ? oldSchedule.intervalMinutes * 60 : null),
+    startTime: oldSchedule.startTime ?? "",
+    endTime: oldSchedule.endTime ?? "",
+    enabled: oldSchedule.enabled ?? false,
+  };
+}
+
 // 기존 데이터를 새 형식으로 마이그레이션
 function migrateZoneData(oldZone: Partial<MistZoneConfig>, defaultZone: MistZoneConfig): MistZoneConfig {
   // controllerId 오타 수정 적용
   const fixedControllerId = fixControllerId(oldZone.controllerId) || defaultZone.controllerId;
+
+  // 스케줄 마이그레이션
+  const daySchedule = migrateScheduleData(oldZone.daySchedule);
+  const nightSchedule = migrateScheduleData(oldZone.nightSchedule);
+
+  // 시작/종료 시간 기본값 설정
+  if (!daySchedule.startTime) daySchedule.startTime = "06:00";
+  if (!daySchedule.endTime) daySchedule.endTime = "18:00";
+  if (!nightSchedule.startTime) nightSchedule.startTime = "18:00";
+  if (!nightSchedule.endTime) nightSchedule.endTime = "06:00";
 
   return {
     ...defaultZone,
@@ -142,8 +166,8 @@ function migrateZoneData(oldZone: Partial<MistZoneConfig>, defaultZone: MistZone
     // 새 필드가 없으면 기본값 사용 + controllerId 오타 수정
     controllerId: fixedControllerId,
     isRunning: oldZone.isRunning ?? false,
-    daySchedule: oldZone.daySchedule ?? { ...DEFAULT_SCHEDULE_SETTINGS, startTime: "06:00", endTime: "18:00" },
-    nightSchedule: oldZone.nightSchedule ?? { ...DEFAULT_SCHEDULE_SETTINGS, startTime: "18:00", endTime: "06:00" },
+    daySchedule,
+    nightSchedule,
   };
 }
 
