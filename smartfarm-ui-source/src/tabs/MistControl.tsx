@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import type { MistZoneConfig, MistMode, MistScheduleSettings } from "../types";
-import { publishCommand, getMqttClient } from "../mqtt/mqttClient";
+import { publishCommand, getMqttClient, isMqttConnected, onConnectionChange } from "../mqtt/mqttClient";
 
 interface MistControlProps {
   zones: MistZoneConfig[];
@@ -47,6 +47,19 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
   // AUTO 사이클 타이머 참조
   const cycleTimers = useRef<Record<string, CycleTimer>>({});
+
+  // MQTT 연결 상태
+  const [mqttConnected, setMqttConnected] = useState(false);
+
+  // MQTT 연결 상태 모니터링
+  useEffect(() => {
+    getMqttClient();
+    const unsubscribe = onConnectionChange((connected) => {
+      setMqttConnected(connected);
+      console.log(`[MQTT] Connection status: ${connected ? "Connected" : "Disconnected"}`);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // ESP32 상태 API 폴링 (DevicesControl과 동일한 방식)
   useEffect(() => {
@@ -284,6 +297,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     const sprayDuration = (schedule.sprayDurationSeconds ?? 0) * 1000; // ms
     const stopDuration = (schedule.stopDurationSeconds ?? 0) * 1000;   // ms
 
+    console.log(`[AUTO] Starting cycle for ${zone.name}`);
+    console.log(`[AUTO] Topic: ${cmdTopic}`);
+    console.log(`[AUTO] Spray: ${sprayDuration/1000}s, Stop: ${stopDuration/1000}s`);
+    console.log(`[AUTO] MQTT Connected: ${isMqttConnected()}`);
+
     // 기존 타이머 정리
     stopAutoCycle(zoneId);
 
@@ -297,18 +315,29 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     const runCycle = () => {
       if (!cycleTimers.current[zoneId]?.isRunning) return;
 
+      // MQTT 연결 확인
+      if (!isMqttConnected()) {
+        console.error(`[AUTO] MQTT not connected! Retrying in 3 seconds...`);
+        cycleTimers.current[zoneId].stopTimer = setTimeout(runCycle, 3000);
+        return;
+      }
+
       // 1. 정지 대기 (밸브 닫힘)
+      console.log(`[AUTO] ${zone.name}: Sending OFF to ${cmdTopic}`);
       publishCommand(cmdTopic, { power: "off" });
       setAutoCycleState(prev => ({ ...prev, [zoneId]: "waiting" }));
-      console.log(`[AUTO] ${zone.name}: 정지대기 ${stopDuration/1000}초`);
+      // manualSprayState도 업데이트 (LED 표시용)
+      setManualSprayState(prev => ({ ...prev, [zoneId]: "stopped" }));
 
       cycleTimers.current[zoneId].stopTimer = setTimeout(() => {
         if (!cycleTimers.current[zoneId]?.isRunning) return;
 
         // 2. 분무 (밸브 열림)
+        console.log(`[AUTO] ${zone.name}: Sending ON to ${cmdTopic}`);
         publishCommand(cmdTopic, { power: "on" });
         setAutoCycleState(prev => ({ ...prev, [zoneId]: "spraying" }));
-        console.log(`[AUTO] ${zone.name}: 분무 ${sprayDuration/1000}초`);
+        // manualSprayState도 업데이트 (LED 표시용)
+        setManualSprayState(prev => ({ ...prev, [zoneId]: "spraying" }));
 
         cycleTimers.current[zoneId].sprayTimer = setTimeout(() => {
           if (!cycleTimers.current[zoneId]?.isRunning) return;
@@ -528,8 +557,18 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     <div className="bg-gray-50">
       <div className="max-w-7xl mx-auto px-4">
         <div className="bg-gradient-to-r from-farm-500 to-farm-600 rounded-2xl px-6 py-4 mb-6">
-          <h1 className="text-gray-900 font-bold text-2xl m-0">💧 분무수경 설정</h1>
-          <p className="text-white/80 text-sm mt-1 m-0">각 Zone별 분무 인터벌 및 운전 시간대를 설정합니다</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-gray-900 font-bold text-2xl m-0">💧 분무수경 설정</h1>
+              <p className="text-white/80 text-sm mt-1 m-0">각 Zone별 분무 인터벌 및 운전 시간대를 설정합니다</p>
+            </div>
+            <div className="flex items-center gap-2 bg-white/20 px-3 py-2 rounded-lg">
+              <div className={`w-3 h-3 rounded-full ${mqttConnected ? "bg-green-400 animate-pulse" : "bg-red-400"}`}></div>
+              <span className="text-sm font-medium text-white">
+                MQTT {mqttConnected ? "연결됨" : "연결끊김"}
+              </span>
+            </div>
+          </div>
         </div>
 
         {zones.map((zone) => {
@@ -824,6 +863,15 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                   <div className="mb-4 flex flex-wrap gap-2">
                     <SavedSettingsDisplay schedule={zone.daySchedule} label="☀️ 주간" />
                     <SavedSettingsDisplay schedule={zone.nightSchedule} label="🌙 야간" />
+                  </div>
+
+                  {/* LED 상태 표시 (AUTO 모드) */}
+                  <div className="mb-4">
+                    <LedIndicator
+                      state={manualSprayState[zone.id] || "idle"}
+                      zoneId={zone.id}
+                      controllerId={zone.controllerId}
+                    />
                   </div>
 
                   {/* AUTO 사이클 상태 표시 */}
