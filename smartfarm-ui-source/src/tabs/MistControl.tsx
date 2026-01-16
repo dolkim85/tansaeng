@@ -16,12 +16,61 @@ interface ValveStatus {
   };
 }
 
+// Zone ID와 Controller ID 매핑
+const ZONE_CONTROLLER_MAP: Record<string, string> = {
+  zone_a: "ctlr-0004",
+  zone_b: "ctlr-0005",
+  zone_c: "ctlr-0006",
+  zone_d: "ctlr-0007",
+  zone_e: "ctlr-0008",
+};
+
 export default function MistControl({ zones, setZones }: MistControlProps) {
   // ESP32 밸브 상태
   const [valveStatus, setValveStatus] = useState<ValveStatus>({});
 
+  // ESP32 장치별 연결 상태 (API 폴링)
+  const [esp32Status, setEsp32Status] = useState<Record<string, boolean>>({});
+
   // 수동 분무 상태 (UI 표시용)
   const [manualSprayState, setManualSprayState] = useState<{[zoneId: string]: "spraying" | "stopped" | "idle"}>({});
+
+  // ESP32 상태 API 폴링 (DevicesControl과 동일한 방식)
+  useEffect(() => {
+    const fetchESP32Status = async () => {
+      try {
+        const response = await fetch("/api/device_status.php");
+        const result = await response.json();
+
+        if (result.success) {
+          const newStatus: Record<string, boolean> = {};
+          Object.entries(result.devices).forEach(([controllerId, info]: [string, any]) => {
+            newStatus[controllerId] = info.is_online;
+          });
+          setEsp32Status(newStatus);
+
+          // valveStatus의 online 상태도 업데이트
+          setValveStatus(prev => {
+            const updated = { ...prev };
+            Object.entries(ZONE_CONTROLLER_MAP).forEach(([zoneId, controllerId]) => {
+              if (updated[zoneId]) {
+                updated[zoneId] = { ...updated[zoneId], online: newStatus[controllerId] ?? false };
+              } else {
+                updated[zoneId] = { valveState: "UNKNOWN", online: newStatus[controllerId] ?? false, lastUpdated: "" };
+              }
+            });
+            return updated;
+          });
+        }
+      } catch (error) {
+        console.error("[API] Failed to fetch ESP32 status:", error);
+      }
+    };
+
+    fetchESP32Status();
+    const interval = setInterval(fetchESP32Status, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // MQTT 구독 - ESP32 상태 수신
   useEffect(() => {
@@ -287,9 +336,10 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   };
 
   // LED 상태 컴포넌트
-  const LedIndicator = ({ state, zoneId }: { state: "spraying" | "stopped" | "idle"; zoneId: string }) => {
+  const LedIndicator = ({ state, zoneId, controllerId }: { state: "spraying" | "stopped" | "idle"; zoneId: string; controllerId?: string }) => {
     const status = valveStatus[zoneId];
-    const isOnline = status?.online ?? false;
+    // API 폴링에서 가져온 ESP32 연결 상태 사용 (즉시 반영)
+    const isOnline = controllerId ? esp32Status[controllerId] === true : (status?.online ?? false);
     const valveState = status?.valveState ?? "UNKNOWN";
 
     // ESP32 상태가 있으면 그것을 우선 사용
@@ -349,7 +399,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
           const modeColor = getModeColor(zone.mode);
           const runningStatus = getRunningStatusColor(zone.isRunning);
           const sprayState = manualSprayState[zone.id] || "idle";
-          const status = valveStatus[zone.id];
+          // API 폴링에서 가져온 ESP32 연결 상태 (즉시 반영)
+          const isOnline = zone.controllerId ? esp32Status[zone.controllerId] === true : false;
 
           return (
             <div key={zone.id} className="bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-200 p-6 mb-6">
@@ -358,8 +409,9 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                 <div className="flex items-center gap-3">
                   <h2 className="text-xl font-semibold text-gray-800 m-0">{zone.name}</h2>
                   {zone.controllerId ? (
-                    <span className={`text-xs px-2 py-1 rounded-full ${status?.online ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'}`}>
-                      {zone.controllerId} {status?.online ? '(온라인)' : ''}
+                    <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1.5 ${isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                      <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-400'}`}></span>
+                      {zone.controllerId} {isOnline ? '온라인' : '오프라인'}
                     </span>
                   ) : (
                     <span className="text-xs px-2 py-1 bg-gray-100 text-gray-500 rounded-full">
@@ -417,7 +469,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
               {zone.mode === "MANUAL" && (
                 <div className="mb-4 space-y-4">
                   {/* LED 상태 표시 */}
-                  <LedIndicator state={sprayState} zoneId={zone.id} />
+                  <LedIndicator state={sprayState} zoneId={zone.id} controllerId={zone.controllerId} />
 
                   <div className="grid grid-cols-2 gap-3">
                     <button
