@@ -38,15 +38,30 @@ export interface DeviceReportedState {
 
 export type MistMode = "OFF" | "MANUAL" | "AUTO";
 
+// 주간/야간 스케줄 설정
+export interface MistScheduleSettings {
+  intervalMinutes: number | null;  // 분무 주기 (분)
+  spraySeconds: number | null;     // 분무 시간 (초)
+  startTime: string;               // 시작 시간 "HH:MM"
+  endTime: string;                 // 종료 시간 "HH:MM"
+  enabled: boolean;                // 활성화 여부
+}
+
 export interface MistZoneConfig {
   id: string;
   name: string;
   mode: MistMode;
+  controllerId: string;            // 연결된 ESP32 컨트롤러 ID (예: "ctrl-0004")
+  isRunning: boolean;              // 현재 작동 중인지 여부
+  // 기존 단일 설정 (하위 호환성)
   intervalMinutes: number | null;
   spraySeconds: number | null;
   startTime: string; // "HH:MM" 또는 ""
   endTime: string;   // "HH:MM" 또는 ""
   allowNightOperation: boolean;
+  // 주간/야간 분리 설정 (AUTO 모드용)
+  daySchedule: MistScheduleSettings;
+  nightSchedule: MistScheduleSettings;
 }
 
 // ========== Sensor Data Types ==========
