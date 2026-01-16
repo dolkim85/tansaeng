@@ -495,12 +495,6 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     return { bg: "#d1fae5", text: "#065f46" };
   };
 
-  const getRunningStatusColor = (isRunning: boolean) => {
-    return isRunning
-      ? { bg: "#dcfce7", text: "#16a34a", border: "#22c55e" }
-      : { bg: "#f3f4f6", text: "#6b7280", border: "#d1d5db" };
-  };
-
   // LED 상태 컴포넌트
   const LedIndicator = ({ state, zoneId, controllerId }: { state: "spraying" | "stopped" | "idle"; zoneId: string; controllerId?: string }) => {
     const status = valveStatus[zoneId];
@@ -554,113 +548,75 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   };
 
   return (
-    <div className="bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="bg-gradient-to-r from-farm-500 to-farm-600 rounded-2xl px-6 py-4 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-gray-900 font-bold text-2xl m-0">💧 분무수경 설정</h1>
-              <p className="text-white/80 text-sm mt-1 m-0">각 Zone별 분무 인터벌 및 운전 시간대를 설정합니다</p>
-            </div>
-            <div className="flex items-center gap-2 bg-white/20 px-3 py-2 rounded-lg">
-              <div className={`w-3 h-3 rounded-full ${mqttConnected ? "bg-green-400 animate-pulse" : "bg-red-400"}`}></div>
-              <span className="text-sm font-medium text-white">
-                MQTT {mqttConnected ? "연결됨" : "연결끊김"}
-              </span>
-            </div>
+    <div className="bg-gray-50 min-h-full">
+      <div className="p-2">
+        {/* 컴팩트 헤더 */}
+        <div className="flex items-center justify-between bg-white rounded-lg px-3 py-2 mb-2 shadow-sm">
+          <span className="text-sm font-bold text-gray-800">💧 분무수경</span>
+          <div className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 rounded-full ${mqttConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></div>
+            <span className="text-xs text-gray-600">MQTT</span>
           </div>
         </div>
 
         {zones.map((zone) => {
           const modeColor = getModeColor(zone.mode);
-          const runningStatus = getRunningStatusColor(zone.isRunning);
           const sprayState = manualSprayState[zone.id] || "idle";
-          // API 폴링에서 가져온 ESP32 연결 상태 (즉시 반영)
           const isOnline = zone.controllerId ? esp32Status[zone.controllerId] === true : false;
 
           return (
-            <div key={zone.id} className="bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-200 p-6 mb-6">
-              {/* 상단: Zone 이름 + 상태 배지들 */}
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-xl font-semibold text-gray-800 m-0">{zone.name}</h2>
-                  {zone.controllerId ? (
-                    <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1.5 ${isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                      <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-400'}`}></span>
-                      {zone.controllerId} {isOnline ? '온라인' : '오프라인'}
-                    </span>
-                  ) : (
-                    <span className="text-xs px-2 py-1 bg-gray-100 text-gray-500 rounded-full">
-                      미연결
-                    </span>
+            <div key={zone.id} className="bg-white rounded-lg shadow-sm mb-2 overflow-hidden">
+              {/* 컴팩트 Zone 헤더 */}
+              <div className="flex items-center justify-between px-3 py-2 bg-farm-500">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-gray-900">{zone.name}</span>
+                  {zone.controllerId && (
+                    <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  {/* 작동 상태 */}
-                  <span
-                    className="px-3 py-1 rounded-full text-sm font-medium border"
-                    style={{
-                      background: runningStatus.bg,
-                      color: runningStatus.text,
-                      borderColor: runningStatus.border
-                    }}
-                  >
-                    {zone.isRunning ? "🟢 작동중" : "⚪ 정지"}
-                  </span>
-                  {/* 모드 */}
-                  <span
-                    className="px-3 py-1 rounded-full text-sm font-medium"
-                    style={{
-                      background: modeColor.bg,
-                      color: modeColor.text
-                    }}
-                  >
-                    {zone.mode}
-                  </span>
+                <div className="flex items-center gap-1.5">
+                  {zone.isRunning && <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">작동중</span>}
+                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: modeColor.bg, color: modeColor.text }}>{zone.mode}</span>
                 </div>
               </div>
 
-              {/* 모드 선택 */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  운전 모드
-                </label>
-                <div className="flex gap-4">
-                  {(["OFF", "MANUAL", "AUTO"] as MistMode[]).map((mode) => (
-                    <label key={mode} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name={`mode-${zone.id}`}
-                        checked={zone.mode === mode}
-                        onChange={() => updateZone(zone.id, { mode })}
-                        className="w-4 h-4 accent-farm-500"
-                      />
-                      <span className="text-gray-700">{mode}</span>
-                    </label>
-                  ))}
-                </div>
+              <div className="p-3">
+
+              {/* 모드 선택 - 컴팩트 버튼 그룹 */}
+              <div className="flex gap-1 mb-3">
+                {(["OFF", "MANUAL", "AUTO"] as MistMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => updateZone(zone.id, { mode })}
+                    className={`flex-1 py-2 text-xs font-bold rounded transition-all ${
+                      zone.mode === mode
+                        ? "bg-farm-500 text-white"
+                        : "bg-gray-100 text-gray-600 active:bg-gray-200"
+                    }`}
+                  >
+                    {mode}
+                  </button>
+                ))}
               </div>
 
-              {/* MANUAL 모드: 즉시 분무 / 분무 중지 버튼 + LED 상태 */}
+              {/* MANUAL 모드: 컴팩트 버튼 */}
               {zone.mode === "MANUAL" && (
-                <div className="mb-4 space-y-4">
-                  {/* LED 상태 표시 */}
+                <div className="space-y-2">
                   <LedIndicator state={sprayState} zoneId={zone.id} controllerId={zone.controllerId} />
-
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="flex gap-2">
                     <button
                       onClick={() => handleManualSpray(zone)}
                       disabled={!zone.controllerId}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium px-4 py-3 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                      className="flex-1 bg-green-500 active:bg-green-600 disabled:bg-gray-300 text-white font-bold py-3 rounded text-sm"
                     >
-                      <span className="text-lg">💧</span> 즉시 분무 실행
+                      💧 분무
                     </button>
                     <button
                       onClick={() => handleManualStop(zone)}
                       disabled={!zone.controllerId}
-                      className="bg-red-500 hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium px-4 py-3 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                      className="flex-1 bg-red-500 active:bg-red-600 disabled:bg-gray-300 text-white font-bold py-3 rounded text-sm"
                     >
-                      <span className="text-lg">🛑</span> 즉시 분무 중지
+                      🛑 중지
                     </button>
                   </div>
                 </div>
@@ -939,12 +895,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
               {/* OFF 모드일 때 */}
               {zone.mode === "OFF" && (
-                <div className="mt-4">
-                  <p className="text-gray-500 text-sm mb-3">
-                    운전 모드가 OFF입니다. MANUAL 또는 AUTO 모드를 선택하세요.
-                  </p>
-                </div>
+                <p className="text-gray-500 text-xs text-center py-2">
+                  모드를 선택하세요
+                </p>
               )}
+              </div>
             </div>
           );
         })}
