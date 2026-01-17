@@ -25,6 +25,16 @@ interface ChartDataPoint {
 export default function Environment() {
   const [period, setPeriod] = useState<"current" | "1h" | "1w" | "1m">("current");
   const [selectedZone, setSelectedZone] = useState("all");
+
+  // 차트 시간 단위 (주식 차트 스타일)
+  const [chartInterval, setChartInterval] = useState<"1m" | "5m" | "10m" | "1h" | "1d" | "1w" | "1M">("1m");
+
+  // 차트 라인 표시 토글
+  const [visibleLines, setVisibleLines] = useState({
+    front: true,
+    back: true,
+    top: true,
+  });
   const [serverConnected, setServerConnected] = useState(true); // 서버는 항상 연결됨
 
   // 3개 센서 데이터 (앞, 뒤, 천장)
@@ -138,6 +148,99 @@ export default function Environment() {
   // 센서 데이터는 백그라운드 MQTT 데몬이 수집하고 DB에 저장
   // Environment 페이지는 서버 API에서 데이터만 읽어옴 (위의 useEffect 참고)
 
+  // 시간 단위에 따른 데이터 집계 함수
+  const aggregateDataByInterval = (data: any[], interval: string): ChartDataPoint[] => {
+    if (data.length === 0) return [];
+
+    // 인터벌에 따른 그룹화 키 생성 함수
+    const getGroupKey = (dateStr: string): string => {
+      const date = new Date(dateStr);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hour = String(date.getHours()).padStart(2, '0');
+      const minute = date.getMinutes();
+
+      switch (interval) {
+        case "1m":
+          return `${month}/${day} ${hour}:${String(minute).padStart(2, '0')}`;
+        case "5m":
+          return `${month}/${day} ${hour}:${String(Math.floor(minute / 5) * 5).padStart(2, '0')}`;
+        case "10m":
+          return `${month}/${day} ${hour}:${String(Math.floor(minute / 10) * 10).padStart(2, '0')}`;
+        case "1h":
+          return `${month}/${day} ${hour}:00`;
+        case "1d":
+          return `${month}/${day}`;
+        case "1w":
+          const weekStart = new Date(date);
+          weekStart.setDate(date.getDate() - date.getDay());
+          return `${weekStart.getMonth() + 1}/${weekStart.getDate()}주`;
+        case "1M":
+          return `${year}/${month}`;
+        default:
+          return `${month}/${day} ${hour}:${String(minute).padStart(2, '0')}`;
+      }
+    };
+
+    // 그룹별로 데이터 집계
+    const groups = new Map<string, {
+      frontTemps: number[];
+      backTemps: number[];
+      topTemps: number[];
+      frontHums: number[];
+      backHums: number[];
+      topHums: number[];
+    }>();
+
+    data.forEach((record: any) => {
+      const key = getGroupKey(record.recorded_at);
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          frontTemps: [],
+          backTemps: [],
+          topTemps: [],
+          frontHums: [],
+          backHums: [],
+          topHums: [],
+        });
+      }
+
+      const group = groups.get(key)!;
+      const location = record.sensor_location;
+
+      if (location === 'front') {
+        if (record.temperature !== null) group.frontTemps.push(parseFloat(record.temperature));
+        if (record.humidity !== null) group.frontHums.push(parseFloat(record.humidity));
+      } else if (location === 'back') {
+        if (record.temperature !== null) group.backTemps.push(parseFloat(record.temperature));
+        if (record.humidity !== null) group.backHums.push(parseFloat(record.humidity));
+      } else if (location === 'top') {
+        if (record.temperature !== null) group.topTemps.push(parseFloat(record.temperature));
+        if (record.humidity !== null) group.topHums.push(parseFloat(record.humidity));
+      }
+    });
+
+    // 평균값 계산
+    const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+
+    const result: ChartDataPoint[] = [];
+    groups.forEach((group, key) => {
+      result.push({
+        timestamp: key,
+        frontTemp: avg(group.frontTemps),
+        backTemp: avg(group.backTemps),
+        topTemp: avg(group.topTemps),
+        frontHum: avg(group.frontHums),
+        backHum: avg(group.backHums),
+        topHum: avg(group.topHums),
+      });
+    });
+
+    return result.reverse();
+  };
+
   // 기간별 과거 데이터 로드
   useEffect(() => {
     const loadHistoricalChartData = async () => {
@@ -168,47 +271,9 @@ export default function Environment() {
         const result = await response.json();
 
         if (result.success && result.data) {
-          // 데이터를 timestamp별로 그룹화
-          const dataByTimestamp = new Map<string, ChartDataPoint>();
-
-          result.data.forEach((record: any) => {
-            const timestamp = new Date(record.recorded_at).toLocaleString("ko-KR", {
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-
-            if (!dataByTimestamp.has(timestamp)) {
-              dataByTimestamp.set(timestamp, {
-                timestamp,
-                frontTemp: null,
-                backTemp: null,
-                topTemp: null,
-                frontHum: null,
-                backHum: null,
-                topHum: null,
-              });
-            }
-
-            const point = dataByTimestamp.get(timestamp)!;
-            const location = record.sensor_location;
-
-            if (location === 'front') {
-              if (record.temperature !== null) point.frontTemp = parseFloat(record.temperature);
-              if (record.humidity !== null) point.frontHum = parseFloat(record.humidity);
-            } else if (location === 'back') {
-              if (record.temperature !== null) point.backTemp = parseFloat(record.temperature);
-              if (record.humidity !== null) point.backHum = parseFloat(record.humidity);
-            } else if (location === 'top') {
-              if (record.temperature !== null) point.topTemp = parseFloat(record.temperature);
-              if (record.humidity !== null) point.topHum = parseFloat(record.humidity);
-            }
-          });
-
-          // Map을 배열로 변환하고 시간순 정렬
-          const chartDataArray = Array.from(dataByTimestamp.values()).reverse();
-          setChartData(chartDataArray);
+          // 시간 단위에 따라 데이터 집계
+          const aggregatedData = aggregateDataByInterval(result.data, chartInterval);
+          setChartData(aggregatedData);
         }
       } catch (error) {
         console.error('Failed to load historical chart data:', error);
@@ -216,7 +281,7 @@ export default function Environment() {
     };
 
     loadHistoricalChartData();
-  }, [period]);
+  }, [period, chartInterval]);
 
   // 차트 데이터 업데이트 (실시간 데이터를 차트에 추가 - current 모드일 때만)
   useEffect(() => {
@@ -685,12 +750,98 @@ export default function Environment() {
           </div>
         </section>
 
+        {/* 차트 컨트롤 (시간 단위 + 데이터 토글) */}
+        <section className="mb-3 sm:mb-6">
+          <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
+            <h2 className="text-sm sm:text-xl font-semibold m-0">차트 설정</h2>
+          </header>
+          <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-3 sm:p-6">
+            {/* 시간 단위 선택 (주식 차트 스타일) */}
+            <div className="mb-4">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                시간 단위
+              </label>
+              <div className="flex flex-wrap gap-1 sm:gap-2">
+                {[
+                  { value: "1m", label: "1분" },
+                  { value: "5m", label: "5분" },
+                  { value: "10m", label: "10분" },
+                  { value: "1h", label: "1시간" },
+                  { value: "1d", label: "1일" },
+                  { value: "1w", label: "1주" },
+                  { value: "1M", label: "1달" },
+                ].map((item) => (
+                  <button
+                    key={item.value}
+                    onClick={() => setChartInterval(item.value as any)}
+                    className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                      chartInterval === item.value
+                        ? "bg-farm-500 text-gray-900"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 데이터 시리즈 토글 */}
+            <div>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                표시할 데이터
+              </label>
+              <div className="flex flex-wrap gap-3 sm:gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={visibleLines.front}
+                    onChange={(e) => setVisibleLines({ ...visibleLines, front: e.target.checked })}
+                    className="w-4 h-4 accent-green-500"
+                  />
+                  <span className="flex items-center gap-1.5 text-xs sm:text-sm">
+                    <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                    팬 앞
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={visibleLines.back}
+                    onChange={(e) => setVisibleLines({ ...visibleLines, back: e.target.checked })}
+                    className="w-4 h-4 accent-blue-500"
+                  />
+                  <span className="flex items-center gap-1.5 text-xs sm:text-sm">
+                    <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                    팬 뒤
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={visibleLines.top}
+                    onChange={(e) => setVisibleLines({ ...visibleLines, top: e.target.checked })}
+                    className="w-4 h-4 accent-amber-500"
+                  />
+                  <span className="flex items-center gap-1.5 text-xs sm:text-sm">
+                    <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+                    천장
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* 온도/습도 타임라인 차트 (좌우 분리) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6 mb-3 sm:mb-6">
           {/* 온도 차트 */}
           <section>
-            <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
-              <h2 className="text-sm sm:text-xl font-semibold m-0">온도 타임라인</h2>
+            <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl flex items-center justify-between">
+              <h2 className="text-sm sm:text-xl font-semibold m-0">🌡️ 온도 타임라인</h2>
+              <span className="text-xs sm:text-sm text-gray-800">
+                {chartInterval === "1m" ? "1분" : chartInterval === "5m" ? "5분" : chartInterval === "10m" ? "10분" : chartInterval === "1h" ? "1시간" : chartInterval === "1d" ? "1일" : chartInterval === "1w" ? "1주" : "1달"} 단위
+              </span>
             </header>
             <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-6">
               {chartData.length === 0 ? (
@@ -698,37 +849,61 @@ export default function Environment() {
                   데이터를 수집하는 중입니다...
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={250}>
+                <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="timestamp" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip />
-                    <Legend wrapperStyle={{ fontSize: '10px' }} />
-                    <Line
-                      type="monotone"
-                      dataKey="frontTemp"
-                      stroke="#22c55e"
-                      name="앞"
-                      strokeWidth={2}
-                      dot={false}
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="timestamp"
+                      tick={{ fontSize: 10 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                      interval="preserveStartEnd"
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="backTemp"
-                      stroke="#3b82f6"
-                      name="뒤"
-                      strokeWidth={2}
-                      dot={false}
+                    <YAxis
+                      tick={{ fontSize: 10 }}
+                      domain={['dataMin - 2', 'dataMax + 2']}
+                      tickFormatter={(value) => `${value}°`}
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="topTemp"
-                      stroke="#f59e0b"
-                      name="천장"
-                      strokeWidth={2}
-                      dot={false}
+                    <Tooltip
+                      formatter={(value: number) => [`${value?.toFixed(1)}°C`, '']}
+                      labelStyle={{ fontSize: 12 }}
+                      contentStyle={{ fontSize: 12 }}
                     />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                    {visibleLines.front && (
+                      <Line
+                        type="monotone"
+                        dataKey="frontTemp"
+                        stroke="#22c55e"
+                        name="팬 앞"
+                        strokeWidth={2}
+                        dot={chartData.length < 50}
+                        connectNulls
+                      />
+                    )}
+                    {visibleLines.back && (
+                      <Line
+                        type="monotone"
+                        dataKey="backTemp"
+                        stroke="#3b82f6"
+                        name="팬 뒤"
+                        strokeWidth={2}
+                        dot={chartData.length < 50}
+                        connectNulls
+                      />
+                    )}
+                    {visibleLines.top && (
+                      <Line
+                        type="monotone"
+                        dataKey="topTemp"
+                        stroke="#f59e0b"
+                        name="천장"
+                        strokeWidth={2}
+                        dot={chartData.length < 50}
+                        connectNulls
+                      />
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -737,8 +912,11 @@ export default function Environment() {
 
           {/* 습도 차트 */}
           <section>
-            <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
-              <h2 className="text-sm sm:text-xl font-semibold m-0">습도 타임라인</h2>
+            <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl flex items-center justify-between">
+              <h2 className="text-sm sm:text-xl font-semibold m-0">💧 습도 타임라인</h2>
+              <span className="text-xs sm:text-sm text-gray-800">
+                {chartInterval === "1m" ? "1분" : chartInterval === "5m" ? "5분" : chartInterval === "10m" ? "10분" : chartInterval === "1h" ? "1시간" : chartInterval === "1d" ? "1일" : chartInterval === "1w" ? "1주" : "1달"} 단위
+              </span>
             </header>
             <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-6">
               {chartData.length === 0 ? (
@@ -746,37 +924,61 @@ export default function Environment() {
                   데이터를 수집하는 중입니다...
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={250}>
+                <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="timestamp" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip />
-                    <Legend wrapperStyle={{ fontSize: '10px' }} />
-                    <Line
-                      type="monotone"
-                      dataKey="frontHum"
-                      stroke="#22c55e"
-                      name="앞"
-                      strokeWidth={2}
-                      dot={false}
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="timestamp"
+                      tick={{ fontSize: 10 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                      interval="preserveStartEnd"
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="backHum"
-                      stroke="#3b82f6"
-                      name="뒤"
-                      strokeWidth={2}
-                      dot={false}
+                    <YAxis
+                      tick={{ fontSize: 10 }}
+                      domain={['dataMin - 5', 'dataMax + 5']}
+                      tickFormatter={(value) => `${value}%`}
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="topHum"
-                      stroke="#f59e0b"
-                      name="천장"
-                      strokeWidth={2}
-                      dot={false}
+                    <Tooltip
+                      formatter={(value: number) => [`${value?.toFixed(1)}%`, '']}
+                      labelStyle={{ fontSize: 12 }}
+                      contentStyle={{ fontSize: 12 }}
                     />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                    {visibleLines.front && (
+                      <Line
+                        type="monotone"
+                        dataKey="frontHum"
+                        stroke="#22c55e"
+                        name="팬 앞"
+                        strokeWidth={2}
+                        dot={chartData.length < 50}
+                        connectNulls
+                      />
+                    )}
+                    {visibleLines.back && (
+                      <Line
+                        type="monotone"
+                        dataKey="backHum"
+                        stroke="#3b82f6"
+                        name="팬 뒤"
+                        strokeWidth={2}
+                        dot={chartData.length < 50}
+                        connectNulls
+                      />
+                    )}
+                    {visibleLines.top && (
+                      <Line
+                        type="monotone"
+                        dataKey="topHum"
+                        stroke="#f59e0b"
+                        name="천장"
+                        strokeWidth={2}
+                        dot={chartData.length < 50}
+                        connectNulls
+                      />
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               )}
