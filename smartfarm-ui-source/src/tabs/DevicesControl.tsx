@@ -112,11 +112,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     }
   };
 
-  // 천창 제어 핸들러 (OPEN/CLOSE/STOP) - API 호출
+  // 천창/측창 제어 핸들러 (OPEN/CLOSE/STOP) - API 호출
   const handleSkylightCommand = async (deviceId: string, command: "OPEN" | "CLOSE" | "STOP") => {
-    const device = skylights.find((d) => d.id === deviceId);
+    const device = [...skylights, ...sidescreens].find((d) => d.id === deviceId);
     if (device) {
-      console.log(`[SKYLIGHT] ${device.name} - ${command}`);
+      console.log(`[SCREEN] ${device.name} - ${command}`);
 
       // commandTopic에서 실제 MQTT deviceId 추출
       // 예: "tansaeng/ctlr-0011/windowL/cmd" → "windowL"
