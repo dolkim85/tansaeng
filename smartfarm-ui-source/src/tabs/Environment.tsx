@@ -750,85 +750,34 @@ export default function Environment() {
           </div>
         </section>
 
-        {/* 차트 컨트롤 (시간 단위 + 데이터 토글) */}
+        {/* 차트 시간 단위 선택 */}
         <section className="mb-3 sm:mb-6">
           <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
-            <h2 className="text-sm sm:text-xl font-semibold m-0">차트 설정</h2>
+            <h2 className="text-sm sm:text-xl font-semibold m-0">차트 시간 단위</h2>
           </header>
           <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-3 sm:p-6">
-            {/* 시간 단위 선택 (주식 차트 스타일) */}
-            <div className="mb-4">
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                시간 단위
-              </label>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                {[
-                  { value: "1m", label: "1분" },
-                  { value: "5m", label: "5분" },
-                  { value: "10m", label: "10분" },
-                  { value: "1h", label: "1시간" },
-                  { value: "1d", label: "1일" },
-                  { value: "1w", label: "1주" },
-                  { value: "1M", label: "1달" },
-                ].map((item) => (
-                  <button
-                    key={item.value}
-                    onClick={() => setChartInterval(item.value as any)}
-                    className={`px-2 sm:px-4 py-1 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${
-                      chartInterval === item.value
-                        ? "bg-farm-500 text-gray-900"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 데이터 시리즈 토글 */}
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                표시할 데이터
-              </label>
-              <div className="flex flex-wrap gap-3 sm:gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={visibleLines.front}
-                    onChange={(e) => setVisibleLines({ ...visibleLines, front: e.target.checked })}
-                    className="w-4 h-4 accent-green-500"
-                  />
-                  <span className="flex items-center gap-1.5 text-xs sm:text-sm">
-                    <span className="w-3 h-3 rounded-full bg-green-500"></span>
-                    팬 앞
-                  </span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={visibleLines.back}
-                    onChange={(e) => setVisibleLines({ ...visibleLines, back: e.target.checked })}
-                    className="w-4 h-4 accent-blue-500"
-                  />
-                  <span className="flex items-center gap-1.5 text-xs sm:text-sm">
-                    <span className="w-3 h-3 rounded-full bg-blue-500"></span>
-                    팬 뒤
-                  </span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={visibleLines.top}
-                    onChange={(e) => setVisibleLines({ ...visibleLines, top: e.target.checked })}
-                    className="w-4 h-4 accent-amber-500"
-                  />
-                  <span className="flex items-center gap-1.5 text-xs sm:text-sm">
-                    <span className="w-3 h-3 rounded-full bg-amber-500"></span>
-                    천장
-                  </span>
-                </label>
-              </div>
+            <div className="flex flex-wrap gap-1 sm:gap-2">
+              {[
+                { value: "1m", label: "1분" },
+                { value: "5m", label: "5분" },
+                { value: "10m", label: "10분" },
+                { value: "1h", label: "1시간" },
+                { value: "1d", label: "1일" },
+                { value: "1w", label: "1주" },
+                { value: "1M", label: "1달" },
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  onClick={() => setChartInterval(item.value as any)}
+                  className={`px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                    chartInterval === item.value
+                      ? "bg-farm-500 text-gray-900 shadow-md"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
           </div>
         </section>
@@ -837,11 +786,82 @@ export default function Environment() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6 mb-3 sm:mb-6">
           {/* 온도 차트 */}
           <section>
-            <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl flex items-center justify-between">
-              <h2 className="text-sm sm:text-xl font-semibold m-0">🌡️ 온도 타임라인</h2>
-              <span className="text-xs sm:text-sm text-gray-800">
-                {chartInterval === "1m" ? "1분" : chartInterval === "5m" ? "5분" : chartInterval === "10m" ? "10분" : chartInterval === "1h" ? "1시간" : chartInterval === "1d" ? "1일" : chartInterval === "1w" ? "1주" : "1달"} 단위
-              </span>
+            <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm sm:text-xl font-semibold m-0">🌡️ 온도 타임라인</h2>
+                <span className="text-xs sm:text-sm text-gray-800 bg-white/30 px-2 py-1 rounded">
+                  {chartInterval === "1m" ? "1분" : chartInterval === "5m" ? "5분" : chartInterval === "10m" ? "10분" : chartInterval === "1h" ? "1시간" : chartInterval === "1d" ? "1일" : chartInterval === "1w" ? "1주" : "1달"} 단위
+                </span>
+              </div>
+              {/* 체크박스 + 통계 정보 */}
+              <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm">
+                <label className="flex items-center gap-1.5 cursor-pointer bg-white/20 px-2 py-1 rounded">
+                  <input
+                    type="checkbox"
+                    checked={visibleLines.front}
+                    onChange={(e) => setVisibleLines({ ...visibleLines, front: e.target.checked })}
+                    className="w-3.5 h-3.5 accent-green-500"
+                  />
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                  <span>팬앞</span>
+                  {chartData.length > 0 && visibleLines.front && (
+                    <span className="text-[10px] sm:text-xs text-gray-700">
+                      ({(() => {
+                        const temps = chartData.map(d => d.frontTemp).filter(t => t !== null) as number[];
+                        if (temps.length === 0) return '-';
+                        const min = Math.min(...temps).toFixed(1);
+                        const max = Math.max(...temps).toFixed(1);
+                        const avg = (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1);
+                        return `${min}~${max}°, 평균${avg}°`;
+                      })()})
+                    </span>
+                  )}
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer bg-white/20 px-2 py-1 rounded">
+                  <input
+                    type="checkbox"
+                    checked={visibleLines.back}
+                    onChange={(e) => setVisibleLines({ ...visibleLines, back: e.target.checked })}
+                    className="w-3.5 h-3.5 accent-blue-500"
+                  />
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                  <span>팬뒤</span>
+                  {chartData.length > 0 && visibleLines.back && (
+                    <span className="text-[10px] sm:text-xs text-gray-700">
+                      ({(() => {
+                        const temps = chartData.map(d => d.backTemp).filter(t => t !== null) as number[];
+                        if (temps.length === 0) return '-';
+                        const min = Math.min(...temps).toFixed(1);
+                        const max = Math.max(...temps).toFixed(1);
+                        const avg = (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1);
+                        return `${min}~${max}°, 평균${avg}°`;
+                      })()})
+                    </span>
+                  )}
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer bg-white/20 px-2 py-1 rounded">
+                  <input
+                    type="checkbox"
+                    checked={visibleLines.top}
+                    onChange={(e) => setVisibleLines({ ...visibleLines, top: e.target.checked })}
+                    className="w-3.5 h-3.5 accent-amber-500"
+                  />
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                  <span>천장</span>
+                  {chartData.length > 0 && visibleLines.top && (
+                    <span className="text-[10px] sm:text-xs text-gray-700">
+                      ({(() => {
+                        const temps = chartData.map(d => d.topTemp).filter(t => t !== null) as number[];
+                        if (temps.length === 0) return '-';
+                        const min = Math.min(...temps).toFixed(1);
+                        const max = Math.max(...temps).toFixed(1);
+                        const avg = (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1);
+                        return `${min}~${max}°, 평균${avg}°`;
+                      })()})
+                    </span>
+                  )}
+                </label>
+              </div>
             </header>
             <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-6">
               {chartData.length === 0 ? (
@@ -849,8 +869,8 @@ export default function Environment() {
                   데이터를 수집하는 중입니다...
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={chartData}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis
                       dataKey="timestamp"
@@ -859,16 +879,19 @@ export default function Environment() {
                       textAnchor="end"
                       height={60}
                       interval="preserveStartEnd"
+                      label={{ value: '시간', position: 'insideBottom', offset: -5, fontSize: 11 }}
                     />
                     <YAxis
                       tick={{ fontSize: 10 }}
                       domain={['dataMin - 2', 'dataMax + 2']}
                       tickFormatter={(value) => `${value}°`}
+                      label={{ value: '온도(°C)', angle: -90, position: 'insideLeft', fontSize: 11 }}
                     />
                     <Tooltip
-                      formatter={(value: number) => [`${value?.toFixed(1)}°C`, '']}
-                      labelStyle={{ fontSize: 12 }}
-                      contentStyle={{ fontSize: 12 }}
+                      formatter={(value: number, name: string) => [`${value?.toFixed(1)}°C`, name]}
+                      labelFormatter={(label) => `시간: ${label}`}
+                      labelStyle={{ fontSize: 12, fontWeight: 'bold' }}
+                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
                     />
                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                     {visibleLines.front && (
@@ -878,8 +901,9 @@ export default function Environment() {
                         stroke="#22c55e"
                         name="팬 앞"
                         strokeWidth={2}
-                        dot={chartData.length < 50}
+                        dot={chartData.length < 30}
                         connectNulls
+                        activeDot={{ r: 6 }}
                       />
                     )}
                     {visibleLines.back && (
@@ -889,8 +913,9 @@ export default function Environment() {
                         stroke="#3b82f6"
                         name="팬 뒤"
                         strokeWidth={2}
-                        dot={chartData.length < 50}
+                        dot={chartData.length < 30}
                         connectNulls
+                        activeDot={{ r: 6 }}
                       />
                     )}
                     {visibleLines.top && (
@@ -900,23 +925,101 @@ export default function Environment() {
                         stroke="#f59e0b"
                         name="천장"
                         strokeWidth={2}
-                        dot={chartData.length < 50}
+                        dot={chartData.length < 30}
                         connectNulls
+                        activeDot={{ r: 6 }}
                       />
                     )}
                   </LineChart>
                 </ResponsiveContainer>
+              )}
+              {/* 데이터 포인트 수 표시 */}
+              {chartData.length > 0 && (
+                <div className="text-[10px] sm:text-xs text-gray-500 text-right mt-2">
+                  데이터 포인트: {chartData.length}개
+                </div>
               )}
             </div>
           </section>
 
           {/* 습도 차트 */}
           <section>
-            <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl flex items-center justify-between">
-              <h2 className="text-sm sm:text-xl font-semibold m-0">💧 습도 타임라인</h2>
-              <span className="text-xs sm:text-sm text-gray-800">
-                {chartInterval === "1m" ? "1분" : chartInterval === "5m" ? "5분" : chartInterval === "10m" ? "10분" : chartInterval === "1h" ? "1시간" : chartInterval === "1d" ? "1일" : chartInterval === "1w" ? "1주" : "1달"} 단위
-              </span>
+            <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm sm:text-xl font-semibold m-0">💧 습도 타임라인</h2>
+                <span className="text-xs sm:text-sm text-gray-800 bg-white/30 px-2 py-1 rounded">
+                  {chartInterval === "1m" ? "1분" : chartInterval === "5m" ? "5분" : chartInterval === "10m" ? "10분" : chartInterval === "1h" ? "1시간" : chartInterval === "1d" ? "1일" : chartInterval === "1w" ? "1주" : "1달"} 단위
+                </span>
+              </div>
+              {/* 체크박스 + 통계 정보 */}
+              <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm">
+                <label className="flex items-center gap-1.5 cursor-pointer bg-white/20 px-2 py-1 rounded">
+                  <input
+                    type="checkbox"
+                    checked={visibleLines.front}
+                    onChange={(e) => setVisibleLines({ ...visibleLines, front: e.target.checked })}
+                    className="w-3.5 h-3.5 accent-green-500"
+                  />
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                  <span>팬앞</span>
+                  {chartData.length > 0 && visibleLines.front && (
+                    <span className="text-[10px] sm:text-xs text-gray-700">
+                      ({(() => {
+                        const hums = chartData.map(d => d.frontHum).filter(h => h !== null) as number[];
+                        if (hums.length === 0) return '-';
+                        const min = Math.min(...hums).toFixed(1);
+                        const max = Math.max(...hums).toFixed(1);
+                        const avg = (hums.reduce((a, b) => a + b, 0) / hums.length).toFixed(1);
+                        return `${min}~${max}%, 평균${avg}%`;
+                      })()})
+                    </span>
+                  )}
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer bg-white/20 px-2 py-1 rounded">
+                  <input
+                    type="checkbox"
+                    checked={visibleLines.back}
+                    onChange={(e) => setVisibleLines({ ...visibleLines, back: e.target.checked })}
+                    className="w-3.5 h-3.5 accent-blue-500"
+                  />
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                  <span>팬뒤</span>
+                  {chartData.length > 0 && visibleLines.back && (
+                    <span className="text-[10px] sm:text-xs text-gray-700">
+                      ({(() => {
+                        const hums = chartData.map(d => d.backHum).filter(h => h !== null) as number[];
+                        if (hums.length === 0) return '-';
+                        const min = Math.min(...hums).toFixed(1);
+                        const max = Math.max(...hums).toFixed(1);
+                        const avg = (hums.reduce((a, b) => a + b, 0) / hums.length).toFixed(1);
+                        return `${min}~${max}%, 평균${avg}%`;
+                      })()})
+                    </span>
+                  )}
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer bg-white/20 px-2 py-1 rounded">
+                  <input
+                    type="checkbox"
+                    checked={visibleLines.top}
+                    onChange={(e) => setVisibleLines({ ...visibleLines, top: e.target.checked })}
+                    className="w-3.5 h-3.5 accent-amber-500"
+                  />
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                  <span>천장</span>
+                  {chartData.length > 0 && visibleLines.top && (
+                    <span className="text-[10px] sm:text-xs text-gray-700">
+                      ({(() => {
+                        const hums = chartData.map(d => d.topHum).filter(h => h !== null) as number[];
+                        if (hums.length === 0) return '-';
+                        const min = Math.min(...hums).toFixed(1);
+                        const max = Math.max(...hums).toFixed(1);
+                        const avg = (hums.reduce((a, b) => a + b, 0) / hums.length).toFixed(1);
+                        return `${min}~${max}%, 평균${avg}%`;
+                      })()})
+                    </span>
+                  )}
+                </label>
+              </div>
             </header>
             <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-6">
               {chartData.length === 0 ? (
@@ -924,8 +1027,8 @@ export default function Environment() {
                   데이터를 수집하는 중입니다...
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={chartData}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis
                       dataKey="timestamp"
@@ -934,16 +1037,19 @@ export default function Environment() {
                       textAnchor="end"
                       height={60}
                       interval="preserveStartEnd"
+                      label={{ value: '시간', position: 'insideBottom', offset: -5, fontSize: 11 }}
                     />
                     <YAxis
                       tick={{ fontSize: 10 }}
                       domain={['dataMin - 5', 'dataMax + 5']}
                       tickFormatter={(value) => `${value}%`}
+                      label={{ value: '습도(%)', angle: -90, position: 'insideLeft', fontSize: 11 }}
                     />
                     <Tooltip
-                      formatter={(value: number) => [`${value?.toFixed(1)}%`, '']}
-                      labelStyle={{ fontSize: 12 }}
-                      contentStyle={{ fontSize: 12 }}
+                      formatter={(value: number, name: string) => [`${value?.toFixed(1)}%`, name]}
+                      labelFormatter={(label) => `시간: ${label}`}
+                      labelStyle={{ fontSize: 12, fontWeight: 'bold' }}
+                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
                     />
                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                     {visibleLines.front && (
@@ -953,8 +1059,9 @@ export default function Environment() {
                         stroke="#22c55e"
                         name="팬 앞"
                         strokeWidth={2}
-                        dot={chartData.length < 50}
+                        dot={chartData.length < 30}
                         connectNulls
+                        activeDot={{ r: 6 }}
                       />
                     )}
                     {visibleLines.back && (
@@ -964,8 +1071,9 @@ export default function Environment() {
                         stroke="#3b82f6"
                         name="팬 뒤"
                         strokeWidth={2}
-                        dot={chartData.length < 50}
+                        dot={chartData.length < 30}
                         connectNulls
+                        activeDot={{ r: 6 }}
                       />
                     )}
                     {visibleLines.top && (
@@ -975,12 +1083,19 @@ export default function Environment() {
                         stroke="#f59e0b"
                         name="천장"
                         strokeWidth={2}
-                        dot={chartData.length < 50}
+                        dot={chartData.length < 30}
                         connectNulls
+                        activeDot={{ r: 6 }}
                       />
                     )}
                   </LineChart>
                 </ResponsiveContainer>
+              )}
+              {/* 데이터 포인트 수 표시 */}
+              {chartData.length > 0 && (
+                <div className="text-[10px] sm:text-xs text-gray-500 text-right mt-2">
+                  데이터 포인트: {chartData.length}개
+                </div>
               )}
             </div>
           </section>
