@@ -56,8 +56,11 @@ function App() {
       {/* 상단 헤더 */}
       <Header connectionState={connectionState} />
 
-      {/* 메인 콘텐츠 - 스크롤 가능, 하단 탭바 공간 확보 */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-20 min-h-0">
+      {/* 탭 네비게이션 */}
+      <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {/* 메인 콘텐츠 - 스크롤 가능 */}
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-5 min-h-0">
         {activeTab === "devices" && (
           <DevicesControl
             deviceState={deviceState}
@@ -79,8 +82,15 @@ function App() {
         )}
       </main>
 
-      {/* 하단 탭 네비게이션 (고정) */}
-      <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+      {/* 푸터 */}
+      <footer className="bg-white border-t border-gray-200 px-4 py-3 flex-shrink-0">
+        <div className="max-w-screen-2xl mx-auto text-center text-xs text-gray-500">
+          <p className="mb-1">탄생농원 스마트팜 환경제어 시스템 v2.5</p>
+          <p className="text-2xs text-gray-400">
+            Powered by React + TypeScript + HiveMQ Cloud
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

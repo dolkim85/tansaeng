@@ -4,38 +4,36 @@ interface TabNavigationProps {
 }
 
 const tabs = [
-  { id: "devices", label: "장치", icon: "🎛️" },
-  { id: "mist", label: "분무", icon: "💧" },
-  { id: "environment", label: "환경", icon: "📊" },
+  { id: "devices", label: "장치 제어", icon: "🎛️" },
+  { id: "mist", label: "분무수경", icon: "💧" },
+  { id: "environment", label: "환경 모니터링", icon: "📊" },
   { id: "cameras", label: "카메라", icon: "📷" },
   { id: "settings", label: "설정", icon: "⚙️" },
 ];
 
 export default function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 safe-area-bottom">
-      <div className="grid grid-cols-5 h-16">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => onTabChange(tab.id)}
-            className={`
-              flex flex-col items-center justify-center gap-0.5
-              transition-all duration-200 relative
-              ${activeTab === tab.id
-                ? 'text-farm-600'
-                : 'text-gray-400 active:text-farm-500'
-              }
-            `}
-          >
-            {/* 활성 탭 인디케이터 */}
-            {activeTab === tab.id && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-farm-500 rounded-b-full" />
-            )}
-            <span className="text-2xl">{tab.icon}</span>
-            <span className="text-[10px] font-medium">{tab.label}</span>
-          </button>
-        ))}
+    <nav className="bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
+      <div className="max-w-screen-2xl mx-auto px-2 sm:px-4">
+        <div className="flex justify-start sm:justify-center gap-1 overflow-x-auto scrollbar-hide">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={`
+                flex items-center gap-1.5 px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium
+                transition-all duration-200 whitespace-nowrap border-b-2 flex-shrink-0
+                ${activeTab === tab.id
+                  ? 'border-farm-500 bg-farm-50 text-farm-700'
+                  : 'border-transparent text-gray-500 hover:bg-gray-50 hover:text-farm-700'
+                }
+              `}
+            >
+              <span className="text-base sm:text-lg">{tab.icon}</span>
+              <span className="hidden xs:inline sm:inline">{tab.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </nav>
   );

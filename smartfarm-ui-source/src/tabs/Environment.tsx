@@ -4,6 +4,7 @@ import SensorRow from "../components/SensorRow";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import * as XLSX from 'xlsx';
 
 interface SensorData {
   temperature: number | null;
@@ -60,6 +61,10 @@ export default function Environment() {
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(new Date());
   const [historicalData, setHistoricalData] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // 페이징 관련 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 30;
 
   // 기타 센서 데이터
   const [currentValues] = useState<Partial<SensorSnapshot>>({
@@ -277,6 +282,7 @@ export default function Environment() {
     }
 
     setIsLoadingHistory(true);
+    setCurrentPage(1); // 조회 시 첫 페이지로 이동
     try {
       const startStr = selectedStartDate.toISOString().split('T')[0];
       const endStr = selectedEndDate.toISOString().split('T')[0];
@@ -298,6 +304,50 @@ export default function Environment() {
     }
   };
 
+  // 엑셀 내보내기 함수
+  const exportToExcel = () => {
+    if (historicalData.length === 0) {
+      alert('내보낼 데이터가 없습니다.');
+      return;
+    }
+
+    // 데이터 변환
+    const excelData = historicalData.map((record) => ({
+      '위치': record.sensor_location === 'front' ? '내부팬 앞' :
+             record.sensor_location === 'back' ? '내부팬 뒤' :
+             record.sensor_location === 'top' ? '천장' : record.sensor_location,
+      '온도 (°C)': record.temperature ?? '-',
+      '습도 (%)': record.humidity ?? '-',
+      '기록 시간': new Date(record.recorded_at).toLocaleString('ko-KR'),
+    }));
+
+    // 워크시트 생성
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '환경 데이터');
+
+    // 파일명 생성
+    const startStr = selectedStartDate?.toISOString().split('T')[0] || '';
+    const endStr = selectedEndDate?.toISOString().split('T')[0] || '';
+    const fileName = `환경데이터_${startStr}_${endStr}.xlsx`;
+
+    // 다운로드
+    XLSX.writeFile(workbook, fileName);
+  };
+
+  // 페이징 관련 계산
+  const totalPages = Math.ceil(historicalData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentData = historicalData.slice(startIndex, endIndex);
+
+  // 페이지 변경 함수
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
   // 평균값 계산 (DevicesControl과 동일하게 null 제외하고 계산)
   const temps = [frontSensor.temperature, backSensor.temperature, topSensor.temperature].filter((t) => t !== null) as number[];
   const hums = [frontSensor.humidity, backSensor.humidity, topSensor.humidity].filter((h) => h !== null) as number[];
@@ -306,48 +356,48 @@ export default function Environment() {
   const avgHum = hums.length > 0 ? hums.reduce((a, b) => a + b, 0) / hums.length : null;
 
   return (
-    <div className="bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4">
+    <div className="bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4">
         {/* 페이지 헤더 */}
-        <header className="bg-farm-500 p-4 sm:px-6 rounded-xl mb-6">
-          <div className="flex items-center justify-between">
+        <header className="bg-farm-500 p-3 sm:p-4 sm:px-6 rounded-lg sm:rounded-xl mb-3 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <h1 className="text-2xl font-bold m-0">📊 환경 모니터링</h1>
-              <p className="text-sm text-gray-800 mt-1 m-0">
+              <h1 className="text-lg sm:text-2xl font-bold m-0">환경 모니터링</h1>
+              <p className="text-xs sm:text-sm text-gray-800 mt-1 m-0 hidden sm:block">
                 온도, 습도, EC, pH 등 센서 데이터를 실시간으로 모니터링합니다
               </p>
             </div>
             {/* 서버 연결 상태 */}
-            <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-lg">
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-white/20 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg self-start sm:self-auto">
               <div
-                className={`w-3 h-3 rounded-full ${
+                className={`w-2 sm:w-3 h-2 sm:h-3 rounded-full flex-shrink-0 ${
                   serverConnected ? "bg-green-300 animate-pulse" : "bg-red-300"
                 }`}
               ></div>
-              <span className="text-sm font-medium">
-                서버 {serverConnected ? "작동 중" : "연결 끊김"}
+              <span className="text-xs sm:text-sm font-medium whitespace-nowrap">
+                서버 {serverConnected ? "작동 중" : "끊김"}
               </span>
             </div>
           </div>
         </header>
 
         {/* 온습도 센서 데이터 - 개선된 레이아웃 */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4 mb-3 sm:mb-6">
           {/* 평균 온습도 (좌측) */}
-          <section className="lg:col-span-1">
-            <header className="bg-farm-500 px-3 py-2 rounded-t-xl">
-              <h3 className="text-sm font-semibold m-0">📊 평균</h3>
+          <section className="col-span-1">
+            <header className="bg-farm-500 px-2 sm:px-3 py-1.5 sm:py-2 rounded-t-lg sm:rounded-t-xl">
+              <h3 className="text-xs sm:text-sm font-semibold m-0">평균</h3>
             </header>
-            <div className="bg-white rounded-b-xl shadow-card p-3 space-y-3">
+            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-3 space-y-2 sm:space-y-3">
               <div className="text-center">
-                <div className="text-xs text-gray-600 mb-1">평균 온도</div>
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-[10px] sm:text-xs text-gray-600 mb-0.5 sm:mb-1">평균 온도</div>
+                <div className="text-lg sm:text-2xl font-bold text-green-600">
                   {avgTemp !== null ? avgTemp.toFixed(1) : '0.0'}°C
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-600 mb-1">평균 습도</div>
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-[10px] sm:text-xs text-gray-600 mb-0.5 sm:mb-1">평균 습도</div>
+                <div className="text-lg sm:text-2xl font-bold text-blue-600">
                   {avgHum !== null ? avgHum.toFixed(1) : '0.0'}%
                 </div>
               </div>
@@ -355,20 +405,20 @@ export default function Environment() {
           </section>
 
           {/* 내부팬 앞 */}
-          <section className="lg:col-span-1">
-            <header className="bg-farm-500 px-3 py-2 rounded-t-xl">
-              <h3 className="text-sm font-semibold m-0">📍 내부팬 앞</h3>
+          <section className="col-span-1">
+            <header className="bg-farm-500 px-2 sm:px-3 py-1.5 sm:py-2 rounded-t-lg sm:rounded-t-xl">
+              <h3 className="text-xs sm:text-sm font-semibold m-0">팬 앞</h3>
             </header>
-            <div className="bg-white rounded-b-xl shadow-card p-3 space-y-2">
+            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-3 space-y-1.5 sm:space-y-2">
               <div className="text-center">
-                <div className="text-xs text-gray-600">🌡️ 온도</div>
-                <div className="text-xl font-semibold text-green-600">
+                <div className="text-[10px] sm:text-xs text-gray-600">온도</div>
+                <div className="text-base sm:text-xl font-semibold text-green-600">
                   {frontSensor.temperature !== null ? frontSensor.temperature.toFixed(1) : '0.0'}°C
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-600">💧 습도</div>
-                <div className="text-xl font-semibold text-blue-600">
+                <div className="text-[10px] sm:text-xs text-gray-600">습도</div>
+                <div className="text-base sm:text-xl font-semibold text-blue-600">
                   {frontSensor.humidity !== null ? frontSensor.humidity.toFixed(1) : '0.0'}%
                 </div>
               </div>
@@ -376,20 +426,20 @@ export default function Environment() {
           </section>
 
           {/* 내부팬 뒤 */}
-          <section className="lg:col-span-1">
-            <header className="bg-farm-500 px-3 py-2 rounded-t-xl">
-              <h3 className="text-sm font-semibold m-0">📍 내부팬 뒤</h3>
+          <section className="col-span-1">
+            <header className="bg-farm-500 px-2 sm:px-3 py-1.5 sm:py-2 rounded-t-lg sm:rounded-t-xl">
+              <h3 className="text-xs sm:text-sm font-semibold m-0">팬 뒤</h3>
             </header>
-            <div className="bg-white rounded-b-xl shadow-card p-3 space-y-2">
+            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-3 space-y-1.5 sm:space-y-2">
               <div className="text-center">
-                <div className="text-xs text-gray-600">🌡️ 온도</div>
-                <div className="text-xl font-semibold text-green-600">
+                <div className="text-[10px] sm:text-xs text-gray-600">온도</div>
+                <div className="text-base sm:text-xl font-semibold text-green-600">
                   {backSensor.temperature !== null ? backSensor.temperature.toFixed(1) : '0.0'}°C
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-600">💧 습도</div>
-                <div className="text-xl font-semibold text-blue-600">
+                <div className="text-[10px] sm:text-xs text-gray-600">습도</div>
+                <div className="text-base sm:text-xl font-semibold text-blue-600">
                   {backSensor.humidity !== null ? backSensor.humidity.toFixed(1) : '0.0'}%
                 </div>
               </div>
@@ -397,20 +447,20 @@ export default function Environment() {
           </section>
 
           {/* 천장 */}
-          <section className="lg:col-span-1">
-            <header className="bg-farm-500 px-3 py-2 rounded-t-xl">
-              <h3 className="text-sm font-semibold m-0">📍 천장</h3>
+          <section className="col-span-1">
+            <header className="bg-farm-500 px-2 sm:px-3 py-1.5 sm:py-2 rounded-t-lg sm:rounded-t-xl">
+              <h3 className="text-xs sm:text-sm font-semibold m-0">천장</h3>
             </header>
-            <div className="bg-white rounded-b-xl shadow-card p-3 space-y-2">
+            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-3 space-y-1.5 sm:space-y-2">
               <div className="text-center">
-                <div className="text-xs text-gray-600">🌡️ 온도</div>
-                <div className="text-xl font-semibold text-green-600">
+                <div className="text-[10px] sm:text-xs text-gray-600">온도</div>
+                <div className="text-base sm:text-xl font-semibold text-green-600">
                   {topSensor.temperature !== null ? topSensor.temperature.toFixed(1) : '0.0'}°C
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-600">💧 습도</div>
-                <div className="text-xl font-semibold text-blue-600">
+                <div className="text-[10px] sm:text-xs text-gray-600">습도</div>
+                <div className="text-base sm:text-xl font-semibold text-blue-600">
                   {topSensor.humidity !== null ? topSensor.humidity.toFixed(1) : '0.0'}%
                 </div>
               </div>
@@ -418,20 +468,20 @@ export default function Environment() {
           </section>
 
           {/* 10분 평균 온습도 (우측) */}
-          <section className="lg:col-span-1">
-            <header className="bg-farm-500 px-3 py-2 rounded-t-xl">
-              <h3 className="text-sm font-semibold m-0">⏱️ 10분 평균</h3>
+          <section className="col-span-2 sm:col-span-1">
+            <header className="bg-farm-500 px-2 sm:px-3 py-1.5 sm:py-2 rounded-t-lg sm:rounded-t-xl">
+              <h3 className="text-xs sm:text-sm font-semibold m-0">10분 평균</h3>
             </header>
-            <div className="bg-white rounded-b-xl shadow-card p-3 space-y-3">
+            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-3 space-y-2 sm:space-y-3">
               <div className="text-center">
-                <div className="text-xs text-gray-600 mb-1">평균 온도</div>
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-[10px] sm:text-xs text-gray-600 mb-0.5 sm:mb-1">평균 온도</div>
+                <div className="text-lg sm:text-2xl font-bold text-green-600">
                   {tenMinAvg.temperature !== null ? tenMinAvg.temperature.toFixed(1) : '0.0'}°C
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-600 mb-1">평균 습도</div>
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-[10px] sm:text-xs text-gray-600 mb-0.5 sm:mb-1">평균 습도</div>
+                <div className="text-lg sm:text-2xl font-bold text-blue-600">
                   {tenMinAvg.humidity !== null ? tenMinAvg.humidity.toFixed(1) : '0.0'}%
                 </div>
               </div>
@@ -440,74 +490,154 @@ export default function Environment() {
         </div>
 
         {/* 히스토리 데이터 조회 섹션 */}
-        <section className="mb-6">
-          <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
-            <h2 className="text-xl font-semibold m-0">📅 히스토리 데이터 조회</h2>
+        <section className="mb-3 sm:mb-6">
+          <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
+            <h2 className="text-sm sm:text-xl font-semibold m-0">히스토리 조회</h2>
           </header>
-          <div className="bg-white rounded-b-xl shadow-card p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-3 sm:p-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4 items-end">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   시작 날짜
                 </label>
                 <DatePicker
                   selected={selectedStartDate}
                   onChange={(date) => setSelectedStartDate(date)}
                   dateFormat="yyyy-MM-dd"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-base"
+                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg text-xs sm:text-base"
                   maxDate={new Date()}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   종료 날짜
                 </label>
                 <DatePicker
                   selected={selectedEndDate}
                   onChange={(date) => setSelectedEndDate(date)}
                   dateFormat="yyyy-MM-dd"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-base"
+                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg text-xs sm:text-base"
                   maxDate={new Date()}
                 />
               </div>
-              <div>
+              <div className="col-span-2 sm:col-span-1">
                 <button
                   onClick={loadHistoricalData}
                   disabled={isLoadingHistory}
-                  className="w-full px-6 py-2 bg-farm-500 text-gray-900 rounded-lg font-medium hover:bg-farm-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-3 sm:px-6 py-1.5 sm:py-2 bg-farm-500 text-gray-900 rounded-lg text-xs sm:text-base font-medium hover:bg-farm-600 active:bg-farm-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isLoadingHistory ? '조회 중...' : '데이터 조회'}
+                  {isLoadingHistory ? '조회 중...' : '조회'}
                 </button>
               </div>
             </div>
 
             {/* 히스토리 데이터 테이블 */}
             {historicalData.length > 0 && (
-              <div className="mt-6 overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">위치</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">온도 (°C)</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">습도 (%)</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">기록 시간</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {historicalData.slice(0, 100).map((record, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-900">{record.sensor_location}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{record.temperature ?? '-'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{record.humidity ?? '-'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{new Date(record.recorded_at).toLocaleString('ko-KR')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {historicalData.length > 100 && (
-                  <p className="text-sm text-gray-500 mt-2 text-center">
-                    처음 100개 레코드만 표시됩니다 (전체: {historicalData.length}개)
+              <div className="mt-6">
+                {/* 상단 정보 및 엑셀 내보내기 버튼 */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                  <p className="text-sm text-gray-600">
+                    전체 {historicalData.length}개 중 {startIndex + 1} - {Math.min(endIndex, historicalData.length)}개 표시
                   </p>
+                  <button
+                    onClick={exportToExcel}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-2 text-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    엑셀 내보내기
+                  </button>
+                </div>
+
+                {/* 테이블 */}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">위치</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">온도 (°C)</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">습도 (%)</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">기록 시간</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {currentData.map((record, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {record.sensor_location === 'front' ? '내부팬 앞' :
+                             record.sensor_location === 'back' ? '내부팬 뒤' :
+                             record.sensor_location === 'top' ? '천장' : record.sensor_location}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{record.temperature ?? '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{record.humidity ?? '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{new Date(record.recorded_at).toLocaleString('ko-KR')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 페이징 */}
+                {totalPages > 1 && (
+                  <div className="flex flex-wrap justify-center items-center gap-1 sm:gap-2 mt-4">
+                    <button
+                      onClick={() => goToPage(1)}
+                      disabled={currentPage === 1}
+                      className="px-2 sm:px-3 py-1 rounded border border-gray-300 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      처음
+                    </button>
+                    <button
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="px-2 sm:px-3 py-1 rounded border border-gray-300 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      이전
+                    </button>
+
+                    {/* 페이지 번호 */}
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => goToPage(pageNum)}
+                          className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm ${
+                            currentPage === pageNum
+                              ? 'bg-farm-500 text-gray-900 font-semibold'
+                              : 'border border-gray-300 hover:bg-gray-100'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="px-2 sm:px-3 py-1 rounded border border-gray-300 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      다음
+                    </button>
+                    <button
+                      onClick={() => goToPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="px-2 sm:px-3 py-1 rounded border border-gray-300 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      마지막
+                    </button>
+                  </div>
                 )}
               </div>
             )}
@@ -515,20 +645,20 @@ export default function Environment() {
         </section>
 
         {/* 필터 섹션 */}
-        <section className="mb-6">
-          <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
-            <h2 className="text-xl font-semibold m-0">🔍 실시간 차트 조회 조건</h2>
+        <section className="mb-3 sm:mb-6">
+          <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
+            <h2 className="text-sm sm:text-xl font-semibold m-0">차트 조회 조건</h2>
           </header>
-          <div className="bg-white rounded-b-xl shadow-card p-6">
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-4">
+          <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-3 sm:p-6">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   기간
                 </label>
                 <select
                   value={period}
                   onChange={(e) => setPeriod(e.target.value as "current" | "1h" | "1w" | "1m")}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-base"
+                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg text-xs sm:text-base"
                 >
                   <option value="current">현재</option>
                   <option value="1h">최근 1시간</option>
@@ -537,18 +667,18 @@ export default function Environment() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   Zone
                 </label>
                 <select
                   value={selectedZone}
                   onChange={(e) => setSelectedZone(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-base"
+                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-lg text-xs sm:text-base"
                 >
                   <option value="all">전체</option>
-                  <option value="zone_a">Zone A (상층)</option>
-                  <option value="zone_b">Zone B (하층)</option>
-                  <option value="zone_c">Zone C (테스트베드)</option>
+                  <option value="zone_a">Zone A</option>
+                  <option value="zone_b">Zone B</option>
+                  <option value="zone_c">Zone C</option>
                 </select>
               </div>
             </div>
@@ -556,30 +686,30 @@ export default function Environment() {
         </section>
 
         {/* 온도/습도 타임라인 차트 (좌우 분리) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6 mb-3 sm:mb-6">
           {/* 온도 차트 */}
           <section>
-            <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
-              <h2 className="text-xl font-semibold m-0">📊 온도 타임라인</h2>
+            <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
+              <h2 className="text-sm sm:text-xl font-semibold m-0">온도 타임라인</h2>
             </header>
-            <div className="bg-white rounded-b-xl shadow-card p-6">
+            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-6">
               {chartData.length === 0 ? (
-                <div className="flex items-center justify-center h-64 text-gray-500">
+                <div className="flex items-center justify-center h-32 sm:h-64 text-xs sm:text-base text-gray-500">
                   데이터를 수집하는 중입니다...
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={400}>
+                <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="timestamp" />
-                    <YAxis />
+                    <XAxis dataKey="timestamp" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
                     <Tooltip />
-                    <Legend />
+                    <Legend wrapperStyle={{ fontSize: '10px' }} />
                     <Line
                       type="monotone"
                       dataKey="frontTemp"
                       stroke="#22c55e"
-                      name="앞 온도"
+                      name="앞"
                       strokeWidth={2}
                       dot={false}
                     />
@@ -587,7 +717,7 @@ export default function Environment() {
                       type="monotone"
                       dataKey="backTemp"
                       stroke="#3b82f6"
-                      name="뒤 온도"
+                      name="뒤"
                       strokeWidth={2}
                       dot={false}
                     />
@@ -595,7 +725,7 @@ export default function Environment() {
                       type="monotone"
                       dataKey="topTemp"
                       stroke="#f59e0b"
-                      name="천장 온도"
+                      name="천장"
                       strokeWidth={2}
                       dot={false}
                     />
@@ -607,27 +737,27 @@ export default function Environment() {
 
           {/* 습도 차트 */}
           <section>
-            <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
-              <h2 className="text-xl font-semibold m-0">📊 습도 타임라인</h2>
+            <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
+              <h2 className="text-sm sm:text-xl font-semibold m-0">습도 타임라인</h2>
             </header>
-            <div className="bg-white rounded-b-xl shadow-card p-6">
+            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-6">
               {chartData.length === 0 ? (
-                <div className="flex items-center justify-center h-64 text-gray-500">
+                <div className="flex items-center justify-center h-32 sm:h-64 text-xs sm:text-base text-gray-500">
                   데이터를 수집하는 중입니다...
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={400}>
+                <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="timestamp" />
-                    <YAxis />
+                    <XAxis dataKey="timestamp" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
                     <Tooltip />
-                    <Legend />
+                    <Legend wrapperStyle={{ fontSize: '10px' }} />
                     <Line
                       type="monotone"
                       dataKey="frontHum"
                       stroke="#22c55e"
-                      name="앞 습도"
+                      name="앞"
                       strokeWidth={2}
                       dot={false}
                     />
@@ -635,7 +765,7 @@ export default function Environment() {
                       type="monotone"
                       dataKey="backHum"
                       stroke="#3b82f6"
-                      name="뒤 습도"
+                      name="뒤"
                       strokeWidth={2}
                       dot={false}
                     />
@@ -643,7 +773,7 @@ export default function Environment() {
                       type="monotone"
                       dataKey="topHum"
                       stroke="#f59e0b"
-                      name="천장 습도"
+                      name="천장"
                       strokeWidth={2}
                       dot={false}
                     />
@@ -655,12 +785,12 @@ export default function Environment() {
         </div>
 
         {/* 실시간 센서 데이터 */}
-        <section className="mb-6">
-          <header className="bg-farm-500 px-6 py-4 rounded-t-xl">
-            <h2 className="text-xl font-semibold m-0">📈 실시간 센서 데이터</h2>
+        <section className="mb-3 sm:mb-6">
+          <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
+            <h2 className="text-sm sm:text-xl font-semibold m-0">실시간 센서 데이터</h2>
           </header>
-          <div className="bg-white rounded-b-xl shadow-card p-6">
-            <dl className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-3">
+          <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-3 sm:p-6">
+            <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
               <SensorRow label="근권 온도" value={currentValues.rootTemp} unit="°C" />
               <SensorRow label="근권 습도" value={currentValues.rootHumidity} unit="%" />
               <SensorRow label="EC" value={currentValues.ec} unit="mS/cm" />
