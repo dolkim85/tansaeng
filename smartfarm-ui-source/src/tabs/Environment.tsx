@@ -241,20 +241,41 @@ export default function Environment() {
     return result.reverse();
   };
 
-  // 기간별 과거 데이터 로드
+  // 시간 단위에 따른 데이터 로드 (period와 chartInterval에 따라)
   useEffect(() => {
-    const loadHistoricalChartData = async () => {
-      if (period === "current") {
-        // current 모드는 실시간 데이터만 사용
-        return;
-      }
-
+    const loadChartData = async () => {
       try {
         // 기간에 따른 시작일 계산
         const endDate = new Date();
         const startDate = new Date();
 
-        if (period === "1h") {
+        // chartInterval에 따라 적절한 기간 설정
+        if (period === "current") {
+          // current 모드에서도 chartInterval에 따라 데이터 범위 결정
+          switch (chartInterval) {
+            case "1m":
+              startDate.setMinutes(startDate.getMinutes() - 30); // 최근 30분
+              break;
+            case "5m":
+              startDate.setHours(startDate.getHours() - 2); // 최근 2시간
+              break;
+            case "10m":
+              startDate.setHours(startDate.getHours() - 4); // 최근 4시간
+              break;
+            case "1h":
+              startDate.setHours(startDate.getHours() - 24); // 최근 24시간
+              break;
+            case "1d":
+              startDate.setDate(startDate.getDate() - 7); // 최근 1주
+              break;
+            case "1w":
+              startDate.setMonth(startDate.getMonth() - 1); // 최근 1달
+              break;
+            case "1M":
+              startDate.setMonth(startDate.getMonth() - 6); // 최근 6개월
+              break;
+          }
+        } else if (period === "1h") {
           startDate.setHours(startDate.getHours() - 1);
         } else if (period === "1w") {
           startDate.setDate(startDate.getDate() - 7);
@@ -271,22 +292,28 @@ export default function Environment() {
         const result = await response.json();
 
         if (result.success && result.data) {
+          // 시작 시간 이후의 데이터만 필터링 (더 정확한 범위)
+          const filteredData = result.data.filter((record: any) => {
+            const recordTime = new Date(record.recorded_at);
+            return recordTime >= startDate;
+          });
+
           // 시간 단위에 따라 데이터 집계
-          const aggregatedData = aggregateDataByInterval(result.data, chartInterval);
+          const aggregatedData = aggregateDataByInterval(filteredData, chartInterval);
           setChartData(aggregatedData);
         }
       } catch (error) {
-        console.error('Failed to load historical chart data:', error);
+        console.error('Failed to load chart data:', error);
       }
     };
 
-    loadHistoricalChartData();
+    loadChartData();
   }, [period, chartInterval]);
 
-  // 차트 데이터 업데이트 (실시간 데이터를 차트에 추가 - current 모드일 때만)
+  // 실시간 데이터 추가 (1분 단위일 때만 실시간 업데이트)
   useEffect(() => {
-    if (period !== "current") {
-      // current 모드가 아니면 실시간 업데이트 하지 않음
+    // 1분 단위가 아니거나 current 모드가 아니면 실시간 업데이트 안함
+    if (chartInterval !== "1m" || period !== "current") {
       return;
     }
 
@@ -310,12 +337,12 @@ export default function Environment() {
 
       setChartData((prev) => {
         const updated = [...prev, newDataPoint];
-        // current 모드는 최대 20개 포인트
-        const maxPoints = 20;
+        // 최대 30개 포인트 유지
+        const maxPoints = 30;
         return updated.slice(-maxPoints);
       });
     }
-  }, [frontSensor, backSensor, topSensor, period]);
+  }, [frontSensor, backSensor, topSensor, period, chartInterval]);
 
   // 10분 평균값 계산 (최근 10분 데이터 사용)
   useEffect(() => {
