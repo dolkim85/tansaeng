@@ -36,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['inquiry_id'])) {
 
             // 이메일 발송
             $emailSent = false;
+            $emailError = '';
             if ($inquiryInfo) {
                 try {
                     $mailer = new Mailer();
@@ -46,15 +47,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['inquiry_id'])) {
                         $inquiryInfo['message'],
                         $reply
                     );
+                    if (!$emailSent) {
+                        $emailError = $mailer->getLastError();
+                    }
                 } catch (Exception $mailEx) {
+                    $emailError = $mailEx->getMessage();
                     error_log('문의 답변 이메일 발송 실패: ' . $mailEx->getMessage());
                 }
             }
 
             if ($emailSent) {
-                $success = '답변이 저장되고 고객에게 이메일이 발송되었습니다.';
+                $success = '답변이 저장되고 고객에게 이메일이 발송되었습니다. (' . htmlspecialchars($inquiryInfo['email']) . ')';
             } else {
-                $success = '답변이 저장되었습니다. (이메일 발송 실패 - 나중에 다시 시도해주세요)';
+                $success = '답변이 저장되었습니다. (이메일 발송 실패: ' . htmlspecialchars($emailError) . ')';
             }
         } catch (Exception $e) {
             $error = '답변 저장에 실패했습니다: ' . $e->getMessage();

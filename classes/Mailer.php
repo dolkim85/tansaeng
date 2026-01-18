@@ -6,6 +6,7 @@ use PHPMailer\PHPMailer\Exception;
 
 class Mailer {
     private $mail;
+    private $lastError = '';
 
     public function __construct() {
         // PHPMailer 라이브러리 로드 (composer autoload 사용)
@@ -79,6 +80,7 @@ class Mailer {
             return $result;
 
         } catch (Exception $e) {
+            $this->lastError = $e->getMessage() . ' | ' . $this->mail->ErrorInfo;
             error_log("Email send failed to $to: " . $e->getMessage());
             error_log("Mailer Error: " . $this->mail->ErrorInfo);
             return false;
@@ -153,6 +155,15 @@ class Mailer {
 https://www.tansaeng.com";
 
         return $this->send($to, $subject, $body, $name);
+    }
+
+    /**
+     * 마지막 에러 메시지 반환
+     *
+     * @return string 에러 메시지
+     */
+    public function getLastError() {
+        return $this->lastError;
     }
 }
 ?>
