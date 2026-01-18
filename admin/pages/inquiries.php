@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['inquiry_id'])) {
         try {
             $pdo = Database::getInstance()->getConnection();
             $sql = "UPDATE contact_inquiries
-                    SET reply = ?, status = 'answered', replied_at = NOW(), replied_by = ?
+                    SET admin_reply = ?, status = 'answered', replied_at = NOW(), replied_by = ?
                     WHERE id = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$reply, $admin_id, $inquiry_id]);
@@ -362,7 +362,7 @@ try {
                                         </div>
 
                                         <div class="reply-section">
-                                            <?php if (!empty($inquiry['reply'])): ?>
+                                            <?php if (!empty($inquiry['admin_reply'])): ?>
                                                 <div class="reply-display">
                                                     <div class="reply-header">
                                                         <strong>✅ 관리자 답변</strong>
@@ -371,7 +371,7 @@ try {
                                                         </span>
                                                     </div>
                                                     <div class="reply-content">
-                                                        <?= nl2br(htmlspecialchars($inquiry['reply'])) ?>
+                                                        <?= nl2br(htmlspecialchars($inquiry['admin_reply'])) ?>
                                                     </div>
                                                 </div>
                                                 <div class="reply-buttons">
@@ -389,7 +389,7 @@ try {
                                         </div>
 
                                         <div class="reply-form-container" id="reply-form-<?= $inquiry['id'] ?>" style="display: none;">
-                                            <textarea name="reply_text_<?= $inquiry['id'] ?>" class="reply-textarea" placeholder="답변 내용을 입력하세요..."><?= htmlspecialchars($inquiry['reply'] ?? '') ?></textarea>
+                                            <textarea name="reply_text_<?= $inquiry['id'] ?>" class="reply-textarea" placeholder="답변 내용을 입력하세요..."><?= htmlspecialchars($inquiry['admin_reply'] ?? '') ?></textarea>
                                             <div class="form-actions">
                                                 <button type="button" class="btn btn-primary" onclick="submitReply(<?= $inquiry['id'] ?>)">답변 저장</button>
                                                 <button type="button" class="btn btn-outline" onclick="toggleReplyForm(<?= $inquiry['id'] ?>)">취소</button>
