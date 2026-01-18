@@ -8,10 +8,8 @@ class Mailer {
     private $mail;
 
     public function __construct() {
-        // PHPMailer 라이브러리 로드
-        require_once __DIR__ . '/../vendor/phpmailer/src/Exception.php';
-        require_once __DIR__ . '/../vendor/phpmailer/src/PHPMailer.php';
-        require_once __DIR__ . '/../vendor/phpmailer/src/SMTP.php';
+        // PHPMailer 라이브러리 로드 (composer autoload 사용)
+        require_once __DIR__ . '/../vendor/autoload.php';
 
         $this->mail = new PHPMailer(true);
         $this->configure();
