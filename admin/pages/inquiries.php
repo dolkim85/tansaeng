@@ -3,6 +3,7 @@
 $base_path = dirname(dirname(__DIR__));
 require_once $base_path . '/classes/Auth.php';
 require_once $base_path . '/classes/Database.php';
+require_once $base_path . '/classes/Mailer.php';
 
 $auth = Auth::getInstance();
 $auth->requireAdmin();
@@ -19,13 +20,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['inquiry_id'])) {
     if (!empty($reply)) {
         try {
             $pdo = Database::getInstance()->getConnection();
+
+            // 먼저 문의 정보 조회 (이메일 발송을 위해)
+            $infoSql = "SELECT name, email, subject, message FROM contact_inquiries WHERE id = ?";
+            $infoStmt = $pdo->prepare($infoSql);
+            $infoStmt->execute([$inquiry_id]);
+            $inquiryInfo = $infoStmt->fetch(PDO::FETCH_ASSOC);
+
+            // 답변 저장
             $sql = "UPDATE contact_inquiries
                     SET admin_reply = ?, status = 'answered', replied_at = NOW(), replied_by = ?
                     WHERE id = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$reply, $admin_id, $inquiry_id]);
 
-            $success = '답변이 저장되었습니다.';
+            // 이메일 발송
+            $emailSent = false;
+            if ($inquiryInfo) {
+                try {
+                    $mailer = new Mailer();
+                    $emailSent = $mailer->sendInquiryReplyEmail(
+                        $inquiryInfo['email'],
+                        $inquiryInfo['name'],
+                        $inquiryInfo['subject'],
+                        $inquiryInfo['message'],
+                        $reply
+                    );
+                } catch (Exception $mailEx) {
+                    error_log('문의 답변 이메일 발송 실패: ' . $mailEx->getMessage());
+                }
+            }
+
+            if ($emailSent) {
+                $success = '답변이 저장되고 고객에게 이메일이 발송되었습니다.';
+            } else {
+                $success = '답변이 저장되었습니다. (이메일 발송 실패 - 나중에 다시 시도해주세요)';
+            }
         } catch (Exception $e) {
             $error = '답변 저장에 실패했습니다: ' . $e->getMessage();
         }

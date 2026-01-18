@@ -115,5 +115,46 @@ class Mailer {
 
         return $this->send($to, $subject, $body, $name);
     }
+
+    /**
+     * 문의 답변 이메일 전송
+     *
+     * @param string $to 수신자 이메일
+     * @param string $name 수신자 이름
+     * @param string $originalSubject 원래 문의 제목
+     * @param string $originalMessage 원래 문의 내용
+     * @param string $replyContent 답변 내용
+     * @return bool 전송 성공 여부
+     */
+    public function sendInquiryReplyEmail($to, $name, $originalSubject, $originalMessage, $replyContent) {
+        $subject = '[답변] ' . $originalSubject;
+
+        $body = "안녕하세요, {$name}님.
+
+문의하신 내용에 대한 답변 드립니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+■ 문의 제목: {$originalSubject}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+■ 문의 내용:
+{$originalMessage}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+■ 답변 내용:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{$replyContent}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+추가 문의 사항이 있으시면 언제든지 문의해 주세요.
+감사합니다.
+
+탄생 스마트팜
+https://www.tansaeng.com";
+
+        return $this->send($to, $subject, $body, $name);
+    }
 }
 ?>
