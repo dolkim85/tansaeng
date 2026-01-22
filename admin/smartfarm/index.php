@@ -12,8 +12,13 @@ $auth->requireAdmin();
 
 $currentUser = $auth->getCurrentUser();
 
-// korea_tansaeng@naver.com 계정만 접근 가능
-if ($currentUser['email'] !== 'korea_tansaeng@naver.com') {
+// 허용된 관리자 계정 목록
+$allowedAdmins = [
+    'korea_tansaeng@naver.com',
+    'superjun1985@gmail.com'
+];
+
+if (!in_array($currentUser['email'], $allowedAdmins)) {
     header('HTTP/1.1 403 Forbidden');
     die('
     <!DOCTYPE html>

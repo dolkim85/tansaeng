@@ -3,7 +3,7 @@
 # 탄생(Tansaeng) 클라우드 자동 배포 스크립트 v13.0
 # 사용법: ./deploy_to_cloud.sh
 
-echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: v3.8.0-천창스크린제어)..."
+echo "🚀 탄생 웹사이트 클라우드 배포 시작 (Version: v3.9.0-관리자계정추가)..."
 
 # 변수 설정
 CLOUD_SERVER="1.201.17.34"
@@ -11,7 +11,7 @@ CLOUD_USER="root"
 CLOUD_PASSWORD="qjawns3445"
 CLOUD_PATH="/var/www/html"
 REPO_URL="https://github.com/dolkim85/tansaeng.git"
-DEPLOY_TAG="v3.8.0"
+DEPLOY_TAG="v3.9.0"
 DOMAIN="www.tansaeng.com"
 
 # Git 상태 확인
@@ -136,6 +136,15 @@ sshpass -p "$CLOUD_PASSWORD" ssh -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD
         php /var/www/html/create_naverpay_test_account.php
     else
         echo "⚠️  테스트 계정 생성 스크립트를 찾을 수 없습니다."
+    fi
+
+    # 관리자 계정 업데이트
+    echo "👤 관리자 계정 업데이트 중..."
+    if [ -f "/var/www/html/scripts/update_admin_accounts.php" ]; then
+        php /var/www/html/scripts/update_admin_accounts.php
+        # 보안을 위해 실행 후 삭제
+        rm -f /var/www/html/scripts/update_admin_accounts.php
+        echo "✅ 관리자 계정 업데이트 완료 및 스크립트 삭제"
     fi
 
     # 🏭 스마트팜 React 앱 빌드
