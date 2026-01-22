@@ -11,7 +11,7 @@ CLOUD_USER="root"
 CLOUD_PASSWORD="qjawns3445"
 CLOUD_PATH="/var/www/html"
 REPO_URL="https://github.com/dolkim85/tansaeng.git"
-DEPLOY_TAG="v3.9.0"
+DEPLOY_TAG="v3.9.1"
 DOMAIN="www.tansaeng.com"
 
 # Git 상태 확인
