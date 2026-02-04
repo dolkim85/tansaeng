@@ -21,7 +21,9 @@ $company_desc = $siteSettings['footer_company_desc'] ?? $siteSettings['site_desc
 $company_address = $siteSettings['footer_address'] ?? $siteSettings['company_address'] ?? '서울특별시 강남구 테헤란로 123';
 $company_phone = $siteSettings['footer_phone'] ?? $siteSettings['contact_phone'] ?? '1588-0000';
 $company_email = $siteSettings['footer_email'] ?? $siteSettings['contact_email'] ?? 'contact@tansaeng.com';
-$business_number = $siteSettings['business_number'] ?? $siteSettings['footer_business_number'] ?? '123-45-67890';
+$business_number = $siteSettings['business_number'] ?? $siteSettings['footer_business_number'] ?? '304-64-00700';
+$business_type = $siteSettings['business_type'] ?? '도매 및 소매업';
+$business_category = $siteSettings['business_category'] ?? '전자상거래 소매업';
 $ceo_name = $siteSettings['ceo_name'] ?? $siteSettings['footer_ceo_name'] ?? '홍길동';
 $current_year = date('Y');
 
@@ -127,7 +129,8 @@ $companyMenu = parseMenuItems($siteSettings['footer_menu_company'] ?? '');
 
         <div class="footer-bottom">
             <p>&copy; <?= $current_year ?> <?= htmlspecialchars($company_name) ?>. All rights reserved.</p>
-            <p>사업자등록번호: <?= htmlspecialchars($business_number) ?> | 대표: <?= htmlspecialchars($ceo_name) ?></p>
+            <p>사업자등록번호: <?= htmlspecialchars($business_number) ?> | 업태: <?= htmlspecialchars($business_type) ?> | 업종: <?= htmlspecialchars($business_category) ?></p>
+            <p>대표: <?= htmlspecialchars($ceo_name) ?></p>
         </div>
     </div>
 </footer>
