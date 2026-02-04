@@ -6,7 +6,7 @@ $categories = [];
 $featuredProducts = [];
 $selectedCategory = $_GET['category'] ?? 'all';
 $sortBy = $_GET['sort'] ?? 'newest';
-$productType = $_GET['type'] ?? 'new';
+$productType = $_GET['type'] ?? 'all';
 $searchTerm = $_GET['search'] ?? '';
 
 // 페이지네이션 설정
@@ -41,6 +41,10 @@ try {
             break;
         case 'sale':
             $typeCondition = ' AND p.discount_percentage > 0';
+            break;
+        case 'all':
+        default:
+            // 전체 상품 - 추가 조건 없음
             break;
     }
 
@@ -86,6 +90,10 @@ try {
             break;
         case 'sale':
             $whereConditions[] = 'p.discount_percentage > 0';
+            break;
+        case 'all':
+        default:
+            // 전체 상품 - 추가 필터 없음
             break;
     }
 
@@ -220,15 +228,17 @@ try {
                     <h2>
                         <?php
                         $sectionTitles = [
+                            'all' => '📦 전체 상품',
                             'featured' => '✨ 추천 제품',
                             'new' => '🆕 신상품',
                             'bestseller' => '🏆 베스트셀러',
                             'sale' => '🔥 할인 상품'
                         ];
-                        echo $sectionTitles[$productType] ?? '🆕 신상품';
+                        echo $sectionTitles[$productType] ?? '📦 전체 상품';
                         ?>
                     </h2>
                     <div class="section-nav">
+                        <button class="nav-btn <?= $productType === 'all' ? 'active' : '' ?>" onclick="showProducts('all')">전체</button>
                         <button class="nav-btn <?= $productType === 'featured' ? 'active' : '' ?>" onclick="showProducts('featured')">추천</button>
                         <button class="nav-btn <?= $productType === 'new' ? 'active' : '' ?>" onclick="showProducts('new')">신상품</button>
                         <button class="nav-btn <?= $productType === 'bestseller' ? 'active' : '' ?>" onclick="showProducts('bestseller')">베스트</button>
