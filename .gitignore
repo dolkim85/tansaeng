@@ -1,11 +1,6 @@
-/smartfarm-ui/node_modules/
-/smartfarm-ui/package-lock.json
+node_modules/
+dist/
+dist_new/
 .env
-smartfarm-ui/.env
-live/
-
-# MQTT daemon logs
-logs/mqtt_daemon.log
-logs/mqtt_daemon_stdout.log
-logs/mqtt_daemon_stderr.log
-logs/*.log
+*.log
+.DS_Store
