@@ -21,8 +21,8 @@ class NaverPay {
         $this->chain_id = env('NAVERPAY_CHAIN_ID', '');
         $this->mode = env('NAVERPAY_MODE', 'development');
 
-        // API URL 설정 (샌드박스도 동일한 API URL 사용, 테스트 가맹점 ID로 구분)
-        $this->api_url = 'https://apis.naver.com/naverpay-partner/naverpay/payments/v2.2';
+        // API URL 설정 (v1 API 사용)
+        $this->api_url = 'https://apis.naver.com/naverpay-partner/naverpay/payments/v1';
     }
 
     /**
