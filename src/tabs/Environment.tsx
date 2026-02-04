@@ -76,6 +76,12 @@ export default function Environment() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 30;
 
+  // 삭제 관련 상태
+  const [selectedRecords, setSelectedRecords] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteType, setDeleteType] = useState<'selected' | 'date_range'>('selected');
+
   // 기타 센서 데이터
   const [currentValues] = useState<Partial<SensorSnapshot>>({
     rootTemp: null,
@@ -440,6 +446,126 @@ export default function Environment() {
     }
   };
 
+  // 레코드 고유 키 생성 (recorded_at + sensor_location)
+  const getRecordKey = (record: any) => `${record.recorded_at}_${record.sensor_location}`;
+
+  // 개별 선택 토글
+  const toggleRecordSelection = (record: any) => {
+    const key = getRecordKey(record);
+    setSelectedRecords(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  // 현재 페이지 전체 선택/해제
+  const toggleSelectAll = () => {
+    const currentKeys = currentData.map(getRecordKey);
+    const allSelected = currentKeys.every(key => selectedRecords.has(key));
+
+    setSelectedRecords(prev => {
+      const newSet = new Set(prev);
+      if (allSelected) {
+        // 전체 해제
+        currentKeys.forEach(key => newSet.delete(key));
+      } else {
+        // 전체 선택
+        currentKeys.forEach(key => newSet.add(key));
+      }
+      return newSet;
+    });
+  };
+
+  // 선택된 레코드 삭제
+  const handleDeleteSelected = async () => {
+    if (selectedRecords.size === 0) {
+      alert('삭제할 데이터를 선택해주세요.');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      // 선택된 레코드 정보 구성
+      const recordsToDelete = historicalData
+        .filter(record => selectedRecords.has(getRecordKey(record)))
+        .map(record => ({
+          recorded_at: record.recorded_at,
+          sensor_location: record.sensor_location
+        }));
+
+      const response = await fetch('/api/smartfarm/delete_sensor_data.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'selected',
+          records: recordsToDelete
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(result.message);
+        setSelectedRecords(new Set());
+        // 데이터 다시 로드
+        loadHistoricalData();
+      } else {
+        alert('삭제 실패: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  // 날짜 범위 삭제
+  const handleDeleteDateRange = async () => {
+    if (!selectedStartDate || !selectedEndDate) {
+      alert('삭제할 날짜 범위를 선택해주세요.');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const startStr = selectedStartDate.toISOString().split('T')[0];
+      const endStr = selectedEndDate.toISOString().split('T')[0];
+
+      const response = await fetch('/api/smartfarm/delete_sensor_data.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'date_range',
+          start_date: startStr,
+          end_date: endStr
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(result.message);
+        setSelectedRecords(new Set());
+        setHistoricalData([]);
+      } else {
+        alert('삭제 실패: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   // 평균값 계산 (DevicesControl과 동일하게 null 제외하고 계산)
   const temps = [frontSensor.temperature, backSensor.temperature, topSensor.temperature].filter((t) => t !== null) as number[];
   const hums = [frontSensor.humidity, backSensor.humidity, topSensor.humidity].filter((h) => h !== null) as number[];
@@ -626,27 +752,97 @@ export default function Environment() {
             {/* 히스토리 데이터 테이블 */}
             {historicalData.length > 0 && (
               <div className="mt-6">
-                {/* 상단 정보 및 엑셀 내보내기 버튼 */}
+                {/* 상단 정보 및 버튼들 */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
-                  <p className="text-sm text-gray-600">
-                    전체 {historicalData.length}개 중 {startIndex + 1} - {Math.min(endIndex, historicalData.length)}개 표시
-                  </p>
-                  <button
-                    onClick={exportToExcel}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-2 text-sm"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                    엑셀 내보내기
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-600">
+                      전체 {historicalData.length}개 중 {startIndex + 1} - {Math.min(endIndex, historicalData.length)}개 표시
+                    </p>
+                    {selectedRecords.size > 0 && (
+                      <span className="text-sm text-blue-600 font-medium">
+                        ({selectedRecords.size}개 선택됨)
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {/* 선택 삭제 버튼 */}
+                    <button
+                      onClick={() => { setDeleteType('selected'); setShowDeleteConfirm(true); }}
+                      disabled={selectedRecords.size === 0 || isDeleting}
+                      className="px-3 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      선택 삭제
+                    </button>
+                    {/* 날짜 범위 삭제 버튼 */}
+                    <button
+                      onClick={() => { setDeleteType('date_range'); setShowDeleteConfirm(true); }}
+                      disabled={isDeleting}
+                      className="px-3 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                      </svg>
+                      조회기간 삭제
+                    </button>
+                    {/* 엑셀 내보내기 버튼 */}
+                    <button
+                      onClick={exportToExcel}
+                      className="px-3 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1 text-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                      엑셀
+                    </button>
+                  </div>
                 </div>
+
+                {/* 삭제 확인 모달 */}
+                {showDeleteConfirm && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">삭제 확인</h3>
+                      <p className="text-gray-600 mb-6">
+                        {deleteType === 'selected'
+                          ? `선택된 ${selectedRecords.size}개의 데이터를 삭제하시겠습니까?`
+                          : `${selectedStartDate?.toLocaleDateString('ko-KR')} ~ ${selectedEndDate?.toLocaleDateString('ko-KR')} 기간의 모든 데이터(${historicalData.length}개)를 삭제하시겠습니까?`}
+                      </p>
+                      <p className="text-red-500 text-sm mb-4">이 작업은 되돌릴 수 없습니다.</p>
+                      <div className="flex gap-3 justify-end">
+                        <button
+                          onClick={() => setShowDeleteConfirm(false)}
+                          className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={deleteType === 'selected' ? handleDeleteSelected : handleDeleteDateRange}
+                          disabled={isDeleting}
+                          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-400"
+                        >
+                          {isDeleting ? '삭제 중...' : '삭제'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* 테이블 */}
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-2 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={currentData.length > 0 && currentData.every(record => selectedRecords.has(getRecordKey(record)))}
+                            onChange={toggleSelectAll}
+                            className="w-4 h-4 accent-blue-500 cursor-pointer"
+                          />
+                        </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">위치</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">온도 (°C)</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">습도 (%)</th>
@@ -655,7 +851,18 @@ export default function Environment() {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {currentData.map((record, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
+                        <tr
+                          key={index}
+                          className={`hover:bg-gray-50 ${selectedRecords.has(getRecordKey(record)) ? 'bg-blue-50' : ''}`}
+                        >
+                          <td className="px-2 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedRecords.has(getRecordKey(record))}
+                              onChange={() => toggleRecordSelection(record)}
+                              className="w-4 h-4 accent-blue-500 cursor-pointer"
+                            />
+                          </td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {record.sensor_location === 'front' ? '내부팬 앞' :
                              record.sensor_location === 'back' ? '내부팬 뒤' :
