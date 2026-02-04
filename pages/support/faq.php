@@ -1,14 +1,28 @@
 <?php
 // 데이터베이스 연결을 선택적으로 처리
 $currentUser = null;
+$siteSettings = [];
 try {
     require_once __DIR__ . '/../../classes/Auth.php';
+    require_once __DIR__ . '/../../config/database.php';
     $auth = Auth::getInstance();
     $currentUser = $auth->getCurrentUser();
+
+    // site_settings에서 고객지원 설정 로드
+    $pdo = DatabaseConfig::getConnection();
+    $stmt = $pdo->query("SELECT setting_key, setting_value FROM site_settings");
+    while ($row = $stmt->fetch()) {
+        $siteSettings[$row['setting_key']] = $row['setting_value'];
+    }
 } catch (Exception $e) {
     // 데이터베이스 연결 실패시 계속 진행
     error_log("Database connection failed: " . $e->getMessage());
 }
+
+// 고객지원 설정 기본값
+$support_phone = $siteSettings['support_phone'] ?? $siteSettings['contact_phone'] ?? '02-0000-0000';
+$support_email = $siteSettings['support_email'] ?? $siteSettings['contact_email'] ?? 'support@tansaeng.com';
+$support_hours = $siteSettings['support_hours'] ?? '평일 09:00-18:00';
 ?>
 <!DOCTYPE html>
 <html lang="ko">
@@ -256,11 +270,11 @@ try {
                     <div class="contact-info">
                         <div class="info-item">
                             <span class="info-icon">📞</span>
-                            <span>02-0000-0000</span>
+                            <span><?= htmlspecialchars($support_phone) ?></span>
                         </div>
                         <div class="info-item">
                             <span class="info-icon">🕒</span>
-                            <span>평일 09:00-18:00</span>
+                            <span><?= htmlspecialchars($support_hours) ?></span>
                         </div>
                     </div>
                 </div>

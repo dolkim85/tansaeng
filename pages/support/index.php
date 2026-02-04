@@ -5,13 +5,28 @@
  */
 
 $currentUser = null;
+$siteSettings = [];
 try {
     require_once __DIR__ . '/../../classes/Auth.php';
+    require_once __DIR__ . '/../../config/database.php';
     $auth = Auth::getInstance();
     $currentUser = $auth->getCurrentUser();
+
+    // site_settings에서 고객지원 설정 로드
+    $pdo = DatabaseConfig::getConnection();
+    $stmt = $pdo->query("SELECT setting_key, setting_value FROM site_settings");
+    while ($row = $stmt->fetch()) {
+        $siteSettings[$row['setting_key']] = $row['setting_value'];
+    }
 } catch (Exception $e) {
     error_log("Database connection failed: " . $e->getMessage());
 }
+
+// 고객지원 설정 기본값
+$support_phone = $siteSettings['support_phone'] ?? $siteSettings['contact_phone'] ?? '1588-0000';
+$support_email = $siteSettings['support_email'] ?? $siteSettings['contact_email'] ?? 'contact@tansaeng.com';
+$support_hours = $siteSettings['support_hours'] ?? '평일 09:00 - 18:00';
+$support_notice = $siteSettings['support_notice'] ?? '';
 
 $pageTitle = "고객지원 - 탄생";
 $pageDescription = "탄생 스마트팜 고객지원센터. FAQ, 기술지원, 1:1 문의 서비스를 제공합니다.";
@@ -236,14 +251,14 @@ $pageDescription = "탄생 스마트팜 고객지원센터. FAQ, 기술지원, 1
                 <div class="contact-item">
                     <div class="contact-icon">☎️</div>
                     <h4>전화 상담</h4>
-                    <p><strong>1588-0000</strong></p>
-                    <p>평일 09:00 - 18:00<br>토요일 09:00 - 12:00</p>
+                    <p><strong><?= htmlspecialchars($support_phone) ?></strong></p>
+                    <p><?= htmlspecialchars($support_hours) ?></p>
                 </div>
 
                 <div class="contact-item">
                     <div class="contact-icon">📧</div>
                     <h4>이메일 문의</h4>
-                    <p><strong>contact@tansaeng.com</strong></p>
+                    <p><strong><?= htmlspecialchars($support_email) ?></strong></p>
                     <p>24시간 접수<br>1일 이내 답변</p>
                 </div>
 
@@ -251,7 +266,7 @@ $pageDescription = "탄생 스마트팜 고객지원센터. FAQ, 기술지원, 1
                     <div class="contact-icon">💬</div>
                     <h4>카카오톡 상담</h4>
                     <p><strong>@탄생스마트팜</strong></p>
-                    <p>평일 09:00 - 18:00<br>실시간 상담</p>
+                    <p><?= htmlspecialchars($support_hours) ?><br>실시간 상담</p>
                 </div>
             </div>
         </div>
