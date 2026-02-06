@@ -3,8 +3,8 @@
 /**
  * MQTT 백그라운드 데몬
  * - 센서 데이터 수신 및 데이터베이스 저장
- * - 자동 제어 로직 실행
- * - 메인밸브 스케줄 제어
+ * - 장치 자동 제어 (device_settings.json 기반)
+ * - 환기팬, 분무수경 밸브 등 모든 장치 지원
  */
 
 // 한국 시간대 설정
@@ -30,10 +30,12 @@ $password = 'Qjawns3445';
 // 데이터베이스 연결
 $db = Database::getInstance();
 
+// 장치별 밸브 상태 추적 (사이클 관리용)
+$deviceCycleState = [];
+
 // ESP32 장치 연결 상태 업데이트 함수
 function updateDeviceStatus($db, $controllerId, $status) {
     try {
-        // device_status 테이블에 상태 저장/업데이트
         $sql = "INSERT INTO device_status (controller_id, status, last_seen)
                 VALUES (?, ?, NOW())
                 ON DUPLICATE KEY UPDATE
@@ -41,7 +43,7 @@ function updateDeviceStatus($db, $controllerId, $status) {
                 last_seen = NOW()";
 
         $db->query($sql, [$controllerId, $status]);
-        echo "[DEVICE] {$controllerId} status: {$status}\n";
+        // echo "[DEVICE] {$controllerId} status: {$status}\n";
     } catch (Exception $e) {
         echo "[ERROR] Failed to update device status: " . $e->getMessage() . "\n";
     }
@@ -69,32 +71,15 @@ function saveSensorData($db, $controllerId, $sensorType, $dataType, $value) {
         $db->insert('sensor_data', $data);
         echo "[DB] Saved {$dataType}: {$value} from {$controllerId}\n";
 
-        // 센서 데이터가 오면 장치가 연결된 것으로 간주
         updateDeviceStatus($db, $controllerId, 'online');
     } catch (Exception $e) {
         echo "[ERROR] Failed to save sensor data: " . $e->getMessage() . "\n";
     }
 }
 
-// 최근 평균 온습도 가져오기 (최근 5분)
-function getRecentAverage($db) {
-    $sql = "SELECT
-                AVG(temperature) as avg_temp,
-                AVG(humidity) as avg_hum
-            FROM sensor_data
-            WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
-                AND sensor_location IN ('front', 'back', 'top')";
-
-    $result = $db->selectOne($sql);
-    return [
-        'temp' => $result['avg_temp'] ?? null,
-        'hum' => $result['avg_hum'] ?? null
-    ];
-}
-
-// 자동 제어 설정 로드 (파일 또는 DB에서)
-function loadAutoControlSettings() {
-    $settingsFile = __DIR__ . '/../config/auto_control.json';
+// 장치 설정 로드 (웹UI에서 저장한 설정)
+function loadDeviceSettings() {
+    $settingsFile = __DIR__ . '/../config/device_settings.json';
     if (file_exists($settingsFile)) {
         $json = file_get_contents($settingsFile);
         return json_decode($json, true);
@@ -102,42 +87,42 @@ function loadAutoControlSettings() {
     return null;
 }
 
-// 메인밸브 스케줄 로드
-function loadValveSchedule() {
-    $scheduleFile = __DIR__ . '/../config/valve_schedule.json';
-    if (file_exists($scheduleFile)) {
-        $json = file_get_contents($scheduleFile);
-        return json_decode($json, true);
+// 현재 시간이 스케줄 시간대에 있는지 확인
+function isInScheduleTime($schedule) {
+    if (!$schedule || !$schedule['enabled']) {
+        return false;
     }
-    return ['enabled' => false, 'timeSlots' => []];
+
+    $now = new DateTime();
+    $currentMinutes = $now->format('H') * 60 + $now->format('i');
+
+    list($startHour, $startMin) = explode(':', $schedule['startTime']);
+    list($endHour, $endMin) = explode(':', $schedule['endTime']);
+    $startMinutes = intval($startHour) * 60 + intval($startMin);
+    $endMinutes = intval($endHour) * 60 + intval($endMin);
+
+    // 자정 넘김 처리 (예: 18:00 ~ 06:00)
+    if ($startMinutes > $endMinutes) {
+        return ($currentMinutes >= $startMinutes || $currentMinutes < $endMinutes);
+    } else {
+        return ($currentMinutes >= $startMinutes && $currentMinutes < $endMinutes);
+    }
 }
 
-// 현재 시간에 맞는 시간대 찾기
-function getCurrentTimeSlot($timeSlots) {
-    $now = new DateTime();
-    $currentTime = $now->format('H') * 60 + $now->format('i');
-
-    foreach ($timeSlots as $slot) {
-        list($startHour, $startMin) = explode(':', $slot['startTime']);
-        list($endHour, $endMin) = explode(':', $slot['endTime']);
-        $startMinutes = $startHour * 60 + $startMin;
-        $endMinutes = $endHour * 60 + $endMin;
-
-        // 자정 넘김 처리
-        if ($startMinutes > $endMinutes) {
-            if ($currentTime >= $startMinutes || $currentTime < $endMinutes) {
-                return $slot;
-            }
-        } else {
-            if ($currentTime >= $startMinutes && $currentTime < $endMinutes) {
-                return $slot;
-            }
-        }
+// 현재 시간대의 스케줄 가져오기
+function getCurrentSchedule($zoneConfig) {
+    // 주간 스케줄 확인
+    if (isset($zoneConfig['daySchedule']) && isInScheduleTime($zoneConfig['daySchedule'])) {
+        return $zoneConfig['daySchedule'];
+    }
+    // 야간 스케줄 확인
+    if (isset($zoneConfig['nightSchedule']) && isInScheduleTime($zoneConfig['nightSchedule'])) {
+        return $zoneConfig['nightSchedule'];
     }
     return null;
 }
 
-// MQTT 클라이언트 생성 시도
+// MQTT 클라이언트 생성
 try {
     $connectionSettings = (new ConnectionSettings)
         ->setUsername($username)
@@ -159,206 +144,224 @@ try {
         'tansaeng/ctlr-0002/+/humidity',
         'tansaeng/ctlr-0003/+/temperature',
         'tansaeng/ctlr-0003/+/humidity',
-        'tansaeng/ctlr-0011/+/temperature',
-        'tansaeng/ctlr-0011/+/humidity',
     ];
 
     foreach ($sensorTopics as $topic) {
         $mqtt->subscribe($topic, function ($topic, $message) use ($db) {
             echo "[MQTT] {$topic}: {$message}\n";
 
-            // 토픽 파싱: tansaeng/ctlr-0001/dht11/temperature
             $parts = explode('/', $topic);
             $controllerId = $parts[1];
             $sensorType = $parts[2];
-            $dataType = $parts[3]; // temperature or humidity
+            $dataType = $parts[3];
 
             saveSensorData($db, $controllerId, $sensorType, $dataType, $message);
         }, 0);
     }
 
-    // ESP32 heartbeat/status 토픽 구독
+    // ESP32 status 토픽 구독
     $statusTopics = [
         'tansaeng/ctlr-0001/status',
         'tansaeng/ctlr-0002/status',
         'tansaeng/ctlr-0003/status',
         'tansaeng/ctlr-0004/status',
-        'tansaeng/ctlr-0011/status',
+        'tansaeng/ctlr-0005/status',
+        'tansaeng/ctlr-0006/status',
+        'tansaeng/ctlr-0007/status',
+        'tansaeng/ctlr-0008/status',
+        'tansaeng/ctlr-0012/status',
         'tansaeng/ctlr-0021/status',
     ];
 
     foreach ($statusTopics as $topic) {
         $mqtt->subscribe($topic, function ($topic, $message) use ($db) {
-            echo "[MQTT] {$topic}: {$message}\n";
-
-            // 토픽 파싱: tansaeng/ctlr-0001/status
             $parts = explode('/', $topic);
             $controllerId = $parts[1];
-
-            // 상태 메시지: "online" 또는 "offline"
             updateDeviceStatus($db, $controllerId, $message);
         }, 0);
     }
 
-    // ESP32 pong 응답 토픽 구독
+    // pong 응답 토픽 구독
     $pongTopics = [
         'tansaeng/ctlr-0001/pong',
         'tansaeng/ctlr-0002/pong',
         'tansaeng/ctlr-0003/pong',
         'tansaeng/ctlr-0004/pong',
+        'tansaeng/ctlr-0005/pong',
+        'tansaeng/ctlr-0006/pong',
+        'tansaeng/ctlr-0007/pong',
+        'tansaeng/ctlr-0008/pong',
     ];
 
     foreach ($pongTopics as $topic) {
         $mqtt->subscribe($topic, function ($topic, $message) use ($db) {
-            // 토픽 파싱: tansaeng/ctlr-0001/pong
             $parts = explode('/', $topic);
             $controllerId = $parts[1];
-
-            echo "[PONG] Received from {$controllerId}\n";
-
-            // pong 응답을 받으면 장치가 연결된 것으로 간주
             updateDeviceStatus($db, $controllerId, 'online');
         }, 0);
     }
 
-    // 장치 state 토픽 구독 (밸브, 팬, 창문 등의 상태 메시지)
-    $stateTopics = [
-        'tansaeng/ctlr-0004/+/state',  // 밸브 상태
-        'tansaeng/ctlr-0011/+/state',  // 천창 상태
-        'tansaeng/ctlr-0021/+/state',  // 측창 상태
-        'tansaeng/+/+/state',          // 모든 장치의 state 토픽
-    ];
+    // 장치 state 토픽 구독
+    $mqtt->subscribe('tansaeng/+/+/state', function ($topic, $message) use ($db) {
+        $parts = explode('/', $topic);
+        $controllerId = $parts[1];
+        updateDeviceStatus($db, $controllerId, 'online');
+    }, 0);
 
-    foreach ($stateTopics as $topic) {
-        $mqtt->subscribe($topic, function ($topic, $message) use ($db) {
-            echo "[STATE] {$topic}: {$message}\n";
+    echo "[MQTT] Subscribed to all topics\n\n";
 
-            // 토픽 파싱: tansaeng/ctlr-0004/valve1/state
-            $parts = explode('/', $topic);
-            $controllerId = $parts[1];
-
-            // state 메시지를 받으면 장치가 연결된 것으로 간주
-            updateDeviceStatus($db, $controllerId, 'online');
-        }, 0);
-    }
-
-    echo "[MQTT] Subscribed to sensor, status, state, and pong topics\n\n";
-
-    // 메인 루프
-    $lastAutoControl = 0;
-    $lastValveControl = 0;
+    // 메인 루프 변수
     $lastDeviceCheck = 0;
-    $valveState = 'CLOSE';
-    $valveStartTime = 0; // 밸브 상태 시작 시간 (Unix timestamp with microseconds)
+    $lastSettingsCheck = 0;
+    $cachedSettings = null;
 
-    $mqtt->registerLoopEventHandler(function (MqttClient $mqtt) use ($db, &$lastAutoControl, &$lastValveControl, &$lastDeviceCheck, &$valveState, &$valveStartTime) {
+    $mqtt->registerLoopEventHandler(function (MqttClient $mqtt) use ($db, &$lastDeviceCheck, &$lastSettingsCheck, &$cachedSettings, &$deviceCycleState) {
         $now = time();
+        $currentMicro = microtime(true);
 
         // 장치 상태 체크 (30초마다)
         if ($now - $lastDeviceCheck >= 30) {
             $lastDeviceCheck = $now;
 
-            // 모든 장치에 ping 요청 전송
-            $devices = ['ctlr-0001', 'ctlr-0002', 'ctlr-0003', 'ctlr-0004', 'ctlr-0011'];
+            $devices = ['ctlr-0001', 'ctlr-0002', 'ctlr-0003', 'ctlr-0004', 'ctlr-0005', 'ctlr-0006', 'ctlr-0007', 'ctlr-0008', 'ctlr-0012', 'ctlr-0021'];
             foreach ($devices as $deviceId) {
-                // ping 요청 전송 (ESP32가 pong으로 응답해야 함)
                 $mqtt->publish("tansaeng/{$deviceId}/ping", "ping", 0);
             }
-            echo "[PING] Sent ping to all devices\n";
 
-            // 2분 이상 응답이 없는 장치를 offline으로 표시
-            $sql = "UPDATE device_status
-                    SET status = 'offline'
-                    WHERE status = 'online'
-                    AND last_seen < DATE_SUB(NOW(), INTERVAL 2 MINUTE)";
+            // 2분 이상 응답 없으면 offline
+            $sql = "UPDATE device_status SET status = 'offline' WHERE status = 'online' AND last_seen < DATE_SUB(NOW(), INTERVAL 2 MINUTE)";
             $db->query($sql);
         }
 
-        // 자동 제어 (30초마다)
-        if ($now - $lastAutoControl >= 30) {
-            $lastAutoControl = $now;
+        // 설정 파일 체크 (3초마다)
+        if ($now - $lastSettingsCheck >= 3) {
+            $lastSettingsCheck = $now;
+            $cachedSettings = loadDeviceSettings();
+        }
 
-            $settings = loadAutoControlSettings();
-            if ($settings && $settings['enabled']) {
-                $avg = getRecentAverage($db);
+        if (!$cachedSettings) {
+            return;
+        }
 
-                if ($avg['temp'] !== null && $avg['hum'] !== null) {
-                    echo "[AUTO] Avg Temp: {$avg['temp']}°C, Avg Hum: {$avg['hum']}%\n";
+        // ========== 환기팬 자동 제어 ==========
+        if (isset($cachedSettings['fans'])) {
+            foreach ($cachedSettings['fans'] as $fanId => $fanConfig) {
+                $mode = $fanConfig['mode'] ?? 'OFF';
+                $controllerId = $fanConfig['controllerId'] ?? null;
+                $deviceId = $fanConfig['deviceId'] ?? null;
 
-                    // 온도 기반 제어 (예시)
-                    foreach ($settings['devices'] ?? [] as $deviceId => $control) {
-                        if (!$control['enabled']) continue;
+                if (!$controllerId || !$deviceId) continue;
 
-                        if ($avg['temp'] > $control['tempMax']) {
-                            // 팬 켜기 명령 전송
-                            $mqtt->publish("tansaeng/{$deviceId}/fan1/cmd", json_encode(['power' => 'on']), 1);
-                            echo "[AUTO] Turn ON fan for {$deviceId} (temp too high)\n";
-                        } elseif ($avg['temp'] < $control['tempMin']) {
-                            // 팬 끄기
-                            $mqtt->publish("tansaeng/{$deviceId}/fan1/cmd", json_encode(['power' => 'off']), 1);
-                            echo "[AUTO] Turn OFF fan for {$deviceId} (temp too low)\n";
-                        }
+                // MANUAL 모드: power 상태에 따라 제어 (설정 변경 시에만)
+                if ($mode === 'MANUAL') {
+                    $power = strtoupper($fanConfig['power'] ?? 'OFF');
+                    $stateKey = "fan_{$fanId}_power";
+                    $lastPower = $deviceCycleState[$stateKey] ?? null;
+
+                    if ($lastPower !== $power) {
+                        $topic = "tansaeng/{$controllerId}/{$deviceId}/cmd";
+                        $mqtt->publish($topic, $power, 1);
+                        $deviceCycleState[$stateKey] = $power;
+                        echo "[" . date('H:i:s') . "] [FAN] {$fanId}: {$power}\n";
                     }
                 }
+                // OFF 모드: 팬 끄기
+                elseif ($mode === 'OFF') {
+                    $stateKey = "fan_{$fanId}_power";
+                    $lastPower = $deviceCycleState[$stateKey] ?? null;
+
+                    if ($lastPower !== 'OFF') {
+                        $topic = "tansaeng/{$controllerId}/{$deviceId}/cmd";
+                        $mqtt->publish($topic, 'OFF', 1);
+                        $deviceCycleState[$stateKey] = 'OFF';
+                        echo "[" . date('H:i:s') . "] [FAN] {$fanId}: OFF (mode=OFF)\n";
+                    }
+                }
+                // AUTO 모드: 추후 온도 기반 자동 제어 구현 가능
             }
         }
 
-        // 메인밸브 스케줄 제어 (1초마다 체크)
-        if ($now - $lastValveControl >= 1) {
-            $lastValveControl = $now;
+        // ========== 분무수경 밸브 자동 제어 ==========
+        if (isset($cachedSettings['mist_zones'])) {
+            foreach ($cachedSettings['mist_zones'] as $zoneId => $zoneConfig) {
+                $mode = $zoneConfig['mode'] ?? 'OFF';
+                $controllerId = $zoneConfig['controllerId'] ?? null;
+                $deviceId = $zoneConfig['deviceId'] ?? 'valve1';
+                $isRunning = $zoneConfig['isRunning'] ?? false;
 
-            $schedule = loadValveSchedule();
-            if ($schedule['enabled']) {
-                $currentSlot = getCurrentTimeSlot($schedule['timeSlots']);
+                if (!$controllerId) continue;
 
-                if ($currentSlot) {
-                    // 실제 시간 기반 로직
-                    $currentTime = microtime(true);
+                $topic = "tansaeng/{$controllerId}/{$deviceId}/cmd";
+                $stateKey = "mist_{$zoneId}";
 
-                    // 열림/닫힘 총 시간 계산 (초)
-                    $openTotalSeconds = ($currentSlot['openMinutes'] * 60) + $currentSlot['openSeconds'];
-                    $closeTotalSeconds = ($currentSlot['closeMinutes'] * 60) + $currentSlot['closeSeconds'];
-                    $cycleTotal = $openTotalSeconds + $closeTotalSeconds;
+                // OFF 모드: 밸브 닫기
+                if ($mode === 'OFF') {
+                    $lastState = $deviceCycleState[$stateKey]['valveState'] ?? null;
+                    if ($lastState !== 'CLOSE') {
+                        $mqtt->publish($topic, 'CLOSE', 1);
+                        $deviceCycleState[$stateKey] = ['valveState' => 'CLOSE', 'startTime' => 0];
+                        echo "[" . date('H:i:s') . "] [MIST] {$zoneId}: CLOSE (mode=OFF)\n";
+                    }
+                    continue;
+                }
 
-                    // 사이클이 0이면 건너뛰기
-                    if ($cycleTotal == 0) {
-                        echo "[VALVE] Warning: Cycle total is 0, skipping valve control\n";
-                        return;
+                // MANUAL 모드: 웹UI에서 직접 제어하므로 데몬은 개입 안함
+                if ($mode === 'MANUAL') {
+                    continue;
+                }
+
+                // AUTO 모드: 스케줄에 따라 자동 제어
+                if ($mode === 'AUTO' && $isRunning) {
+                    $schedule = getCurrentSchedule($zoneConfig);
+
+                    if (!$schedule) {
+                        // 현재 스케줄 시간대가 아니면 밸브 닫기
+                        $lastState = $deviceCycleState[$stateKey]['valveState'] ?? null;
+                        if ($lastState !== 'CLOSE') {
+                            $mqtt->publish($topic, 'CLOSE', 1);
+                            $deviceCycleState[$stateKey] = ['valveState' => 'CLOSE', 'startTime' => 0];
+                            echo "[" . date('H:i:s') . "] [MIST] {$zoneId}: CLOSE (no schedule)\n";
+                        }
+                        continue;
                     }
 
-                    // 시작 시간이 없으면 초기화
-                    if ($valveStartTime == 0) {
-                        $valveStartTime = $currentTime;
-                        $valveState = 'CLOSE';
+                    // 사이클 계산
+                    $spraySeconds = $schedule['sprayDurationSeconds'] ?? 5;
+                    $stopSeconds = $schedule['stopDurationSeconds'] ?? 10;
+                    $cycleTotal = $spraySeconds + $stopSeconds;
+
+                    if ($cycleTotal <= 0) continue;
+
+                    // 사이클 시작 시간 초기화
+                    if (!isset($deviceCycleState[$stateKey]['startTime']) || $deviceCycleState[$stateKey]['startTime'] == 0) {
+                        $deviceCycleState[$stateKey] = [
+                            'valveState' => 'CLOSE',
+                            'startTime' => $currentMicro
+                        ];
                     }
 
-                    // 현재 사이클에서 경과 시간
-                    $elapsed = $currentTime - $valveStartTime;
-
-                    // fmod를 사용하여 사이클 내에서의 정확한 위치 계산
-                    // 이렇게 하면 사이클이 반복적으로 정확하게 진행됩니다
+                    // 사이클 내 현재 위치 계산
+                    $elapsed = $currentMicro - $deviceCycleState[$stateKey]['startTime'];
                     $cycleElapsed = fmod($elapsed, $cycleTotal);
 
-                    // 현재 상태 판단
-                    if ($cycleElapsed < $openTotalSeconds) {
-                        // 열림 시간대
-                        if ($valveState !== 'OPEN') {
-                            $mqtt->publish('tansaeng/ctlr-0004/valve1/cmd', 'OPEN', 1);
-                            $valveState = 'OPEN';
-                            echo "[" . date('H:i:s') . "] [VALVE] OPEN for {$openTotalSeconds}s - cycle elapsed: " . round($cycleElapsed, 2) . "s / cycle: {$cycleTotal}s\n";
-                        }
-                    } else {
-                        // 닫힘 시간대
-                        if ($valveState !== 'CLOSE') {
-                            $mqtt->publish('tansaeng/ctlr-0004/valve1/cmd', 'CLOSE', 1);
-                            $valveState = 'CLOSE';
-                            $remainingClose = $cycleTotal - $cycleElapsed;
-                            echo "[" . date('H:i:s') . "] [VALVE] CLOSE for {$closeTotalSeconds}s - cycle elapsed: " . round($cycleElapsed, 2) . "s / remaining: " . round($remainingClose, 2) . "s / cycle: {$cycleTotal}s\n";
+                    $currentState = $deviceCycleState[$stateKey]['valveState'];
+
+                    // 분무 시간대 (0 ~ spraySeconds)
+                    if ($cycleElapsed < $spraySeconds) {
+                        if ($currentState !== 'OPEN') {
+                            $mqtt->publish($topic, 'OPEN', 1);
+                            $deviceCycleState[$stateKey]['valveState'] = 'OPEN';
+                            echo "[" . date('H:i:s') . "] [MIST] {$zoneId}: OPEN (spray {$spraySeconds}s)\n";
                         }
                     }
-                } else {
-                    // 현재 시간대가 아니면 초기화
-                    $valveStartTime = 0;
+                    // 정지 시간대 (spraySeconds ~ cycleTotal)
+                    else {
+                        if ($currentState !== 'CLOSE') {
+                            $mqtt->publish($topic, 'CLOSE', 1);
+                            $deviceCycleState[$stateKey]['valveState'] = 'CLOSE';
+                            echo "[" . date('H:i:s') . "] [MIST] {$zoneId}: CLOSE (stop {$stopSeconds}s)\n";
+                        }
+                    }
                 }
             }
         }
