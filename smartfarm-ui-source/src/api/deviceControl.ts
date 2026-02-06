@@ -52,3 +52,43 @@ export async function sendDeviceCommand(
     };
   }
 }
+
+/**
+ * 장치 설정 저장 API 호출
+ * 서버의 device_settings.json에 설정을 저장합니다.
+ * 데몬이 이 설정을 읽어서 자동 제어합니다.
+ */
+export async function saveDeviceSettings(settings: Record<string, unknown>): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await fetch('https://www.tansaeng.com/api/smartfarm/save_device_settings.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(settings),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('[API Error] saveDeviceSettings:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * 장치 설정 조회 API 호출
+ */
+export async function getDeviceSettings(): Promise<{ success: boolean; data?: Record<string, unknown> }> {
+  try {
+    const response = await fetch('https://www.tansaeng.com/api/smartfarm/get_device_settings.php');
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('[API Error] getDeviceSettings:', error);
+    return { success: false };
+  }
+}

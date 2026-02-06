@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import type { MistZoneConfig, MistMode, MistScheduleSettings } from "../types";
 import { publishCommand, getMqttClient, isMqttConnected, onConnectionChange } from "../mqtt/mqttClient";
+import { saveDeviceSettings } from "../api/deviceControl";
 
 interface MistControlProps {
   zones: MistZoneConfig[];
@@ -207,12 +208,32 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     };
   }, []);
 
-  const updateZone = (zoneId: string, updates: Partial<MistZoneConfig>) => {
+  const updateZone = async (zoneId: string, updates: Partial<MistZoneConfig>) => {
     setZones((prev) =>
       prev.map((zone) =>
         zone.id === zoneId ? { ...zone, ...updates } : zone
       )
     );
+
+    // 모드 변경 시 서버에 저장
+    if ('mode' in updates) {
+      const zone = zones.find(z => z.id === zoneId);
+      if (zone) {
+        await saveDeviceSettings({
+          mist_zones: {
+            [zoneId]: {
+              mode: updates.mode,
+              controllerId: zone.controllerId,
+              deviceId: 'valve1',
+              isRunning: zone.isRunning,
+              daySchedule: zone.daySchedule,
+              nightSchedule: zone.nightSchedule,
+            }
+          }
+        });
+        console.log(`[SETTINGS] Zone ${zoneId} mode saved: ${updates.mode}`);
+      }
+    }
   };
 
   const updateDaySchedule = (zoneId: string, updates: Partial<MistScheduleSettings>) => {
@@ -241,7 +262,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   };
 
   // 설정 저장
-  const handleSaveZone = (zone: MistZoneConfig) => {
+  const handleSaveZone = async (zone: MistZoneConfig) => {
     if (zone.mode === "AUTO") {
       if (zone.daySchedule.enabled) {
         // 작동분무주기만 필수 (정지분무주기는 선택)
@@ -263,17 +284,26 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       }
     }
 
-    // 컨트롤러가 연결되어 있으면 MQTT 명령 발행
-    if (zone.controllerId) {
-      publishCommand(`tansaeng/mist/${zone.id}/config`, {
-        mode: zone.mode,
-        controllerId: zone.controllerId,
-        daySchedule: zone.daySchedule,
-        nightSchedule: zone.nightSchedule,
-      });
-    }
+    // 서버에 설정 저장 (데몬이 읽어서 자동 제어)
+    const result = await saveDeviceSettings({
+      mist_zones: {
+        [zone.id]: {
+          mode: zone.mode,
+          controllerId: zone.controllerId,
+          deviceId: 'valve1',
+          isRunning: zone.isRunning,
+          daySchedule: zone.daySchedule,
+          nightSchedule: zone.nightSchedule,
+        }
+      }
+    });
 
-    alert(`${zone.name} 설정이 저장되었습니다.`);
+    if (result.success) {
+      console.log(`[SETTINGS] Zone ${zone.id} saved to server`);
+      alert(`${zone.name} 설정이 저장되었습니다.`);
+    } else {
+      alert(`설정 저장 실패: ${result.message}`);
+    }
   };
 
   // AUTO 사이클 중지 함수
@@ -288,7 +318,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   };
 
   // AUTO 사이클 시작 함수 (정지대기 → 분무 → 반복)
-  const startAutoCycle = (zone: MistZoneConfig, schedule: MistScheduleSettings) => {
+  // 서버 데몬에서 처리하므로 더 이상 브라우저에서는 사용하지 않음
+  const _startAutoCycle = (zone: MistZoneConfig, schedule: MistScheduleSettings) => {
     const zoneId = zone.id;
     const controllerId = zone.controllerId;
     if (!controllerId) return;
@@ -389,7 +420,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   };
 
   // 시스템 작동 시작
-  const handleStartOperation = (zone: MistZoneConfig) => {
+  const handleStartOperation = async (zone: MistZoneConfig) => {
     if (!zone.controllerId) {
       alert("컨트롤러가 연결되어 있지 않습니다.");
       return;
@@ -408,41 +439,68 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         return;
       }
 
-      // AUTO 사이클 시작
-      startAutoCycle(zone, schedule);
-      updateZone(zone.id, { isRunning: true });
-      alert(`${zone.name} AUTO 사이클을 시작합니다.\n정지대기 ${schedule.stopDurationSeconds ?? 0}초 → 분무 ${schedule.sprayDurationSeconds ?? 0}초 → 반복`);
+      // 서버에 isRunning 상태 저장 (데몬이 AUTO 제어 시작)
+      await saveDeviceSettings({
+        mist_zones: {
+          [zone.id]: {
+            mode: zone.mode,
+            controllerId: zone.controllerId,
+            deviceId: 'valve1',
+            isRunning: true,
+            daySchedule: zone.daySchedule,
+            nightSchedule: zone.nightSchedule,
+          }
+        }
+      });
+
+      setZones((prev) =>
+        prev.map((z) => z.id === zone.id ? { ...z, isRunning: true } : z)
+      );
+
+      console.log(`[SETTINGS] Zone ${zone.id} isRunning=true saved to server`);
+      alert(`${zone.name} AUTO 사이클을 시작합니다.\n서버 데몬이 자동 제어합니다.`);
     } else {
       // MANUAL 모드 (기존 로직)
       publishCommand(`tansaeng/mist/${zone.id}/control`, {
         action: "start",
         controllerId: zone.controllerId,
       });
-      updateZone(zone.id, { isRunning: true });
+      setZones((prev) =>
+        prev.map((z) => z.id === zone.id ? { ...z, isRunning: true } : z)
+      );
       alert(`${zone.name} 작동을 시작했습니다.`);
     }
   };
 
   // 시스템 작동 중지
-  const handleStopOperation = (zone: MistZoneConfig) => {
+  const handleStopOperation = async (zone: MistZoneConfig) => {
     if (!zone.controllerId) {
       alert("컨트롤러가 연결되어 있지 않습니다.");
       return;
     }
 
-    // AUTO 사이클 중지
-    stopAutoCycle(zone.id);
-
-    // ESP32에 CLOSE 명령 전송
-    const cmdTopic = getValveCmdTopic(zone.controllerId);
-    publishCommand(cmdTopic, { power: "off" });
-
-    publishCommand(`tansaeng/mist/${zone.id}/control`, {
-      action: "stop",
-      controllerId: zone.controllerId,
+    // 서버에 isRunning=false 저장 (데몬이 AUTO 제어 중지)
+    await saveDeviceSettings({
+      mist_zones: {
+        [zone.id]: {
+          mode: zone.mode,
+          controllerId: zone.controllerId,
+          deviceId: 'valve1',
+          isRunning: false,
+          daySchedule: zone.daySchedule,
+          nightSchedule: zone.nightSchedule,
+        }
+      }
     });
 
-    updateZone(zone.id, { isRunning: false });
+    // 로컬 사이클도 중지 (브라우저에서 실행 중인 경우)
+    stopAutoCycle(zone.id);
+
+    setZones((prev) =>
+      prev.map((z) => z.id === zone.id ? { ...z, isRunning: false } : z)
+    );
+
+    console.log(`[SETTINGS] Zone ${zone.id} isRunning=false saved to server`);
     alert(`${zone.name} 작동을 중지했습니다.`);
   };
 

@@ -4,7 +4,7 @@ import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
 import DeviceCard from "../components/DeviceCard";
 import { getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
-import { sendDeviceCommand } from "../api/deviceControl";
+import { sendDeviceCommand, saveDeviceSettings } from "../api/deviceControl";
 
 interface DevicesControlProps {
   deviceState: DeviceDesiredState;
@@ -106,6 +106,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
       if (result.success) {
         console.log(`[API SUCCESS] ${device.name} - ${command}`);
+
+        // 서버에 팬 설정 저장 (데몬이 읽어서 제어)
+        if (device.type === "fan") {
+          await saveDeviceSettings({
+            fans: {
+              [deviceId]: {
+                mode: "MANUAL",
+                power: isOn ? "on" : "off",
+                controllerId: device.esp32Id,
+                deviceId: mqttDeviceId,
+              }
+            }
+          });
+          console.log(`[SETTINGS] Fan ${deviceId} saved to server`);
+        }
       } else {
         console.error(`[API ERROR] ${result.message}`);
       }
