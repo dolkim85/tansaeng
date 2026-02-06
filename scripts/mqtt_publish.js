@@ -6,7 +6,7 @@
  * Usage: node mqtt_publish.js <topic> <message>
  */
 
-const mqtt = require('mqtt');
+import mqtt from 'mqtt';
 
 // HiveMQ Cloud 설정
 const MQTT_BROKER = 'mqtts://22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud:8883';

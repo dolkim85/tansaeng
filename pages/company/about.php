@@ -6,6 +6,7 @@ $siteSettings = [];
 try {
     require_once __DIR__ . '/../../classes/Auth.php';
     require_once __DIR__ . '/../../config/database.php';
+    require_once __DIR__ . '/../../config/env.php';
 
     $auth = Auth::getInstance();
     $currentUser = $auth->getCurrentUser();
@@ -21,6 +22,9 @@ try {
     // 데이터베이스 연결 실패시 계속 진행
     error_log("Database connection failed: " . $e->getMessage());
 }
+
+$naverMapClientId = env('NAVER_MAP_CLIENT_ID', '');
+$companyAddress = $siteSettings['company_address'] ?? $siteSettings['footer_address'] ?? '울산광역시 울주군 웅촌면 서리길 81';
 ?>
 <!DOCTYPE html>
 <html lang="ko">
@@ -29,6 +33,9 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>회사소개 - 탄생</title>
     <link rel="stylesheet" href="/assets/css/main.css">
+    <?php if ($naverMapClientId): ?>
+    <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=<?= htmlspecialchars($naverMapClientId) ?>"></script>
+    <?php endif; ?>
 </head>
 <body>
     <?php include '../../includes/header.php'; ?>
@@ -155,29 +162,28 @@ try {
                     <div class="contact-details">
                         <h3>회사 정보</h3>
                         <div class="detail-item">
-                            <strong>주소:</strong> <?= htmlspecialchars($siteSettings['company_address'] ?? '서울특별시 강남구 테헤란로 123') ?>
+                            <strong>주소:</strong> <?= htmlspecialchars($companyAddress) ?>
                         </div>
                         <div class="detail-item">
-                            <strong>전화:</strong> <?= htmlspecialchars($siteSettings['company_phone'] ?? '02-0000-0000') ?>
+                            <strong>전화:</strong> <?= htmlspecialchars($siteSettings['contact_phone'] ?? $siteSettings['footer_phone'] ?? '052-000-0000') ?>
                         </div>
+                        <?php if (!empty($siteSettings['company_fax'])): ?>
                         <div class="detail-item">
-                            <strong>팩스:</strong> <?= htmlspecialchars($siteSettings['company_fax'] ?? '02-0000-0001') ?>
+                            <strong>팩스:</strong> <?= htmlspecialchars($siteSettings['company_fax']) ?>
                         </div>
+                        <?php endif; ?>
                         <div class="detail-item">
-                            <strong>이메일:</strong> <?= htmlspecialchars($siteSettings['company_email'] ?? 'tansaeng@naver.com') ?>
+                            <strong>이메일:</strong> <?= htmlspecialchars($siteSettings['contact_email'] ?? $siteSettings['footer_email'] ?? 'contact@tansaeng.com') ?>
                         </div>
                         <div class="detail-item">
                             <strong>영업시간:</strong><br>
-                            <?= nl2br(htmlspecialchars($siteSettings['company_business_hours'] ?? '평일: 09:00 - 18:00
-토요일: 09:00 - 13:00
-일요일 및 공휴일: 휴무')) ?>
+                            <?= nl2br(htmlspecialchars($siteSettings['company_business_hours'] ?? "평일: 09:00 - 18:00\n토요일: 09:00 - 12:00\n일요일/공휴일: 휴무")) ?>
+                        </div>
+                        <div class="detail-item" style="margin-top: 1rem;">
+                            <a href="/pages/company/location.php" style="color: #2E7D32; font-weight: 600;">자세한 오시는 길 안내 →</a>
                         </div>
                     </div>
-                    <div class="map-placeholder">
-                        <div style="width: 100%; height: 300px; background: #f0f0f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #666;">
-                            <p>지도 영역<br><small>실제 구현시 Google Maps 등으로 교체</small></p>
-                        </div>
-                    </div>
+                    <div id="about-naver-map" style="width: 100%; height: 300px; border-radius: 8px; overflow: hidden;"></div>
                 </div>
             </section>
         </div>
@@ -186,6 +192,45 @@ try {
     <?php include '../../includes/footer.php'; ?>
 
     <script src="/assets/js/main.js"></script>
+    <?php if ($naverMapClientId): ?>
+    <script>
+    var companyAddress = <?= json_encode($companyAddress, JSON_UNESCAPED_UNICODE) ?>;
+    var defaultLat = 35.4676;
+    var defaultLng = 129.1860;
+
+    function initAboutMap(lat, lng) {
+        var position = new naver.maps.LatLng(lat, lng);
+        var map = new naver.maps.Map('about-naver-map', {
+            center: position,
+            zoom: 16,
+            zoomControl: true,
+            zoomControlOptions: { position: naver.maps.Position.TOP_RIGHT }
+        });
+        var marker = new naver.maps.Marker({
+            position: position,
+            map: map
+        });
+        var infoWindow = new naver.maps.InfoWindow({
+            content: '<div style="padding:12px;min-width:180px;line-height:1.5;font-size:13px;">' +
+                     '<strong style="color:#2E7D32;">탄생 스마트팜</strong><br>' +
+                     '<span style="color:#555;">' + companyAddress + '</span></div>'
+        });
+        infoWindow.open(map, marker);
+        naver.maps.Event.addListener(marker, 'click', function() {
+            if (infoWindow.getMap()) { infoWindow.close(); }
+            else { infoWindow.open(map, marker); }
+        });
+    }
+
+    naver.maps.onJSContentLoaded = function() {
+        initAboutMap(defaultLat, defaultLng);
+    };
+    </script>
+    <?php else: ?>
+    <script>
+    document.getElementById('about-naver-map').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;background:#f0f0f0;border-radius:8px;color:#666;"><p>지도를 불러올 수 없습니다.</p></div>';
+    </script>
+    <?php endif; ?>
 </body>
 </html>
 
@@ -507,9 +552,8 @@ try {
         font-size: 0.9rem !important;
     }
 
-    .map-placeholder div {
-        height: 200px !important;
-        font-size: 0.8rem !important;
+    #about-naver-map {
+        height: 250px !important;
     }
 }
 </style>
