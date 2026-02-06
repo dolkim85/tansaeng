@@ -10,6 +10,20 @@
 // 한국 시간대 설정
 date_default_timezone_set('Asia/Seoul');
 
+// 단일 인스턴스 보장 (PID 파일)
+$pidFile = '/var/run/mqtt_daemon.pid';
+if (file_exists($pidFile)) {
+    $pid = (int) file_get_contents($pidFile);
+    if ($pid > 0 && posix_kill($pid, 0)) {
+        echo "[ERROR] 데몬이 이미 실행 중입니다 (PID: $pid)\n";
+        exit(1);
+    }
+}
+file_put_contents($pidFile, getmypid());
+register_shutdown_function(function() use ($pidFile) {
+    @unlink($pidFile);
+});
+
 // Composer autoload
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../classes/Database.php';
@@ -32,6 +46,10 @@ $db = Database::getInstance();
 
 // 장치별 밸브 상태 추적 (사이클 관리용)
 $deviceCycleState = [];
+
+// 센서 데이터 저장 쓰로틀링 (1분 단위 저장) - 전역 변수 사용
+$GLOBALS['sensorSaveThrottle'] = [];
+define('SENSOR_SAVE_INTERVAL', 60); // 초 단위
 
 // ESP32 장치 연결 상태 업데이트 함수
 function updateDeviceStatus($db, $controllerId, $status) {
@@ -70,8 +88,6 @@ function saveSensorData($db, $controllerId, $sensorType, $dataType, $value) {
 
         $db->insert('sensor_data', $data);
         echo "[DB] Saved {$dataType}: {$value} from {$controllerId}\n";
-
-        updateDeviceStatus($db, $controllerId, 'online');
     } catch (Exception $e) {
         echo "[ERROR] Failed to save sensor data: " . $e->getMessage() . "\n";
     }
@@ -148,14 +164,25 @@ try {
 
     foreach ($sensorTopics as $topic) {
         $mqtt->subscribe($topic, function ($topic, $message) use ($db) {
-            echo "[MQTT] {$topic}: {$message}\n";
-
             $parts = explode('/', $topic);
             $controllerId = $parts[1];
             $sensorType = $parts[2];
             $dataType = $parts[3];
 
-            saveSensorData($db, $controllerId, $sensorType, $dataType, $message);
+            // 쓰로틀 키 생성 (컨트롤러+센서+데이터타입 조합)
+            $throttleKey = "{$controllerId}_{$sensorType}_{$dataType}";
+            $now = time();
+
+            // 마지막 저장 시간 확인 (1분 경과 시에만 저장)
+            $lastSave = $GLOBALS['sensorSaveThrottle'][$throttleKey] ?? 0;
+            if ($now - $lastSave >= SENSOR_SAVE_INTERVAL) {
+                echo "[MQTT] {$topic}: {$message}\n";
+                saveSensorData($db, $controllerId, $sensorType, $dataType, $message);
+                $GLOBALS['sensorSaveThrottle'][$throttleKey] = $now;
+            }
+
+            // 장치 상태는 항상 업데이트
+            updateDeviceStatus($db, $controllerId, 'online');
         }, 0);
     }
 
