@@ -51,6 +51,44 @@ $deviceCycleState = [];
 $GLOBALS['sensorSaveThrottle'] = [];
 define('SENSOR_SAVE_INTERVAL', 60); // 초 단위
 
+// 실시간 센서 데이터 캐시 파일 (UI 표시용)
+define('REALTIME_SENSOR_FILE', __DIR__ . '/../config/realtime_sensor.json');
+
+// 실시간 센서 데이터 업데이트 함수 (매 MQTT 메시지마다 호출)
+function updateRealtimeSensorCache($controllerId, $dataType, $value) {
+    $location = match($controllerId) {
+        'ctlr-0001' => 'front',
+        'ctlr-0002' => 'back',
+        'ctlr-0003' => 'top',
+        default => null
+    };
+
+    if (!$location) return;
+
+    // 기존 캐시 읽기
+    $cache = [];
+    if (file_exists(REALTIME_SENSOR_FILE)) {
+        $json = file_get_contents(REALTIME_SENSOR_FILE);
+        $cache = json_decode($json, true) ?? [];
+    }
+
+    // 위치별 데이터 초기화
+    if (!isset($cache[$location])) {
+        $cache[$location] = [
+            'temperature' => null,
+            'humidity' => null,
+            'lastUpdate' => null
+        ];
+    }
+
+    // 값 업데이트
+    $cache[$location][$dataType] = floatval($value);
+    $cache[$location]['lastUpdate'] = date('Y-m-d H:i:s');
+
+    // 파일 저장
+    file_put_contents(REALTIME_SENSOR_FILE, json_encode($cache, JSON_PRETTY_PRINT));
+}
+
 // ESP32 장치 연결 상태 업데이트 함수
 function updateDeviceStatus($db, $controllerId, $status) {
     try {
@@ -152,6 +190,11 @@ try {
     $mqtt->connect($connectionSettings, true);
     echo "[MQTT] Connected!\n\n";
 
+    // 시작 시간 기록 (retained 메시지 무시용)
+    // MQTT 구독 직후 수신되는 메시지는 retained 메시지이므로 무시
+    $daemonStartTime = microtime(true);
+    $STARTUP_GRACE_PERIOD = 5; // 시작 후 5초간 status/state 메시지 무시
+
     // 센서 토픽 구독
     $sensorTopics = [
         'tansaeng/ctlr-0001/+/temperature',
@@ -169,11 +212,14 @@ try {
             $sensorType = $parts[2];
             $dataType = $parts[3];
 
+            // 실시간 캐시 업데이트 (UI 표시용 - 매번 호출)
+            updateRealtimeSensorCache($controllerId, $dataType, $message);
+
             // 쓰로틀 키 생성 (컨트롤러+센서+데이터타입 조합)
             $throttleKey = "{$controllerId}_{$sensorType}_{$dataType}";
             $now = time();
 
-            // 마지막 저장 시간 확인 (1분 경과 시에만 저장)
+            // 마지막 저장 시간 확인 (1분 경과 시에만 DB 저장)
             $lastSave = $GLOBALS['sensorSaveThrottle'][$throttleKey] ?? 0;
             if ($now - $lastSave >= SENSOR_SAVE_INTERVAL) {
                 echo "[MQTT] {$topic}: {$message}\n";
@@ -201,7 +247,13 @@ try {
     ];
 
     foreach ($statusTopics as $topic) {
-        $mqtt->subscribe($topic, function ($topic, $message) use ($db) {
+        $mqtt->subscribe($topic, function ($topic, $message) use ($db, $daemonStartTime, $STARTUP_GRACE_PERIOD) {
+            // 시작 직후 수신된 메시지는 retained 메시지이므로 무시
+            if ((microtime(true) - $daemonStartTime) < $STARTUP_GRACE_PERIOD) {
+                $parts = explode('/', $topic);
+                echo "[MQTT] Ignoring retained status from {$parts[1]}: {$message}\n";
+                return;
+            }
             $parts = explode('/', $topic);
             $controllerId = $parts[1];
             updateDeviceStatus($db, $controllerId, $message);
@@ -229,7 +281,13 @@ try {
     }
 
     // 장치 state 토픽 구독
-    $mqtt->subscribe('tansaeng/+/+/state', function ($topic, $message) use ($db) {
+    $mqtt->subscribe('tansaeng/+/+/state', function ($topic, $message) use ($db, $daemonStartTime, $STARTUP_GRACE_PERIOD) {
+        // 시작 직후 수신된 메시지는 retained 메시지이므로 무시
+        if ((microtime(true) - $daemonStartTime) < $STARTUP_GRACE_PERIOD) {
+            $parts = explode('/', $topic);
+            echo "[MQTT] Ignoring retained state from {$parts[1]}: {$message}\n";
+            return;
+        }
         $parts = explode('/', $topic);
         $controllerId = $parts[1];
         updateDeviceStatus($db, $controllerId, 'online');
