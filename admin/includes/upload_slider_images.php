@@ -16,7 +16,41 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+function return_bytes($val) {
+    $val = trim($val);
+    $last = strtolower($val[strlen($val)-1]);
+    $val = (int)$val;
+    switch($last) {
+        case 'g': $val *= 1024;
+        case 'm': $val *= 1024;
+        case 'k': $val *= 1024;
+    }
+    return $val;
+}
+
 try {
+    // post_max_size 초과 감지
+    $contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int)$_SERVER['CONTENT_LENGTH'] : 0;
+    $postMaxSize = ini_get('post_max_size');
+    $postMaxBytes = return_bytes($postMaxSize);
+
+    if ($contentLength > 0 && $contentLength > $postMaxBytes) {
+        echo json_encode([
+            'success' => false,
+            'error' => "전체 파일 크기({$contentLength}바이트)가 서버 제한({$postMaxSize})을 초과했습니다. 파일 수를 줄여서 업로드해 주세요."
+        ]);
+        exit;
+    }
+
+    // $_FILES가 비어있고 CONTENT_LENGTH가 있으면 post_max_size 초과로 판단
+    if (empty($_FILES) && $contentLength > 0) {
+        echo json_encode([
+            'success' => false,
+            'error' => "업로드 데이터가 서버 제한을 초과하여 처리할 수 없습니다. 파일 수를 줄여서 다시 시도해 주세요."
+        ]);
+        exit;
+    }
+
     $uploadDir = __DIR__ . '/../../uploads/media/';
 
     // 디렉토리가 없으면 생성
@@ -26,9 +60,6 @@ try {
 
     $uploadedUrls = [];
     $errors = [];
-
-    // 디버깅 로그
-    error_log('FILES 데이터: ' . print_r($_FILES, true));
 
     if (isset($_FILES['slider_images']) && is_array($_FILES['slider_images']['name'])) {
         $fileCount = count($_FILES['slider_images']['name']);
@@ -45,9 +76,9 @@ try {
                 continue;
             }
 
-            // 파일 크기 체크 (20MB 제한)
-            if ($fileSize > 20 * 1024 * 1024) {
-                $errors[] = "파일 '{$fileName}'이 너무 큽니다. (최대 20MB)";
+            // 파일 크기 체크 (50MB 제한)
+            if ($fileSize > 50 * 1024 * 1024) {
+                $errors[] = "파일 '{$fileName}'이 너무 큽니다. (최대 50MB)";
                 continue;
             }
 

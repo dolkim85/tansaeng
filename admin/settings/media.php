@@ -672,7 +672,7 @@ if (!empty($currentSettings['gallery_images'])) {
                                 <div class="icon">📷</div>
                                 <p class="highlight">클릭하여 이미지 선택 또는 드래그 앤 드롭</p>
                                 <p>여러 이미지를 한번에 업로드할 수 있습니다</p>
-                                <p style="font-size: 12px; color: #999;">권장 크기: 1920x1080px | 최대 20MB | JPG, PNG, GIF, WEBP</p>
+                                <p style="font-size: 12px; color: #999;">권장 크기: 1920x1080px | 최대 50MB/파일 | JPG, PNG, GIF, WEBP</p>
                             </div>
                             <input type="file" id="sliderFileInput" accept="image/*" multiple style="display: none;">
 
@@ -1058,6 +1058,22 @@ if (!empty($currentSettings['gallery_images'])) {
 
             if (files.length === 0) {
                 showAlert('업로드할 파일을 선택해주세요', 'error');
+                return;
+            }
+
+            // 총 파일 크기 검증 (200MB 제한)
+            const maxTotalSize = 200 * 1024 * 1024;
+            const maxFileSize = 50 * 1024 * 1024;
+            let totalSize = 0;
+            for (let i = 0; i < files.length; i++) {
+                if (files[i].size > maxFileSize) {
+                    showAlert(`파일 "${files[i].name}"의 크기가 50MB를 초과합니다.`, 'error');
+                    return;
+                }
+                totalSize += files[i].size;
+            }
+            if (totalSize > maxTotalSize) {
+                showAlert(`총 파일 크기(${formatFileSize(totalSize)})가 200MB 제한을 초과합니다. 파일 수를 줄여주세요.`, 'error');
                 return;
             }
 
