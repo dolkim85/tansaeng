@@ -10,19 +10,7 @@
 // 한국 시간대 설정
 date_default_timezone_set('Asia/Seoul');
 
-// 단일 인스턴스 보장 (PID 파일)
-$pidFile = '/var/run/mqtt_daemon.pid';
-if (file_exists($pidFile)) {
-    $pid = (int) file_get_contents($pidFile);
-    if ($pid > 0 && posix_kill($pid, 0)) {
-        echo "[ERROR] 데몬이 이미 실행 중입니다 (PID: $pid)\n";
-        exit(1);
-    }
-}
-file_put_contents($pidFile, getmypid());
-register_shutdown_function(function() use ($pidFile) {
-    @unlink($pidFile);
-});
+// systemd로 관리되므로 PID 파일 불필요 (systemd가 단일 인스턴스 보장)
 
 // Composer autoload
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -92,6 +80,22 @@ function updateRealtimeSensorCache($controllerId, $dataType, $value) {
 // ESP32 장치 연결 상태 업데이트 함수
 function updateDeviceStatus($db, $controllerId, $status) {
     try {
+        // 빈 메시지 무시 (retained 메시지 삭제 시 발생)
+        $status = trim($status);
+        if (empty($status)) return;
+
+        // 유효한 상태값만 허용
+        $validStatuses = ['online', 'offline', 'on', 'off', 'connected', 'disconnected'];
+        $normalizedStatus = strtolower($status);
+        if (in_array($normalizedStatus, ['online', 'on', 'connected', 'true', 'active', 'alive'])) {
+            $status = 'online';
+        } elseif (in_array($normalizedStatus, ['offline', 'off', 'disconnected', 'false', 'inactive', 'dead'])) {
+            $status = 'offline';
+        } else {
+            // 알 수 없는 상태값은 무시
+            return;
+        }
+
         $sql = "INSERT INTO device_status (controller_id, status, last_seen)
                 VALUES (?, ?, NOW())
                 ON DUPLICATE KEY UPDATE
@@ -99,7 +103,6 @@ function updateDeviceStatus($db, $controllerId, $status) {
                 last_seen = NOW()";
 
         $db->query($sql, [$controllerId, $status]);
-        // echo "[DEVICE] {$controllerId} status: {$status}\n";
     } catch (Exception $e) {
         echo "[ERROR] Failed to update device status: " . $e->getMessage() . "\n";
     }
