@@ -251,10 +251,15 @@ $totalPages = $productCount + $supportCount;
                                 <p style="color: #7f8c8d; font-size: 0.9em; margin-bottom: 15px;">
                                     파일: <?= htmlspecialchars($page['file']) ?>
                                 </p>
-                                <div style="display: flex; gap: 10px;">
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                                     <a href="edit.php?page=<?= urlencode($page['key']) ?>" class="btn-edit">
-                                        수정
+                                        코드 수정
                                     </a>
+                                    <?php if ($page['key'] === 'product_index'): ?>
+                                    <a href="edit_products.php" class="btn-edit" style="background: #e67e22;">
+                                        콘텐츠 관리
+                                    </a>
+                                    <?php endif; ?>
                                     <a href="/pages/<?= $category ?>/<?= $page['file'] ?>"
                                        target="_blank"
                                        class="btn-edit"

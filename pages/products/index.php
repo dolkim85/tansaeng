@@ -2,6 +2,7 @@
 /**
  * Products Main Page - 배지설명
  * 탄생 스마트팜 배지 제품 소개
+ * 콘텐츠는 config/products_page_content.json에서 로드
  */
 
 $currentUser = null;
@@ -13,7 +14,19 @@ try {
     error_log("Database connection failed: " . $e->getMessage());
 }
 
-$pageTitle = "배지설명 - 탄생";
+// JSON 설정에서 콘텐츠 로드
+$configFile = __DIR__ . '/../../config/products_page_content.json';
+$content = [];
+if (file_exists($configFile)) {
+    $content = json_decode(file_get_contents($configFile), true) ?: [];
+}
+
+$header = $content['header'] ?? ['title' => '배지설명', 'subtitle' => ''];
+$products = $content['products'] ?? [];
+$comparison = $content['comparison'] ?? ['title' => '', 'columns' => [], 'rows' => []];
+$cta = $content['cta'] ?? ['title' => '', 'subtitle' => '', 'button1_text' => '', 'button1_link' => '', 'button2_text' => '', 'button2_link' => ''];
+
+$pageTitle = htmlspecialchars($header['title']) . " - 탄생";
 $pageDescription = "고품질 수경재배 배지 제품군을 소개합니다. 코코피트, 펄라이트, 혼합배지 등 다양한 제품을 확인하세요.";
 ?>
 <!DOCTYPE html>
@@ -90,7 +103,7 @@ $pageDescription = "고품질 수경재배 배지 제품군을 소개합니다. 
             color: #333;
         }
         .product-features li:before {
-            content: "✓ ";
+            content: "\2713 ";
             color: #4CAF50;
             font-weight: bold;
         }
@@ -161,167 +174,88 @@ $pageDescription = "고품질 수경재배 배지 제품군을 소개합니다. 
 <body>
     <?php include '../../includes/header.php'; ?>
 
-    <main >
+    <main>
     <div class="container">
         <!-- Page Header -->
         <div class="page-header">
-            <h1>배지설명</h1>
-            <p>수경재배의 성공을 위한 고품질 배지 솔루션</p>
+            <h1><?= htmlspecialchars($header['title']) ?></h1>
+            <p><?= htmlspecialchars($header['subtitle']) ?></p>
         </div>
     </div>
 
     <!-- Products Grid -->
+    <?php if (!empty($products)): ?>
     <section class="products-grid">
         <div class="container">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;">
-
-                <!-- 코코피트 배지 -->
+                <?php foreach ($products as $product): ?>
                 <div class="product-card">
-                    <div class="product-image">🥥</div>
+                    <div class="product-image"><?= $product['emoji'] ?></div>
                     <div class="product-content">
-                        <h3 class="product-title">코코피트 배지</h3>
-                        <p class="product-description">
-                            코코넛 껍질에서 추출한 천연 친환경 배지로, 우수한 보수력과 배수성을 겸비하고 있습니다.
-                        </p>
+                        <h3 class="product-title"><?= htmlspecialchars($product['title']) ?></h3>
+                        <p class="product-description"><?= htmlspecialchars($product['description']) ?></p>
+                        <?php if (!empty($product['features'])): ?>
                         <ul class="product-features">
-                            <li>뛰어난 보수력 및 배수성</li>
-                            <li>친환경 천연 소재</li>
-                            <li>pH 중성 유지</li>
-                            <li>재사용 가능</li>
-                            <li>병충해 저항성</li>
+                            <?php foreach ($product['features'] as $feat): ?>
+                            <li><?= htmlspecialchars($feat) ?></li>
+                            <?php endforeach; ?>
                         </ul>
-                        <a href="/pages/store/?category=coco" class="btn-learn-more">제품 보기</a>
+                        <?php endif; ?>
+                        <a href="<?= htmlspecialchars($product['link']) ?>" class="btn-learn-more"><?= htmlspecialchars($product['link_text'] ?? '제품 보기') ?></a>
                     </div>
                 </div>
-
-                <!-- 펄라이트 배지 -->
-                <div class="product-card">
-                    <div class="product-image">⚪</div>
-                    <div class="product-content">
-                        <h3 class="product-title">펄라이트 배지</h3>
-                        <p class="product-description">
-                            화산암을 고온 처리하여 만든 경량 배지로, 탁월한 배수성과 통기성을 제공합니다.
-                        </p>
-                        <ul class="product-features">
-                            <li>우수한 배수성 및 통기성</li>
-                            <li>경량으로 작업 편의성</li>
-                            <li>무균 상태 유지</li>
-                            <li>pH 안정성</li>
-                            <li>장기간 형태 유지</li>
-                        </ul>
-                        <a href="/pages/store/?category=perlite" class="btn-learn-more">제품 보기</a>
-                    </div>
-                </div>
-
-                <!-- 혼합 배지 -->
-                <div class="product-card">
-                    <div class="product-image">🌿</div>
-                    <div class="product-content">
-                        <h3 class="product-title">혼합 배지</h3>
-                        <p class="product-description">
-                            코코피트와 펄라이트를 최적 비율로 혼합하여 각 소재의 장점을 극대화한 프리미엄 배지입니다.
-                        </p>
-                        <ul class="product-features">
-                            <li>최적화된 배지 비율</li>
-                            <li>균형잡힌 보수력/배수성</li>
-                            <li>작물별 맞춤 조성</li>
-                            <li>즉시 사용 가능</li>
-                            <li>일관된 품질 보장</li>
-                        </ul>
-                        <a href="/pages/store/?category=mixed" class="btn-learn-more">제품 보기</a>
-                    </div>
-                </div>
-
-                <!-- 특수 배지 -->
-                <div class="product-card">
-                    <div class="product-image">⭐</div>
-                    <div class="product-content">
-                        <h3 class="product-title">특수 배지</h3>
-                        <p class="product-description">
-                            특정 작물과 재배 환경에 특화된 맞춤형 배지 솔루션을 제공합니다.
-                        </p>
-                        <ul class="product-features">
-                            <li>작물별 맞춤 설계</li>
-                            <li>전문가 컨설팅</li>
-                            <li>연구개발 기반 제품</li>
-                            <li>성능 검증 완료</li>
-                            <li>기술지원 서비스</li>
-                        </ul>
-                        <a href="/pages/store/?category=special" class="btn-learn-more">제품 보기</a>
-                    </div>
-                </div>
+                <?php endforeach; ?>
             </div>
         </div>
     </section>
+    <?php endif; ?>
 
     <!-- Comparison Section -->
+    <?php if (!empty($comparison['columns']) && !empty($comparison['rows'])): ?>
     <section class="comparison-section">
         <div class="container">
-            <h2 style="text-align: center; margin-bottom: 40px; color: #2E7D32;">배지별 특성 비교</h2>
+            <h2 style="text-align: center; margin-bottom: 40px; color: #2E7D32;"><?= htmlspecialchars($comparison['title']) ?></h2>
             <div class="comparison-table">
                 <table>
                     <thead>
                         <tr>
-                            <th>특성</th>
-                            <th>코코피트</th>
-                            <th>펄라이트</th>
-                            <th>혼합배지</th>
+                            <?php foreach ($comparison['columns'] as $col): ?>
+                            <th><?= htmlspecialchars($col) ?></th>
+                            <?php endforeach; ?>
                         </tr>
                     </thead>
                     <tbody>
+                        <?php foreach ($comparison['rows'] as $row): ?>
                         <tr>
-                            <td><strong>보수력</strong></td>
-                            <td>높음</td>
-                            <td>낮음</td>
-                            <td>중간</td>
+                            <?php foreach ($row as $ci => $cell): ?>
+                            <td><?= $ci === 0 ? '<strong>' . htmlspecialchars($cell) . '</strong>' : htmlspecialchars($cell) ?></td>
+                            <?php endforeach; ?>
                         </tr>
-                        <tr>
-                            <td><strong>배수성</strong></td>
-                            <td>보통</td>
-                            <td>매우 높음</td>
-                            <td>높음</td>
-                        </tr>
-                        <tr>
-                            <td><strong>통기성</strong></td>
-                            <td>보통</td>
-                            <td>매우 높음</td>
-                            <td>높음</td>
-                        </tr>
-                        <tr>
-                            <td><strong>pH 안정성</strong></td>
-                            <td>중성</td>
-                            <td>안정</td>
-                            <td>안정</td>
-                        </tr>
-                        <tr>
-                            <td><strong>재사용성</strong></td>
-                            <td>가능</td>
-                            <td>가능</td>
-                            <td>가능</td>
-                        </tr>
-                        <tr>
-                            <td><strong>적합 작물</strong></td>
-                            <td>엽채류, 과채류</td>
-                            <td>다육식물, 허브</td>
-                            <td>전체 작물</td>
-                        </tr>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
         </div>
     </section>
+    <?php endif; ?>
 
     <!-- CTA Section -->
+    <?php if (!empty($cta['title'])): ?>
     <section style="background: #2E7D32; color: white; padding: 60px 0; text-align: center;">
         <div class="container">
-            <h2>지금 바로 최적의 배지를 선택하세요</h2>
-            <p style="margin: 20px 0; font-size: 1.1rem;">전문가 상담을 통해 작물에 가장 적합한 배지를 추천받을 수 있습니다.</p>
+            <h2><?= htmlspecialchars($cta['title']) ?></h2>
+            <p style="margin: 20px 0; font-size: 1.1rem;"><?= htmlspecialchars($cta['subtitle']) ?></p>
             <div style="margin-top: 30px;">
-                <a href="/pages/store/" class="btn-learn-more" style="background: white; color: #2E7D32; margin-right: 15px;">온라인 스토어</a>
-                <a href="/pages/support/contact.php" class="btn-learn-more" style="background: transparent; border: 2px solid white;">전문가 상담</a>
+                <?php if (!empty($cta['button1_text'])): ?>
+                <a href="<?= htmlspecialchars($cta['button1_link']) ?>" class="btn-learn-more" style="background: white; color: #2E7D32; margin-right: 15px;"><?= htmlspecialchars($cta['button1_text']) ?></a>
+                <?php endif; ?>
+                <?php if (!empty($cta['button2_text'])): ?>
+                <a href="<?= htmlspecialchars($cta['button2_link']) ?>" class="btn-learn-more" style="background: transparent; border: 2px solid white;"><?= htmlspecialchars($cta['button2_text']) ?></a>
+                <?php endif; ?>
             </div>
         </div>
     </section>
+    <?php endif; ?>
 
     </main>
 
