@@ -17,8 +17,6 @@ if (empty($pageKey)) {
     exit;
 }
 
-$pdo = DatabaseConfig::getConnection();
-
 // 페이지 정보 매핑
 $pageMap = [
     'product_coco' => ['title' => '코코피트 배지', 'file' => '/pages/products/coco.php'],
@@ -37,27 +35,11 @@ if (!isset($pageMap[$pageKey])) {
 $pageInfo = $pageMap[$pageKey];
 $filePath = __DIR__ . '/../../' . ltrim($pageInfo['file'], '/');
 
-$success = '';
-$error = '';
-
-// 페이지 저장 처리
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['content'])) {
-    try {
-        $content = $_POST['content'];
-
-        // 파일에 직접 저장
-        if (file_put_contents($filePath, $content) !== false) {
-            $success = '페이지가 성공적으로 저장되었습니다.';
-        } else {
-            $error = '파일 저장에 실패했습니다.';
-        }
-    } catch (Exception $e) {
-        $error = '저장 중 오류가 발생했습니다: ' . $e->getMessage();
-    }
-}
-
 // 현재 페이지 내용 읽기
-$currentContent = file_get_contents($filePath);
+$currentContent = '';
+if (file_exists($filePath)) {
+    $currentContent = file_get_contents($filePath);
+}
 ?>
 <!DOCTYPE html>
 <html lang="ko">
@@ -95,6 +77,7 @@ $currentContent = file_get_contents($filePath);
             border: 1px solid #ddd;
             border-radius: 5px;
             resize: none;
+            tab-size: 4;
         }
         .preview-frame {
             flex: 1;
@@ -107,6 +90,7 @@ $currentContent = file_get_contents($filePath);
             gap: 10px;
             margin-bottom: 15px;
             flex-wrap: wrap;
+            align-items: center;
         }
         .btn {
             padding: 10px 20px;
@@ -115,6 +99,8 @@ $currentContent = file_get_contents($filePath);
             cursor: pointer;
             font-size: 0.9em;
             transition: transform 0.2s;
+            text-decoration: none;
+            display: inline-block;
         }
         .btn:hover {
             transform: translateY(-2px);
@@ -139,6 +125,7 @@ $currentContent = file_get_contents($filePath);
             padding: 15px;
             border-radius: 5px;
             margin-bottom: 20px;
+            display: none;
         }
         .alert-success {
             background: #d4edda;
@@ -149,6 +136,20 @@ $currentContent = file_get_contents($filePath);
             background: #f8d7da;
             border: 1px solid #f5c6cb;
             color: #721c24;
+        }
+        .save-status {
+            font-size: 0.85em;
+            color: #7f8c8d;
+            margin-left: 10px;
+        }
+        .save-status.saving {
+            color: #f39c12;
+        }
+        .save-status.saved {
+            color: #2ecc71;
+        }
+        .save-status.error {
+            color: #e74c3c;
         }
         @media (max-width: 1200px) {
             .editor-container {
@@ -170,46 +171,40 @@ $currentContent = file_get_contents($filePath);
         <main class="admin-main">
             <div class="admin-content">
                 <div class="settings-header">
-                    <h1>✏️ <?= htmlspecialchars($pageInfo['title']) ?> 수정</h1>
+                    <h1><?= htmlspecialchars($pageInfo['title']) ?> 수정</h1>
                     <p>좌측에서 코드를 수정하고 우측에서 실시간으로 미리보기 할 수 있습니다</p>
                 </div>
 
-                <?php if ($success): ?>
-                    <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
-                <?php endif; ?>
+                <div id="alertSuccess" class="alert alert-success"></div>
+                <div id="alertError" class="alert alert-error"></div>
 
-                <?php if ($error): ?>
-                    <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
-                <?php endif; ?>
+                <div class="toolbar">
+                    <button type="button" class="btn btn-success" id="btnSave" onclick="savePage()">저장하기</button>
+                    <button type="button" class="btn btn-primary" onclick="refreshPreview()">미리보기 새로고침</button>
+                    <button type="button" class="btn btn-warning" onclick="resetContent()">되돌리기</button>
+                    <a href="index.php" class="btn btn-secondary">목록으로</a>
+                    <a href="<?= htmlspecialchars($pageInfo['file']) ?>" target="_blank" class="btn btn-primary">새 창에서 보기</a>
+                    <span id="saveStatus" class="save-status"></span>
+                </div>
 
-                <form method="POST" id="editForm">
-                    <div class="toolbar">
-                        <button type="submit" class="btn btn-success">💾 저장하기</button>
-                        <button type="button" class="btn btn-primary" onclick="refreshPreview()">🔄 미리보기 새로고침</button>
-                        <button type="button" class="btn btn-warning" onclick="resetContent()">↩️ 되돌리기</button>
-                        <a href="index.php" class="btn btn-secondary">← 목록으로</a>
-                        <a href="<?= htmlspecialchars($pageInfo['file']) ?>" target="_blank" class="btn btn-primary">👁️ 새 창에서 보기</a>
+                <div class="editor-container">
+                    <div class="editor-panel">
+                        <h3>코드 편집기</h3>
+                        <textarea id="codeEditor" class="code-editor"><?= htmlspecialchars($currentContent) ?></textarea>
                     </div>
 
-                    <div class="editor-container">
-                        <div class="editor-panel">
-                            <h3>📝 코드 편집기</h3>
-                            <textarea name="content" id="codeEditor" class="code-editor"><?= htmlspecialchars($currentContent) ?></textarea>
-                        </div>
-
-                        <div class="editor-panel">
-                            <h3>👁️ 실시간 미리보기</h3>
-                            <iframe id="previewFrame" class="preview-frame" src="about:blank"></iframe>
-                        </div>
+                    <div class="editor-panel">
+                        <h3>실시간 미리보기</h3>
+                        <iframe id="previewFrame" class="preview-frame" src="about:blank"></iframe>
                     </div>
-                </form>
+                </div>
 
                 <div style="margin-top: 20px; padding: 20px; background: #fff3cd; border-radius: 10px;">
-                    <h4 style="margin-top: 0;">⚠️ 주의사항</h4>
+                    <h4 style="margin-top: 0;">주의사항</h4>
                     <ul style="line-height: 1.8;">
                         <li>변경사항은 저장 즉시 실제 웹사이트에 반영됩니다</li>
                         <li>잘못된 코드 수정으로 페이지가 깨질 수 있으니 주의하세요</li>
-                        <li>중요한 변경 전에는 백업을 권장합니다</li>
+                        <li>저장 시 자동으로 백업이 생성됩니다</li>
                         <li>PHP 문법 오류가 있으면 페이지가 표시되지 않을 수 있습니다</li>
                     </ul>
                 </div>
@@ -218,16 +213,89 @@ $currentContent = file_get_contents($filePath);
     </div>
 
     <script>
+        const pageKey = <?= json_encode($pageKey) ?>;
         const originalContent = document.getElementById('codeEditor').value;
+        let hasChanges = false;
         let updateTimeout = null;
+        let isSaving = false;
+
+        // 저장 함수 (AJAX)
+        async function savePage() {
+            if (isSaving) return;
+            isSaving = true;
+
+            const btn = document.getElementById('btnSave');
+            const status = document.getElementById('saveStatus');
+            const content = document.getElementById('codeEditor').value;
+
+            btn.disabled = true;
+            btn.textContent = '저장 중...';
+            status.textContent = '저장 중...';
+            status.className = 'save-status saving';
+            hideAlerts();
+
+            try {
+                const response = await fetch('/admin/api/save_page.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        page: pageKey,
+                        content: content
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('success', data.message);
+                    status.textContent = '저장 완료';
+                    status.className = 'save-status saved';
+                    hasChanges = false;
+                    setTimeout(() => {
+                        status.textContent = '';
+                    }, 3000);
+                } else {
+                    showAlert('error', data.message || '저장에 실패했습니다.');
+                    status.textContent = '저장 실패';
+                    status.className = 'save-status error';
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                showAlert('error', '서버와의 통신에 실패했습니다. 네트워크를 확인해주세요.');
+                status.textContent = '통신 오류';
+                status.className = 'save-status error';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '저장하기';
+                isSaving = false;
+            }
+        }
+
+        function showAlert(type, message) {
+            hideAlerts();
+            const el = document.getElementById(type === 'success' ? 'alertSuccess' : 'alertError');
+            el.textContent = message;
+            el.style.display = 'block';
+            if (type === 'success') {
+                setTimeout(() => { el.style.display = 'none'; }, 5000);
+            }
+        }
+
+        function hideAlerts() {
+            document.getElementById('alertSuccess').style.display = 'none';
+            document.getElementById('alertError').style.display = 'none';
+        }
 
         function refreshPreview() {
-            document.getElementById('previewFrame').src = document.getElementById('previewFrame').src;
+            updateLivePreview();
         }
 
         function resetContent() {
             if (confirm('수정한 내용을 모두 되돌리시겠습니까?')) {
                 document.getElementById('codeEditor').value = originalContent;
+                hasChanges = false;
                 updateLivePreview();
             }
         }
@@ -235,12 +303,9 @@ $currentContent = file_get_contents($filePath);
         // 실시간 미리보기 업데이트
         function updateLivePreview() {
             clearTimeout(updateTimeout);
-
             updateTimeout = setTimeout(() => {
                 const content = document.getElementById('codeEditor').value;
                 const iframe = document.getElementById('previewFrame');
-
-                // iframe의 contentDocument에 직접 HTML 적용
                 try {
                     const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
                     iframeDoc.open();
@@ -249,7 +314,7 @@ $currentContent = file_get_contents($filePath);
                 } catch (error) {
                     console.error('미리보기 업데이트 오류:', error);
                 }
-            }, 500); // 0.5초 디바운스
+            }, 500);
         }
 
         // 코드 편집기 입력 시 실시간 업데이트
@@ -258,16 +323,24 @@ $currentContent = file_get_contents($filePath);
             updateLivePreview();
         });
 
-        // 자동 저장 (Ctrl+S)
-        document.addEventListener('keydown', function(e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        // Tab 키 지원
+        document.getElementById('codeEditor').addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
                 e.preventDefault();
-                document.getElementById('editForm').submit();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
             }
         });
 
-        // 변경사항 감지
-        let hasChanges = false;
+        // Ctrl+S 저장
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                savePage();
+            }
+        });
 
         // 페이지 떠날 때 경고
         window.addEventListener('beforeunload', function(e) {
@@ -276,11 +349,6 @@ $currentContent = file_get_contents($filePath);
                 e.returnValue = '';
                 return '';
             }
-        });
-
-        // 폼 제출 시 변경사항 플래그 해제
-        document.getElementById('editForm').addEventListener('submit', function() {
-            hasChanges = false;
         });
 
         // 페이지 로드 시 초기 미리보기 표시
