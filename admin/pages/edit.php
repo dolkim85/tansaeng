@@ -19,6 +19,7 @@ if (empty($pageKey)) {
 
 // 페이지 정보 매핑
 $pageMap = [
+    'product_index' => ['title' => '배지설명 메인', 'file' => '/pages/products/index.php'],
     'product_coco' => ['title' => '코코피트 배지', 'file' => '/pages/products/coco.php'],
     'product_perlite' => ['title' => '펄라이트 배지', 'file' => '/pages/products/perlite.php'],
     'product_mixed' => ['title' => '혼합 배지', 'file' => '/pages/products/mixed.php'],
