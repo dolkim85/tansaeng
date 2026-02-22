@@ -75,14 +75,14 @@ async function updateESP32Status(controllerId, isConnected) {
   }
 }
 
-// 타임아웃 체크 (90초 동안 heartbeat 없으면 offline)
+// 타임아웃 체크 (180초 동안 heartbeat 없으면 offline)
 async function checkTimeouts() {
   try {
     const [result] = await dbPool.execute(
       `UPDATE esp32_status
        SET is_connected = FALSE
        WHERE is_connected = TRUE
-       AND last_heartbeat < DATE_SUB(NOW(), INTERVAL 90 SECOND)`
+       AND last_heartbeat < DATE_SUB(NOW(), INTERVAL 180 SECOND)`
     );
 
     if (result.affectedRows > 0) {
@@ -164,8 +164,8 @@ async function main() {
     log('MQTT 재연결 중...');
   });
 
-  // 30초마다 타임아웃 체크
-  setInterval(checkTimeouts, 30000);
+  // 60초마다 타임아웃 체크
+  setInterval(checkTimeouts, 60000);
 
   // 종료 시그널 처리
   process.on('SIGTERM', async () => {

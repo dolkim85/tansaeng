@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import type { MistZoneConfig, MistMode, MistScheduleSettings } from "../types";
 import { publishCommand, getMqttClient, isMqttConnected, onConnectionChange } from "../mqtt/mqttClient";
+import { sendDeviceCommand } from "../api/deviceControl";
 
 interface MistControlProps {
   zones: MistZoneConfig[];
@@ -258,6 +259,13 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         cycleTimers.current[zoneId].isRunning = false;
       }
     }
+
+    // 서버에 모드 변경 즉시 저장
+    const zone = zones.find(z => z.id === zoneId);
+    if (zone) {
+      const updatedZone = { ...zone, mode: newMode };
+      saveSettingsToServer(zoneId, updatedZone);
+    }
   };
 
   const updateDaySchedule = (zoneId: string, updates: Partial<MistScheduleSettings>) => {
@@ -283,6 +291,30 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   // ESP32 MQTT 토픽 가져오기
   const getValveCmdTopic = (controllerId: string) => {
     return `tansaeng/${controllerId}/valve1/cmd`;
+  };
+
+  // 서버에 설정 저장 (device_settings.json 업데이트)
+  const saveSettingsToServer = async (zoneId: string, zone: MistZoneConfig) => {
+    try {
+      await fetch('/api/smartfarm/save_device_settings.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mist_zones: {
+            [zoneId]: {
+              mode: zone.mode,
+              controllerId: zone.controllerId,
+              deviceId: 'valve1',
+              isRunning: zone.isRunning,
+              daySchedule: zone.daySchedule,
+              nightSchedule: zone.nightSchedule,
+            }
+          }
+        })
+      });
+    } catch (error) {
+      console.error('[API] Failed to save settings:', error);
+    }
   };
 
   // 설정 저장
@@ -317,6 +349,9 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         nightSchedule: zone.nightSchedule,
       });
     }
+
+    // 서버에 설정 저장 (데몬이 읽을 수 있도록)
+    saveSettingsToServer(zone.id, zone);
 
     alert(`${zone.name} 설정이 저장되었습니다.`);
   };
@@ -368,8 +403,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       }
 
       // 1. 정지 대기 (밸브 닫힘)
-      console.log(`[AUTO] ${zone.name}: Sending OFF to ${cmdTopic}`);
-      publishCommand(cmdTopic, { power: "off" });
+      console.log(`[AUTO] ${zone.name}: Sending CLOSE to ${cmdTopic}`);
+      publishCommand(cmdTopic, { power: "CLOSE" });
       setAutoCycleState(prev => ({ ...prev, [zoneId]: "waiting" }));
       // manualSprayState도 업데이트 (LED 표시용)
       setManualSprayState(prev => ({ ...prev, [zoneId]: "stopped" }));
@@ -378,8 +413,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         if (!cycleTimers.current[zoneId]?.isRunning) return;
 
         // 2. 분무 (밸브 열림)
-        console.log(`[AUTO] ${zone.name}: Sending ON to ${cmdTopic}`);
-        publishCommand(cmdTopic, { power: "on" });
+        console.log(`[AUTO] ${zone.name}: Sending OPEN to ${cmdTopic}`);
+        publishCommand(cmdTopic, { power: "OPEN" });
         setAutoCycleState(prev => ({ ...prev, [zoneId]: "spraying" }));
         // manualSprayState도 업데이트 (LED 표시용)
         setManualSprayState(prev => ({ ...prev, [zoneId]: "spraying" }));
@@ -458,12 +493,20 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       updateZone(zone.id, { isRunning: true });
       alert(`${zone.name} AUTO 사이클을 시작합니다.\n정지대기 ${schedule.stopDurationSeconds ?? 0}초 → 분무 ${schedule.sprayDurationSeconds ?? 0}초 → 반복`);
     } else {
-      // MANUAL 모드 (기존 로직)
-      publishCommand(`tansaeng/mist/${zone.id}/control`, {
-        action: "start",
-        controllerId: zone.controllerId,
-      });
+      // MANUAL 모드: 실제 밸브 OPEN 명령 전송
+      const cmdTopic = getValveCmdTopic(zone.controllerId);
+      publishCommand(cmdTopic, { power: "OPEN" });
+
+      // HTTP API 백업
+      sendDeviceCommand(zone.controllerId, 'valve1', 'OPEN').catch(console.error);
+
       updateZone(zone.id, { isRunning: true });
+      setManualSprayState(prev => ({ ...prev, [zone.id]: "spraying" }));
+
+      // 서버에 isRunning 상태 저장
+      const updatedZone = { ...zone, isRunning: true };
+      saveSettingsToServer(zone.id, updatedZone);
+
       alert(`${zone.name} 작동을 시작했습니다.`);
     }
   };
@@ -480,14 +523,18 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
     // ESP32에 CLOSE 명령 전송
     const cmdTopic = getValveCmdTopic(zone.controllerId);
-    publishCommand(cmdTopic, { power: "off" });
+    publishCommand(cmdTopic, { power: "CLOSE" });
 
-    publishCommand(`tansaeng/mist/${zone.id}/control`, {
-      action: "stop",
-      controllerId: zone.controllerId,
-    });
+    // HTTP API 백업
+    sendDeviceCommand(zone.controllerId, 'valve1', 'CLOSE').catch(console.error);
 
     updateZone(zone.id, { isRunning: false });
+    setManualSprayState(prev => ({ ...prev, [zone.id]: "stopped" }));
+
+    // 서버에 isRunning: false 저장
+    const updatedZone = { ...zone, isRunning: false };
+    saveSettingsToServer(zone.id, updatedZone);
+
     alert(`${zone.name} 작동을 중지했습니다.`);
   };
 
@@ -507,14 +554,17 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       return;
     }
 
-    // ESP32 밸브 열기 명령
+    // ESP32 밸브 열기 명령 (OPEN/CLOSE 형식)
     const cmdTopic = getValveCmdTopic(zone.controllerId);
-    publishCommand(cmdTopic, { power: "on" });
+    publishCommand(cmdTopic, { power: "OPEN" });
+
+    // HTTP API 백업
+    sendDeviceCommand(zone.controllerId, 'valve1', 'OPEN').catch(console.error);
 
     // UI 상태 업데이트
     setManualSprayState(prev => ({ ...prev, [zone.id]: "spraying" }));
 
-    console.log(`[MQTT] Published to ${cmdTopic}: ON`);
+    console.log(`[MQTT] Published to ${cmdTopic}: OPEN`);
   };
 
   // 수동 분무 중지 - ESP32에 직접 명령
@@ -524,14 +574,17 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       return;
     }
 
-    // ESP32 밸브 닫기 명령
+    // ESP32 밸브 닫기 명령 (OPEN/CLOSE 형식)
     const cmdTopic = getValveCmdTopic(zone.controllerId);
-    publishCommand(cmdTopic, { power: "off" });
+    publishCommand(cmdTopic, { power: "CLOSE" });
+
+    // HTTP API 백업
+    sendDeviceCommand(zone.controllerId, 'valve1', 'CLOSE').catch(console.error);
 
     // UI 상태 업데이트
     setManualSprayState(prev => ({ ...prev, [zone.id]: "stopped" }));
 
-    console.log(`[MQTT] Published to ${cmdTopic}: OFF`);
+    console.log(`[MQTT] Published to ${cmdTopic}: CLOSE`);
   };
 
   const getModeColor = (mode: MistMode) => {

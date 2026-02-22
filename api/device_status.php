@@ -24,14 +24,17 @@ try {
 
     $devices = $db->select($sql);
 
-    // 각 장치별로 정보 구성
+    // 각 장치별로 정보 구성 (디바운스: 90초 이내면 online 유지)
     $result = [];
     foreach ($devices as $device) {
+        $secondsAgo = (int)$device['seconds_ago'];
+        // 디바운스: last_seen이 90초 이내면 DB status와 무관하게 online 반환
+        $isOnline = ($secondsAgo <= 90) ? true : ($device['status'] === 'online');
         $result[$device['controller_id']] = [
-            'status' => $device['status'],
+            'status' => $isOnline ? 'online' : $device['status'],
             'last_seen' => $device['last_seen'],
-            'seconds_ago' => (int)$device['seconds_ago'],
-            'is_online' => $device['status'] === 'online'
+            'seconds_ago' => $secondsAgo,
+            'is_online' => $isOnline
         ];
     }
 

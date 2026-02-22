@@ -273,6 +273,11 @@ try {
         'tansaeng/ctlr-0006/pong',
         'tansaeng/ctlr-0007/pong',
         'tansaeng/ctlr-0008/pong',
+        'tansaeng/ctlr-0009/pong',
+        'tansaeng/ctlr-0010/pong',
+        'tansaeng/ctlr-0012/pong',
+        'tansaeng/ctlr-0013/pong',
+        'tansaeng/ctlr-0021/pong',
     ];
 
     foreach ($pongTopics as $topic) {
@@ -302,8 +307,9 @@ try {
     $lastDeviceCheck = 0;
     $lastSettingsCheck = 0;
     $cachedSettings = null;
+    $missedPingCounts = []; // 연속 실패 카운터 (히스테리시스)
 
-    $mqtt->registerLoopEventHandler(function (MqttClient $mqtt) use ($db, &$lastDeviceCheck, &$lastSettingsCheck, &$cachedSettings, &$deviceCycleState) {
+    $mqtt->registerLoopEventHandler(function (MqttClient $mqtt) use ($db, &$lastDeviceCheck, &$lastSettingsCheck, &$cachedSettings, &$deviceCycleState, &$missedPingCounts) {
         $now = time();
         $currentMicro = microtime(true);
 
@@ -311,14 +317,30 @@ try {
         if ($now - $lastDeviceCheck >= 30) {
             $lastDeviceCheck = $now;
 
-            $devices = ['ctlr-0001', 'ctlr-0002', 'ctlr-0003', 'ctlr-0004', 'ctlr-0005', 'ctlr-0006', 'ctlr-0007', 'ctlr-0008', 'ctlr-0012', 'ctlr-0021'];
+            $devices = ['ctlr-0001', 'ctlr-0002', 'ctlr-0003', 'ctlr-0004', 'ctlr-0005', 'ctlr-0006', 'ctlr-0007', 'ctlr-0008', 'ctlr-0012', 'ctlr-0013', 'ctlr-0021'];
             foreach ($devices as $deviceId) {
                 $mqtt->publish("tansaeng/{$deviceId}/ping", "ping", 0);
             }
 
-            // 2분 이상 응답 없으면 offline
-            $sql = "UPDATE device_status SET status = 'offline' WHERE status = 'online' AND last_seen < DATE_SUB(NOW(), INTERVAL 2 MINUTE)";
-            $db->query($sql);
+            // 3분 이상 응답 없는 장치 확인 → 연속 2회 실패 시에만 offline 처리
+            $sql = "SELECT controller_id FROM device_status WHERE status = 'online' AND last_seen < DATE_SUB(NOW(), INTERVAL 3 MINUTE)";
+            $staleDevices = $db->select($sql);
+            foreach ($staleDevices as $device) {
+                $cid = $device['controller_id'];
+                $missedPingCounts[$cid] = ($missedPingCounts[$cid] ?? 0) + 1;
+                if ($missedPingCounts[$cid] >= 2) {
+                    $db->query("UPDATE device_status SET status = 'offline' WHERE controller_id = ?", [$cid]);
+                    echo "[" . date('H:i:s') . "] [OFFLINE] {$cid} (missed {$missedPingCounts[$cid]} checks)\n";
+                    $missedPingCounts[$cid] = 0;
+                }
+            }
+
+            // pong 수신 시 카운터 리셋 (updateDeviceStatus에서 online으로 업데이트 될 때)
+            $sqlOnline = "SELECT controller_id FROM device_status WHERE status = 'online' AND last_seen >= DATE_SUB(NOW(), INTERVAL 3 MINUTE)";
+            $onlineDevices = $db->select($sqlOnline);
+            foreach ($onlineDevices as $device) {
+                $missedPingCounts[$device['controller_id']] = 0;
+            }
         }
 
         // 설정 파일 체크 (3초마다)

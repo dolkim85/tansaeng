@@ -1,0 +1,16 @@
+[Unit]
+Description=Tansaeng MQTT Heartbeat Daemon
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/html
+ExecStart=/usr/bin/node /var/www/html/daemons/mqtt_heartbeat_daemon.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/tansaeng-heartbeat.log
+StandardError=append:/var/log/tansaeng-heartbeat-error.log
+
+[Install]
+WantedBy=multi-user.target
