@@ -4,3 +4,4 @@ dist_new/
 .env
 *.log
 .DS_Store
+/index.html
