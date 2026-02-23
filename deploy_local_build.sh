@@ -187,7 +187,7 @@ sshpass -p "$CLOUD_PASSWORD" ssh -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD
         sudo mv dist dist.backup.$(date +%Y%m%d_%H%M%S)
     fi
 '
-sshpass -p "$CLOUD_PASSWORD" scp -r -o StrictHostKeyChecking=no "$LOCAL_SOURCE_DIR/dist/" "$CLOUD_USER@$CLOUD_SERVER:/var/www/html/smartfarm-ui-source/dist/"
+sshpass -p "$CLOUD_PASSWORD" scp -r -o StrictHostKeyChecking=no "$LOCAL_SOURCE_DIR/dist/" "$CLOUD_USER@$CLOUD_SERVER:/var/www/html/smartfarm-ui-source/"
 
 # 권한 설정 + Apache 리로드
 sshpass -p "$CLOUD_PASSWORD" ssh -o StrictHostKeyChecking=no "$CLOUD_USER@$CLOUD_SERVER" '
