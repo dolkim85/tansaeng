@@ -37,7 +37,7 @@ $deviceCycleState = [];
 
 // 센서 데이터 저장 쓰로틀링 (1분 단위 저장) - 전역 변수 사용
 $GLOBALS['sensorSaveThrottle'] = [];
-define('SENSOR_SAVE_INTERVAL', 60); // 초 단위
+define('SENSOR_SAVE_INTERVAL', 300); // 5분 단위
 
 // 실시간 센서 데이터 캐시 파일 (UI 표시용)
 define('REALTIME_SENSOR_FILE', __DIR__ . '/../config/realtime_sensor.json');
