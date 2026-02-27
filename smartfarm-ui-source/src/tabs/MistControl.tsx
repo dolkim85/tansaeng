@@ -911,12 +911,13 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                     <SavedSettingsDisplay schedule={zone.nightSchedule} label="🌙 야간" />
                   </div>
 
-                  {/* LED 상태 표시 (AUTO 모드) */}
+                  {/* LED 상태 표시 - MANUAL과 동일하게 mode 전달 */}
                   <div className="mb-4">
                     <LedIndicator
                       state={manualSprayState[zone.id] || "idle"}
                       zoneId={zone.id}
                       controllerId={zone.controllerId}
+                      mode={zone.mode}
                     />
                   </div>
 
