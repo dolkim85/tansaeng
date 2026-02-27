@@ -131,10 +131,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         }));
         // MANUAL 모드에서는 ESP32 상태로 UI 업데이트하지 않음 (사용자 제어만 반영)
         if (getZoneMode("zone_a") !== "MANUAL") {
-          setManualSprayState(prev => ({
-            ...prev,
-            zone_a: msg === "OPEN" ? "spraying" : "stopped"
-          }));
+          setManualSprayState(prev => ({ ...prev, zone_a: msg === "OPEN" ? "spraying" : "stopped" }));
+          setAutoCycleState(prev => ({ ...prev, zone_a: msg === "OPEN" ? "spraying" : "waiting" }));
         }
       }
 
@@ -159,6 +157,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         }));
         if (getZoneMode("zone_b") !== "MANUAL") {
           setManualSprayState(prev => ({ ...prev, zone_b: msg === "OPEN" ? "spraying" : "stopped" }));
+          setAutoCycleState(prev => ({ ...prev, zone_b: msg === "OPEN" ? "spraying" : "waiting" }));
         }
       }
       if (topic === "tansaeng/ctlr-0005/status") {
@@ -174,6 +173,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         }));
         if (getZoneMode("zone_c") !== "MANUAL") {
           setManualSprayState(prev => ({ ...prev, zone_c: msg === "OPEN" ? "spraying" : "stopped" }));
+          setAutoCycleState(prev => ({ ...prev, zone_c: msg === "OPEN" ? "spraying" : "waiting" }));
         }
       }
       if (topic === "tansaeng/ctlr-0006/status") {
@@ -189,6 +189,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         }));
         if (getZoneMode("zone_d") !== "MANUAL") {
           setManualSprayState(prev => ({ ...prev, zone_d: msg === "OPEN" ? "spraying" : "stopped" }));
+          setAutoCycleState(prev => ({ ...prev, zone_d: msg === "OPEN" ? "spraying" : "waiting" }));
         }
       }
       if (topic === "tansaeng/ctlr-0007/status") {
@@ -204,6 +205,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         }));
         if (getZoneMode("zone_e") !== "MANUAL") {
           setManualSprayState(prev => ({ ...prev, zone_e: msg === "OPEN" ? "spraying" : "stopped" }));
+          setAutoCycleState(prev => ({ ...prev, zone_e: msg === "OPEN" ? "spraying" : "waiting" }));
         }
       }
       if (topic === "tansaeng/ctlr-0008/status") {
@@ -430,10 +432,13 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       }
 
       // AUTO 모드: isRunning=true를 서버에 저장 → 데몬이 스케줄 시간에 맞춰 자동 실행
-      // 현재 시각이 스케줄 밖이면 데몬이 대기하다가 시간이 되면 자동 시작
       const updatedZoneAuto = { ...zone, isRunning: true };
       updateZone(zone.id, { isRunning: true });
       saveSettingsToServer(zone.id, updatedZoneAuto);
+
+      // LED/배지 즉시 반영 (MQTT 피드백 오기 전까지 낙관적 표시)
+      setManualSprayState(prev => ({ ...prev, [zone.id]: "spraying" }));
+      setAutoCycleState(prev => ({ ...prev, [zone.id]: "waiting" }));
 
       const schedule = getCurrentSchedule(zone);
       if (schedule) {
