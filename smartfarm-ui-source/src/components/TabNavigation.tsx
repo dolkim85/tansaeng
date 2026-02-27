@@ -8,6 +8,8 @@ const tabs = [
   { id: "mist", label: "분무수경", icon: "💧" },
   { id: "environment", label: "환경 모니터링", icon: "📊" },
   { id: "cameras", label: "카메라", icon: "📷" },
+  { id: "dashboard", label: "대시보드", icon: "🏭" },
+  { id: "mistlogs", label: "분무 로그", icon: "📋" },
   { id: "settings", label: "설정", icon: "⚙️" },
 ];
 

@@ -5,6 +5,8 @@ import DevicesControl from "./tabs/DevicesControl";
 import MistControl from "./tabs/MistControl";
 import Environment from "./tabs/Environment";
 import Cameras from "./tabs/Cameras";
+import Dashboard from "./tabs/Dashboard";
+import MistLogs from "./tabs/MistLogs";
 import Settings from "./tabs/Settings";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { getMqttClient } from "./mqtt/mqttClient";
@@ -77,6 +79,8 @@ function App() {
           {activeTab === "cameras" && (
             <Cameras cameras={cameras} setCameras={setCameras} />
           )}
+          {activeTab === "dashboard" && <Dashboard />}
+          {activeTab === "mistlogs" && <MistLogs />}
           {activeTab === "settings" && (
             <Settings
               farmSettings={farmSettings}
