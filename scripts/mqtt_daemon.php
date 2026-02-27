@@ -51,6 +51,9 @@ $GLOBALS['alertCooldowns'] = [];
 // 센서별 최신 온도 추적 (평균 계산용)
 $GLOBALS['latestTemps'] = [];
 
+// 센서별 최신 습도 추적 (습도 알림용)
+$GLOBALS['latestHumidity'] = [];
+
 // Telegram 메시지 전송
 function sendTelegramAlert($token, $chatId, $message) {
     $url = "https://api.telegram.org/bot{$token}/sendMessage";
@@ -272,6 +275,33 @@ function getCurrentSchedule($zoneConfig) {
     return null;
 }
 
+// 습도 임계값 알림
+function checkHumidityAlert() {
+    $humidity = array_values(array_filter($GLOBALS['latestHumidity'], fn($v) => $v !== null));
+    if (empty($humidity)) return;
+
+    $config = loadAlertConfig();
+    $low  = $config['humidity_alert_low']  ?? 30;
+    $high = $config['humidity_alert_high'] ?? 95;
+
+    foreach ($GLOBALS['latestHumidity'] as $controllerId => $hum) {
+        if ($hum === null) continue;
+
+        if ($hum <= $low) {
+            sendAlert("humidity_low_{$controllerId}", '🏜️ 건조 경보',
+                "하우스 습도 {$hum}%\n기준값({$low}%) 이하입니다.\n건조 피해 방지를 위해 점검이 필요합니다.");
+        } elseif ($hum >= $high) {
+            sendAlert("humidity_high_{$controllerId}", '🍄 고습도 경보',
+                "하우스 습도 {$hum}%\n기준값({$high}%) 이상입니다.\n곰팡이 발생 위험이 있습니다. 환기 또는 제습이 필요합니다.");
+        }
+    }
+}
+
+// 향후 센서 확장 대비 (CO2/EC/pH 센서 추가 시 구현)
+// function checkCO2Alert(): void { /* TODO: CO2 센서 추가 시 구현 */ }
+// function checkECAlert(): void  { /* TODO: EC 센서 추가 시 구현 */ }
+// function checkPHAlert(): void  { /* TODO: pH 센서 추가 시 구현 */ }
+
 // 평균 온도 계산 및 임계값 알림
 function checkTemperatureAlert() {
     $temps = array_values(array_filter($GLOBALS['latestTemps'], fn($v) => $v !== null));
@@ -338,10 +368,13 @@ try {
             // 실시간 캐시 업데이트 (UI 표시용 - 매번 호출)
             updateRealtimeSensorCache($controllerId, $dataType, $message);
 
-            // 온도 알림 체크 (temperature 데이터일 때만)
+            // 온도/습도 알림 체크
             if ($dataType === 'temperature') {
                 $GLOBALS['latestTemps'][$controllerId] = floatval($message);
                 checkTemperatureAlert();
+            } elseif ($dataType === 'humidity') {
+                $GLOBALS['latestHumidity'][$controllerId] = floatval($message);
+                checkHumidityAlert();
             }
 
             // 쓰로틀 키 생성 (컨트롤러+센서+데이터타입 조합)
@@ -605,6 +638,18 @@ try {
                             $deviceCycleState[$stateKey]['valveState'] = 'OPEN';
                             $deviceCycleState[$stateKey]['openedAt'] = $currentMicro;
                             echo "[" . date('H:i:s') . "] [MIST] {$zoneId}: OPEN (spray {$spraySeconds}s)\n";
+                            // AUTO 사이클 시작 기록
+                            try {
+                                $zoneName = $zoneConfig['name'] ?? $zoneId;
+                                $db->insert('mist_logs', [
+                                    'zone_id'    => $zoneId,
+                                    'zone_name'  => $zoneName,
+                                    'event_type' => 'start',
+                                    'mode'       => 'AUTO',
+                                ]);
+                            } catch (Exception $e) {
+                                echo "[WARN] mist_logs 기록 실패: " . $e->getMessage() . "\n";
+                            }
                         }
                         // 밸브 장기 열림 감지 (스케줄 오류 등으로 밸브가 비정상적으로 오래 열린 경우)
                         $alertCfg2 = loadAlertConfig();
@@ -622,6 +667,18 @@ try {
                             $deviceCycleState[$stateKey]['valveState'] = 'CLOSE';
                             $deviceCycleState[$stateKey]['openedAt'] = 0;
                             echo "[" . date('H:i:s') . "] [MIST] {$zoneId}: CLOSE (stop {$stopSeconds}s)\n";
+                            // AUTO 사이클 정지 기록
+                            try {
+                                $zoneName = $zoneConfig['name'] ?? $zoneId;
+                                $db->insert('mist_logs', [
+                                    'zone_id'    => $zoneId,
+                                    'zone_name'  => $zoneName,
+                                    'event_type' => 'stop',
+                                    'mode'       => 'AUTO',
+                                ]);
+                            } catch (Exception $e) {
+                                echo "[WARN] mist_logs 기록 실패: " . $e->getMessage() . "\n";
+                            }
                         }
                     }
                 }

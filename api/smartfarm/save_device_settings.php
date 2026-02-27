@@ -60,9 +60,41 @@ echo json_encode([
     'data' => $newSettings
 ]);
 
-// 응답 전송 후 텔레그램 알림 발송 (클라이언트에 영향 없음)
+// 응답 전송 후 백그라운드 작업 (클라이언트에 영향 없음)
 if (function_exists('fastcgi_finish_request')) {
     fastcgi_finish_request();
 }
+
+// 텔레그램 알림
 require_once __DIR__ . '/alert_notifier.php';
 notifyMistZoneChanges($existingSettings, $data);
+
+// 분무수경 isRunning 변경 시 mist_logs 기록
+if (!empty($data['mist_zones']) && is_array($data['mist_zones'])) {
+    try {
+        require_once __DIR__ . '/../../classes/Database.php';
+        $db = Database::getInstance();
+
+        foreach ($data['mist_zones'] as $zoneId => $newZone) {
+            $oldIsRunning = $existingSettings['mist_zones'][$zoneId]['isRunning'] ?? null;
+            $newIsRunning = $newZone['isRunning'] ?? null;
+
+            // isRunning 값이 실제로 변경된 경우만 기록
+            if ($newIsRunning !== null && $newIsRunning !== $oldIsRunning) {
+                $eventType = $newIsRunning ? 'start' : 'stop';
+                $mode      = $newZone['mode'] ?? ($existingSettings['mist_zones'][$zoneId]['mode'] ?? 'MANUAL');
+                $zoneName  = $newZone['name'] ?? ($existingSettings['mist_zones'][$zoneId]['name'] ?? $zoneId);
+
+                $db->insert('mist_logs', [
+                    'zone_id'    => $zoneId,
+                    'zone_name'  => $zoneName,
+                    'event_type' => $eventType,
+                    'mode'       => $mode,
+                ]);
+            }
+        }
+    } catch (Exception $e) {
+        // mist_logs 기록 실패는 무시 (응답은 이미 전송됨)
+        error_log('[save_device_settings] mist_logs 기록 실패: ' . $e->getMessage());
+    }
+}
