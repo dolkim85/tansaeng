@@ -120,6 +120,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // Zone A (ctrl-0004) 상태 처리
       if (topic === "tansaeng/ctlr-0004/valve1/state") {
+        console.log(`[MQTT] zone_a 밸브 상태: ${msg} (${new Date().toLocaleTimeString()})`);
         setValveStatus(prev => ({
           ...prev,
           zone_a: {
@@ -151,6 +152,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       // 다른 Zone들도 같은 패턴으로 처리 (ctrl-0005, ctrl-0006 등)
       // Zone B
       if (topic === "tansaeng/ctlr-0005/valve1/state") {
+        console.log(`[MQTT] zone_b 밸브 상태: ${msg} (${new Date().toLocaleTimeString()})`);
         setValveStatus(prev => ({
           ...prev,
           zone_b: { ...prev.zone_b, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
@@ -165,6 +167,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // Zone C
       if (topic === "tansaeng/ctlr-0006/valve1/state") {
+        console.log(`[MQTT] zone_c 밸브 상태: ${msg} (${new Date().toLocaleTimeString()})`);
         setValveStatus(prev => ({
           ...prev,
           zone_c: { ...prev.zone_c, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
@@ -179,6 +182,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // Zone D
       if (topic === "tansaeng/ctlr-0007/valve1/state") {
+        console.log(`[MQTT] zone_d 밸브 상태: ${msg} (${new Date().toLocaleTimeString()})`);
         setValveStatus(prev => ({
           ...prev,
           zone_d: { ...prev.zone_d, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
@@ -193,6 +197,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // Zone E
       if (topic === "tansaeng/ctlr-0008/valve1/state") {
+        console.log(`[MQTT] zone_e 밸브 상태: ${msg} (${new Date().toLocaleTimeString()})`);
         setValveStatus(prev => ({
           ...prev,
           zone_e: { ...prev.zone_e, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
