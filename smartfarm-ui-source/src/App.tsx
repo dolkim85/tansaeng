@@ -54,6 +54,45 @@ function App() {
     };
   }, []);
 
+  // MQTT 브로드캐스트 수신 - 다른 기기에서 설정 변경 시 즉시 동기화
+  useEffect(() => {
+    const client = getMqttClient();
+    const SYNC_TOPIC = "tansaeng/settings/mist_sync";
+
+    const handleMessage = (topic: string, message: Buffer) => {
+      if (topic !== SYNC_TOPIC) return;
+      try {
+        // 서버에서 오는 형식: { zone_a: {...}, zone_b: {...}, ... }
+        const serverZones: Record<string, Record<string, unknown>> = JSON.parse(message.toString());
+        setMistZones((prev) =>
+          prev.map((zone) => {
+            const s = serverZones[zone.id];
+            if (!s) return zone;
+            return {
+              ...zone,
+              name: (s.name as string) ?? zone.name,
+              mode: (s.mode as typeof zone.mode) ?? zone.mode,
+              isRunning: typeof s.isRunning === "boolean" ? s.isRunning : zone.isRunning,
+              daySchedule: s.daySchedule ? { ...zone.daySchedule, ...(s.daySchedule as object) } : zone.daySchedule,
+              nightSchedule: s.nightSchedule ? { ...zone.nightSchedule, ...(s.nightSchedule as object) } : zone.nightSchedule,
+            };
+          })
+        );
+      } catch (e) {
+        console.error("[MQTT Sync] 파싱 실패:", e);
+      }
+    };
+
+    client.on("message", handleMessage);
+    client.subscribe(SYNC_TOPIC, (err) => {
+      if (err) console.error("[MQTT Sync] 구독 실패:", err);
+    });
+
+    return () => {
+      client.off("message", handleMessage);
+    };
+  }, [setMistZones]);
+
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       {/* 상단 헤더 */}

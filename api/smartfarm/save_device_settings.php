@@ -5,6 +5,9 @@
  * 데몬이 이 설정을 읽어서 자동 제어합니다.
  */
 
+use PhpMqtt\Client\MqttClient;
+use PhpMqtt\Client\ConnectionSettings;
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -96,5 +99,36 @@ if (!empty($data['mist_zones']) && is_array($data['mist_zones'])) {
     } catch (Exception $e) {
         // mist_logs 기록 실패는 무시 (응답은 이미 전송됨)
         error_log('[save_device_settings] mist_logs 기록 실패: ' . $e->getMessage());
+    }
+}
+
+// MQTT 브로드캐스트: 접속 중인 모든 기기에 즉시 동기화
+if (!empty($newSettings['mist_zones'])) {
+    try {
+        require_once __DIR__ . '/../../vendor/autoload.php';
+
+        $mqtt = new MqttClient(
+            '22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud',
+            8883,
+            'php-sync-' . uniqid()
+        );
+        $mqtt->connect(
+            (new ConnectionSettings)
+                ->setUsername('esp32-client-01')
+                ->setPassword('Qjawns3445')
+                ->setUseTls(true)
+                ->setTlsSelfSignedAllowed(true),
+            true
+        );
+        // retain=true: 나중에 접속하는 기기도 마지막 상태 즉시 수신
+        $mqtt->publish(
+            'tansaeng/settings/mist_sync',
+            json_encode($newSettings['mist_zones'], JSON_UNESCAPED_UNICODE),
+            0,
+            true
+        );
+        $mqtt->disconnect();
+    } catch (Exception $e) {
+        error_log('[MQTT Sync] 브로드캐스트 실패: ' . $e->getMessage());
     }
 }

@@ -14,7 +14,7 @@ define('DB_USER', 'root');
 define('DB_PASS', '');
 
 // Session Configuration
-define('SESSION_TIMEOUT', 7200); // 2 hours
+define('SESSION_TIMEOUT', 0); // 0 = 로그아웃하기 전까지 유지 (무제한)
 define('CSRF_TOKEN_EXPIRE', 3600); // 1 hour
 
 // User Permission Levels

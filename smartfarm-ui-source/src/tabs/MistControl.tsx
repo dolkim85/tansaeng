@@ -302,6 +302,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         body: JSON.stringify({
           mist_zones: {
             [zoneId]: {
+              name: zone.name,
               mode: zone.mode,
               controllerId: zone.controllerId,
               deviceId: 'valve1',
@@ -503,6 +504,10 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     // UI 상태 업데이트
     setManualSprayState(prev => ({ ...prev, [zone.id]: "spraying" }));
 
+    // isRunning 상태 저장 → mist_logs 기록 트리거
+    updateZone(zone.id, { isRunning: true });
+    saveSettingsToServer(zone.id, { ...zone, isRunning: true });
+
     console.log(`[MQTT] Published to ${cmdTopic}: OPEN`);
   };
 
@@ -522,6 +527,10 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
     // UI 상태 업데이트
     setManualSprayState(prev => ({ ...prev, [zone.id]: "stopped" }));
+
+    // isRunning 상태 저장 → mist_logs 기록 트리거
+    updateZone(zone.id, { isRunning: false });
+    saveSettingsToServer(zone.id, { ...zone, isRunning: false });
 
     console.log(`[MQTT] Published to ${cmdTopic}: CLOSE`);
   };
