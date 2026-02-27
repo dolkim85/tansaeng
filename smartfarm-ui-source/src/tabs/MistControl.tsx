@@ -211,17 +211,43 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       if (topic === "tansaeng/ctlr-0008/status") {
         setValveStatus(prev => ({ ...prev, zone_e: { ...prev.zone_e, online: msg === "online", lastUpdated: new Date().toLocaleTimeString() } }));
       }
+
+      // valve1/cmd 수신: 데몬(AUTO) 또는 수동(MANUAL) 명령을 모든 구독자가 수신
+      const CMD_ZONE_MAP: Record<string, string> = {
+        "tansaeng/ctlr-0004/valve1/cmd": "zone_a",
+        "tansaeng/ctlr-0005/valve1/cmd": "zone_b",
+        "tansaeng/ctlr-0006/valve1/cmd": "zone_c",
+        "tansaeng/ctlr-0007/valve1/cmd": "zone_d",
+        "tansaeng/ctlr-0008/valve1/cmd": "zone_e",
+      };
+      if (CMD_ZONE_MAP[topic]) {
+        const zoneId = CMD_ZONE_MAP[topic];
+        // 데몬: 'OPEN'/'CLOSE' (plain) / 수동: '{"power":"OPEN"}' (JSON)
+        let cmd = msg;
+        try { cmd = (JSON.parse(msg) as { power: string }).power ?? msg; } catch { /* plain text */ }
+        const isOpen = cmd.toUpperCase() === "OPEN";
+
+        if (getZoneMode(zoneId) === "MANUAL") {
+          // MANUAL: 버튼 클릭 즉시 이미 LED 업데이트됨 → 콘솔만 출력
+          console.log(`📤 Published to ${topic}: ${cmd}`);
+        } else {
+          // AUTO: 콘솔 출력 + LED/배지 실시간 업데이트
+          console.log(`📤 Published to ${topic}: ${cmd}`);
+          setManualSprayState(prev => ({ ...prev, [zoneId]: isOpen ? "spraying" : "stopped" }));
+          setAutoCycleState(prev => ({ ...prev, [zoneId]: isOpen ? "spraying" : "waiting" }));
+        }
+      }
     };
 
     client.on("message", handleMessage);
 
     // 토픽 구독
     const topics = [
-      "tansaeng/ctlr-0004/valve1/state", "tansaeng/ctlr-0004/status",
-      "tansaeng/ctlr-0005/valve1/state", "tansaeng/ctlr-0005/status",
-      "tansaeng/ctlr-0006/valve1/state", "tansaeng/ctlr-0006/status",
-      "tansaeng/ctlr-0007/valve1/state", "tansaeng/ctlr-0007/status",
-      "tansaeng/ctlr-0008/valve1/state", "tansaeng/ctlr-0008/status",
+      "tansaeng/ctlr-0004/valve1/state", "tansaeng/ctlr-0004/status", "tansaeng/ctlr-0004/valve1/cmd",
+      "tansaeng/ctlr-0005/valve1/state", "tansaeng/ctlr-0005/status", "tansaeng/ctlr-0005/valve1/cmd",
+      "tansaeng/ctlr-0006/valve1/state", "tansaeng/ctlr-0006/status", "tansaeng/ctlr-0006/valve1/cmd",
+      "tansaeng/ctlr-0007/valve1/state", "tansaeng/ctlr-0007/status", "tansaeng/ctlr-0007/valve1/cmd",
+      "tansaeng/ctlr-0008/valve1/state", "tansaeng/ctlr-0008/status", "tansaeng/ctlr-0008/valve1/cmd",
     ];
 
     topics.forEach(topic => {
@@ -523,7 +549,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     updateZone(zone.id, { isRunning: true });
     saveSettingsToServer(zone.id, { ...zone, isRunning: true });
 
-    console.log(`[MQTT] Published to ${cmdTopic}: OPEN`);
+    // cmd 토픽 구독 echo로 콘솔 출력됨 (중복 방지를 위해 여기선 생략)
   };
 
   // 수동 분무 중지 - ESP32에 직접 명령
@@ -547,7 +573,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     updateZone(zone.id, { isRunning: false });
     saveSettingsToServer(zone.id, { ...zone, isRunning: false });
 
-    console.log(`[MQTT] Published to ${cmdTopic}: CLOSE`);
+    // cmd 토픽 구독 echo로 콘솔 출력됨 (중복 방지를 위해 여기선 생략)
   };
 
   const getModeColor = (mode: MistMode) => {
