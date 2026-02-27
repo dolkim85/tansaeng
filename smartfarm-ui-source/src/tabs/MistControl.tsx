@@ -418,20 +418,24 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     }
 
     if (zone.mode === "AUTO") {
-      // 현재 시간대에 맞는 스케줄 확인
-      const schedule = getCurrentSchedule(zone);
-      if (!schedule) {
-        alert("현재 시간대에 활성화된 스케줄이 없습니다. 주간/야간 설정을 확인해주세요.");
+      // 스케줄이 하나도 활성화되지 않은 경우에만 차단
+      if (!zone.daySchedule.enabled && !zone.nightSchedule.enabled) {
+        alert("주간 또는 야간 스케줄을 하나 이상 활성화한 후 저장해주세요.");
         return;
       }
 
-      // AUTO 모드: 브라우저 타이머 없이 서버 데몬에 완전 위임
-      // isRunning: true를 서버에 저장하면 데몬이 스케줄에 맞게 자동 실행
+      // AUTO 모드: isRunning=true를 서버에 저장 → 데몬이 스케줄 시간에 맞춰 자동 실행
+      // 현재 시각이 스케줄 밖이면 데몬이 대기하다가 시간이 되면 자동 시작
       const updatedZoneAuto = { ...zone, isRunning: true };
       updateZone(zone.id, { isRunning: true });
-      // 서버에 isRunning 상태 저장 (데몬이 이어서 실행 + 텔레그램 알림)
       saveSettingsToServer(zone.id, updatedZoneAuto);
-      alert(`${zone.name} AUTO 사이클을 시작합니다.\n서버 데몬이 스케줄에 따라 자동 제어합니다.\n정지대기 ${schedule.stopDurationSeconds ?? 0}초 → 분무 ${schedule.sprayDurationSeconds ?? 0}초 → 반복`);
+
+      const schedule = getCurrentSchedule(zone);
+      if (schedule) {
+        alert(`${zone.name} AUTO 사이클을 시작합니다.\n정지대기 ${schedule.stopDurationSeconds ?? 0}초 → 분무 ${schedule.sprayDurationSeconds ?? 0}초 → 반복`);
+      } else {
+        alert(`${zone.name} AUTO 대기 중입니다.\n스케줄 시간이 되면 자동으로 시작됩니다.`);
+      }
     } else {
       // MANUAL 모드: 실제 밸브 OPEN 명령 전송
       const cmdTopic = getValveCmdTopic(zone.controllerId);
