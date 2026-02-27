@@ -6,6 +6,7 @@ import MistControl from "./tabs/MistControl";
 import Environment from "./tabs/Environment";
 import Cameras from "./tabs/Cameras";
 import Settings from "./tabs/Settings";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { getMqttClient } from "./mqtt/mqttClient";
 import {
   usePersistedDeviceState,
@@ -61,25 +62,28 @@ function App() {
 
       {/* 메인 콘텐츠 - 스크롤 가능 */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden pb-5 min-h-0">
-        {activeTab === "devices" && (
-          <DevicesControl
-            deviceState={deviceState}
-            setDeviceState={setDeviceState}
-          />
-        )}
-        {activeTab === "mist" && (
-          <MistControl zones={mistZones} setZones={setMistZones} />
-        )}
-        {activeTab === "environment" && <Environment />}
-        {activeTab === "cameras" && (
-          <Cameras cameras={cameras} setCameras={setCameras} />
-        )}
-        {activeTab === "settings" && (
-          <Settings
-            farmSettings={farmSettings}
-            setFarmSettings={setFarmSettings}
-          />
-        )}
+        {/* key={activeTab}: 탭 전환 시 에러 상태 자동 리셋 */}
+        <ErrorBoundary key={activeTab}>
+          {activeTab === "devices" && (
+            <DevicesControl
+              deviceState={deviceState}
+              setDeviceState={setDeviceState}
+            />
+          )}
+          {activeTab === "mist" && (
+            <MistControl zones={mistZones} setZones={setMistZones} />
+          )}
+          {activeTab === "environment" && <Environment />}
+          {activeTab === "cameras" && (
+            <Cameras cameras={cameras} setCameras={setCameras} />
+          )}
+          {activeTab === "settings" && (
+            <Settings
+              farmSettings={farmSettings}
+              setFarmSettings={setFarmSettings}
+            />
+          )}
+        </ErrorBoundary>
       </main>
 
       {/* 푸터 */}

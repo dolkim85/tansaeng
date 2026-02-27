@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import type { MistZoneConfig, MistMode, MistScheduleSettings } from "../types";
-import { publishCommand, getMqttClient, isMqttConnected, onConnectionChange } from "../mqtt/mqttClient";
+import { publishCommand, getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
 import { sendDeviceCommand } from "../api/deviceControl";
 
 interface MistControlProps {
@@ -367,70 +367,6 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     setAutoCycleState(prev => ({ ...prev, [zoneId]: "idle" }));
   };
 
-  // AUTO 사이클 시작 함수 (정지대기 → 분무 → 반복)
-  const startAutoCycle = (zone: MistZoneConfig, schedule: MistScheduleSettings) => {
-    const zoneId = zone.id;
-    const controllerId = zone.controllerId;
-    if (!controllerId) return;
-
-    const cmdTopic = getValveCmdTopic(controllerId);
-    const sprayDuration = (schedule.sprayDurationSeconds ?? 0) * 1000; // ms
-    const stopDuration = (schedule.stopDurationSeconds ?? 0) * 1000;   // ms
-
-    console.log(`[AUTO] Starting cycle for ${zone.name}`);
-    console.log(`[AUTO] Topic: ${cmdTopic}`);
-    console.log(`[AUTO] Spray: ${sprayDuration/1000}s, Stop: ${stopDuration/1000}s`);
-    console.log(`[AUTO] MQTT Connected: ${isMqttConnected()}`);
-
-    // 기존 타이머 정리
-    stopAutoCycle(zoneId);
-
-    // 타이머 초기화
-    cycleTimers.current[zoneId] = {
-      stopTimer: null,
-      sprayTimer: null,
-      isRunning: true,
-    };
-
-    const runCycle = () => {
-      if (!cycleTimers.current[zoneId]?.isRunning) return;
-
-      // MQTT 연결 확인
-      if (!isMqttConnected()) {
-        console.error(`[AUTO] MQTT not connected! Retrying in 3 seconds...`);
-        cycleTimers.current[zoneId].stopTimer = setTimeout(runCycle, 3000);
-        return;
-      }
-
-      // 1. 정지 대기 (밸브 닫힘)
-      console.log(`[AUTO] ${zone.name}: Sending CLOSE to ${cmdTopic}`);
-      publishCommand(cmdTopic, { power: "CLOSE" });
-      setAutoCycleState(prev => ({ ...prev, [zoneId]: "waiting" }));
-      // manualSprayState도 업데이트 (LED 표시용)
-      setManualSprayState(prev => ({ ...prev, [zoneId]: "stopped" }));
-
-      cycleTimers.current[zoneId].stopTimer = setTimeout(() => {
-        if (!cycleTimers.current[zoneId]?.isRunning) return;
-
-        // 2. 분무 (밸브 열림)
-        console.log(`[AUTO] ${zone.name}: Sending OPEN to ${cmdTopic}`);
-        publishCommand(cmdTopic, { power: "OPEN" });
-        setAutoCycleState(prev => ({ ...prev, [zoneId]: "spraying" }));
-        // manualSprayState도 업데이트 (LED 표시용)
-        setManualSprayState(prev => ({ ...prev, [zoneId]: "spraying" }));
-
-        cycleTimers.current[zoneId].sprayTimer = setTimeout(() => {
-          if (!cycleTimers.current[zoneId]?.isRunning) return;
-          // 3. 다음 사이클 시작
-          runCycle();
-        }, sprayDuration);
-      }, stopDuration);
-    };
-
-    // 사이클 시작
-    runCycle();
-  };
-
   // 현재 시간대에 맞는 스케줄 가져오기
   const getCurrentSchedule = (zone: MistZoneConfig): MistScheduleSettings | null => {
     const now = new Date();
@@ -488,13 +424,13 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         return;
       }
 
-      // AUTO 사이클 시작
-      startAutoCycle(zone, schedule);
+      // AUTO 모드: 브라우저 타이머 없이 서버 데몬에 완전 위임
+      // isRunning: true를 서버에 저장하면 데몬이 스케줄에 맞게 자동 실행
       const updatedZoneAuto = { ...zone, isRunning: true };
       updateZone(zone.id, { isRunning: true });
       // 서버에 isRunning 상태 저장 (데몬이 이어서 실행 + 텔레그램 알림)
       saveSettingsToServer(zone.id, updatedZoneAuto);
-      alert(`${zone.name} AUTO 사이클을 시작합니다.\n정지대기 ${schedule.stopDurationSeconds ?? 0}초 → 분무 ${schedule.sprayDurationSeconds ?? 0}초 → 반복`);
+      alert(`${zone.name} AUTO 사이클을 시작합니다.\n서버 데몬이 스케줄에 따라 자동 제어합니다.\n정지대기 ${schedule.stopDurationSeconds ?? 0}초 → 분무 ${schedule.sprayDurationSeconds ?? 0}초 → 반복`);
     } else {
       // MANUAL 모드: 실제 밸브 OPEN 명령 전송
       const cmdTopic = getValveCmdTopic(zone.controllerId);

@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
 import type { SensorSnapshot } from "../types";
 import SensorRow from "../components/SensorRow";
+
+// 로컬 날짜 포맷 헬퍼 (UTC 변환 없이 브라우저 로컬 시간 기준)
+const formatLocalDate = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -289,8 +297,8 @@ export default function Environment() {
           startDate.setMonth(startDate.getMonth() - 1);
         }
 
-        const startStr = startDate.toISOString().split('T')[0];
-        const endStr = endDate.toISOString().split('T')[0];
+        const startStr = formatLocalDate(startDate);
+        const endStr = formatLocalDate(endDate);
 
         const response = await fetch(
           `/api/smartfarm/get_sensor_data.php?start_date=${startStr}&end_date=${endStr}`
@@ -382,8 +390,8 @@ export default function Environment() {
     setIsLoadingHistory(true);
     setCurrentPage(1); // 조회 시 첫 페이지로 이동
     try {
-      const startStr = selectedStartDate.toISOString().split('T')[0];
-      const endStr = selectedEndDate.toISOString().split('T')[0];
+      const startStr = formatLocalDate(selectedStartDate);
+      const endStr = formatLocalDate(selectedEndDate);
 
       const response = await fetch(
         `/api/smartfarm/get_sensor_data.php?start_date=${startStr}&end_date=${endStr}`
@@ -425,8 +433,8 @@ export default function Environment() {
     XLSX.utils.book_append_sheet(workbook, worksheet, '환경 데이터');
 
     // 파일명 생성
-    const startStr = selectedStartDate?.toISOString().split('T')[0] || '';
-    const endStr = selectedEndDate?.toISOString().split('T')[0] || '';
+    const startStr = selectedStartDate ? formatLocalDate(selectedStartDate) : '';
+    const endStr = selectedEndDate ? formatLocalDate(selectedEndDate) : '';
     const fileName = `환경데이터_${startStr}_${endStr}.xlsx`;
 
     // 다운로드
@@ -535,8 +543,8 @@ export default function Environment() {
 
     setIsDeleting(true);
     try {
-      const startStr = selectedStartDate.toISOString().split('T')[0];
-      const endStr = selectedEndDate.toISOString().split('T')[0];
+      const startStr = formatLocalDate(selectedStartDate);
+      const endStr = formatLocalDate(selectedEndDate);
 
       const response = await fetch('/api/smartfarm/delete_sensor_data.php', {
         method: 'POST',
