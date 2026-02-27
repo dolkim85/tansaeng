@@ -79,7 +79,7 @@ function App() {
           {activeTab === "cameras" && (
             <Cameras cameras={cameras} setCameras={setCameras} />
           )}
-          {activeTab === "dashboard" && <Dashboard />}
+          {activeTab === "dashboard" && <Dashboard mistZones={mistZones} />}
           {activeTab === "mistlogs" && <MistLogs />}
           {activeTab === "settings" && (
             <Settings
