@@ -437,8 +437,9 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       saveSettingsToServer(zone.id, updatedZoneAuto);
 
       // LED/배지 즉시 반영 (MQTT 피드백 오기 전까지 낙관적 표시)
+      // 데몬은 사이클 시작 시 분무(OPEN)부터 시작하므로 "spraying"으로 초기화
       setManualSprayState(prev => ({ ...prev, [zone.id]: "spraying" }));
-      setAutoCycleState(prev => ({ ...prev, [zone.id]: "waiting" }));
+      setAutoCycleState(prev => ({ ...prev, [zone.id]: "spraying" }));
 
       const schedule = getCurrentSchedule(zone);
       if (schedule) {
