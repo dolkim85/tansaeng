@@ -490,7 +490,10 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // AUTO 사이클 시작
       startAutoCycle(zone, schedule);
+      const updatedZoneAuto = { ...zone, isRunning: true };
       updateZone(zone.id, { isRunning: true });
+      // 서버에 isRunning 상태 저장 (데몬이 이어서 실행 + 텔레그램 알림)
+      saveSettingsToServer(zone.id, updatedZoneAuto);
       alert(`${zone.name} AUTO 사이클을 시작합니다.\n정지대기 ${schedule.stopDurationSeconds ?? 0}초 → 분무 ${schedule.sprayDurationSeconds ?? 0}초 → 반복`);
     } else {
       // MANUAL 모드: 실제 밸브 OPEN 명령 전송
