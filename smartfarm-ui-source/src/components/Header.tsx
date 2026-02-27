@@ -11,7 +11,7 @@ export default function Header({ connectionState }: HeaderProps) {
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 5000); // 5초마다 갱신
+    }, 1000); // 1초마다 갱신
 
     return () => clearInterval(timer);
   }, []);
