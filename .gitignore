@@ -5,3 +5,4 @@ dist_new/
 *.log
 .DS_Store
 /index.html
+config/alert_config.json

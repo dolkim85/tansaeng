@@ -48,6 +48,9 @@ function loadAlertConfig() {
 // 알림 발송 쿨다운 추적 (스팸 방지)
 $GLOBALS['alertCooldowns'] = [];
 
+// 센서별 최신 온도 추적 (평균 계산용)
+$GLOBALS['latestTemps'] = [];
+
 // Telegram 메시지 전송
 function sendTelegramAlert($token, $chatId, $message) {
     $url = "https://api.telegram.org/bot{$token}/sendMessage";
@@ -269,6 +272,26 @@ function getCurrentSchedule($zoneConfig) {
     return null;
 }
 
+// 평균 온도 계산 및 임계값 알림
+function checkTemperatureAlert() {
+    $temps = array_values(array_filter($GLOBALS['latestTemps'], fn($v) => $v !== null));
+    if (empty($temps)) return;
+
+    $avg = round(array_sum($temps) / count($temps), 1);
+    $config = loadAlertConfig();
+
+    $low  = $config['temp_alert_low']  ?? 5;
+    $high = $config['temp_alert_high'] ?? 28;
+
+    if ($avg <= $low) {
+        sendAlert('temp_low', '🥶 저온 경보',
+            "하우스 평균온도 {$avg}°C\n기준온도({$low}°C) 이하입니다.\n현장 확인이 필요합니다.");
+    } elseif ($avg >= $high) {
+        sendAlert('temp_high', '🔥 고온 경보',
+            "하우스 평균온도 {$avg}°C\n기준온도({$high}°C) 이상입니다.\n환기 또는 냉방 조치가 필요합니다.");
+    }
+}
+
 // MQTT 클라이언트 생성
 try {
     $connectionSettings = (new ConnectionSettings)
@@ -314,6 +337,12 @@ try {
 
             // 실시간 캐시 업데이트 (UI 표시용 - 매번 호출)
             updateRealtimeSensorCache($controllerId, $dataType, $message);
+
+            // 온도 알림 체크 (temperature 데이터일 때만)
+            if ($dataType === 'temperature') {
+                $GLOBALS['latestTemps'][$controllerId] = floatval($message);
+                checkTemperatureAlert();
+            }
 
             // 쓰로틀 키 생성 (컨트롤러+센서+데이터타입 조합)
             $throttleKey = "{$controllerId}_{$sensorType}_{$dataType}";
