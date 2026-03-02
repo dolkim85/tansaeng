@@ -126,10 +126,14 @@ try {
     $mqtt->connect($connectionSettings, true);
     logMessage("HiveMQ Cloud 연결 성공!");
 
+    // 시작 시간 기록 (retained offline 메시지 무시용)
+    $daemonStartTime = microtime(true);
+    $STARTUP_GRACE_PERIOD = 15; // 시작 후 15초간 offline 메시지 무시
+
     // 모든 ESP32 장치의 status 토픽 구독
     foreach ($controllers as $controllerId => $name) {
         $topic = "tansaeng/{$controllerId}/status";
-        $mqtt->subscribe($topic, function ($topic, $message) use ($db, $controllerId, $name, $validHeartbeatValues, $offlineValues) {
+        $mqtt->subscribe($topic, function ($topic, $message) use ($db, $controllerId, $name, $validHeartbeatValues, $offlineValues, $daemonStartTime, $STARTUP_GRACE_PERIOD) {
             $payload = strtolower(trim($message));
 
             // Heartbeat 값 체크 (OR 조건)
@@ -138,10 +142,14 @@ try {
                     logMessage("[{$controllerId}] {$name} - ONLINE (payload: {$payload})");
                 }
             }
-            // Offline 값 체크
+            // Offline 값 체크 - 시작 후 15초 이내 수신된 offline은 retained 메시지로 무시
             elseif (in_array($payload, $offlineValues)) {
-                if (updateESP32Status($db, $controllerId, false)) {
-                    logMessage("[{$controllerId}] {$name} - OFFLINE (payload: {$payload})");
+                if ((microtime(true) - $daemonStartTime) < $STARTUP_GRACE_PERIOD) {
+                    logMessage("[{$controllerId}] {$name} - retained offline 무시 (시작 grace period)");
+                } else {
+                    if (updateESP32Status($db, $controllerId, false)) {
+                        logMessage("[{$controllerId}] {$name} - OFFLINE (payload: {$payload})");
+                    }
                 }
             }
             // 알 수 없는 값

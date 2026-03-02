@@ -34,8 +34,8 @@ const client = mqtt.connect(MQTT_BROKER, {
 client.on('connect', () => {
   console.log(`[MQTT] Connected to broker`);
 
-  // 메시지 발행
-  client.publish(topic, message, { qos: 1, retain: true }, (err) => {
+  // 메시지 발행 (장치 명령은 retain: false - retained 명령이 재연결 시 재실행되면 ESP32 오작동 유발)
+  client.publish(topic, message, { qos: 1, retain: false }, (err) => {
     if (err) {
       console.error(`[ERROR] Failed to publish: ${err.message}`);
       process.exit(1);

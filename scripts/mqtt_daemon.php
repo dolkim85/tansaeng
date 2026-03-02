@@ -346,7 +346,7 @@ try {
     // 시작 시간 기록 (retained 메시지 무시용)
     // MQTT 구독 직후 수신되는 메시지는 retained 메시지이므로 무시
     $daemonStartTime = microtime(true);
-    $STARTUP_GRACE_PERIOD = 5; // 시작 후 5초간 status/state 메시지 무시
+    $STARTUP_GRACE_PERIOD = 15; // 시작 후 15초간 status/state 메시지 무시 (retained offline 메시지 방지)
 
     // 센서 토픽 구독
     $sensorTopics = [
