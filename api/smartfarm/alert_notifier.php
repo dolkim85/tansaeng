@@ -4,6 +4,10 @@
  * device_control.php, save_device_settings.php에서 include하여 사용
  */
 
+function _seoulTime($format = 'H:i:s') {
+    return (new DateTime('now', new DateTimeZone('Asia/Seoul')))->format($format);
+}
+
 function _apiLoadAlertConfig() {
     $configFile = __DIR__ . '/../../config/alert_config.json';
     if (!file_exists($configFile)) return null;
@@ -79,7 +83,7 @@ function getCommandText($command) {
 function notifyDeviceCommand($controllerId, $deviceId, $command) {
     $device = getDeviceName($controllerId, $deviceId);
     $cmd    = getCommandText($command);
-    $time   = date('H:i:s');
+    $time   = _seoulTime();
     $msg    = "🌿 <b>탄생농원 장치제어</b>\n장치: {$device}\n명령: {$cmd}\n시각: {$time}";
     _apiSendTelegram($msg);
 }
@@ -92,7 +96,7 @@ function notifyMistZoneChanges($existingSettings, $incomingData) {
     if (empty($incomingData['mist_zones'])) return;
 
     $existingZones = $existingSettings['mist_zones'] ?? [];
-    $time = date('H:i:s');
+    $time = _seoulTime();
 
     foreach ($incomingData['mist_zones'] as $zoneId => $newZone) {
         $old  = $existingZones[$zoneId] ?? [];
