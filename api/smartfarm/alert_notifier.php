@@ -41,7 +41,7 @@ function getDeviceName($controllerId, $deviceId) {
     $map = [
         'ctlr-0001'    => ['fan1'                => '내부팬 앞'],
         'ctlr-0002'    => ['fan2'                => '내부팬 뒤'],
-        'esp32-node-1' => ['fan_top'             => '천장팬'],
+        'ctlr-0003'    => ['fan_top'             => '천장팬'],
         'ctlr-0012'    => ['windowL'             => '천창 좌측', 'windowR' => '천창 우측'],
         'ctlr-0021'    => ['sideL'               => '측창 좌측', 'sideR'   => '측창 우측'],
         'esp32-node-3' => [
