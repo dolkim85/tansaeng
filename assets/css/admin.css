@@ -1225,14 +1225,7 @@ input:checked + .slider:before {
     }
 
     .admin-nav {
-        order: 3;
-        width: 100%;
-        margin-top: 1rem;
-    }
-
-    .admin-nav ul {
-        flex-wrap: wrap;
-        gap: 0.5rem;
+        display: none;
     }
 
     .admin-content {

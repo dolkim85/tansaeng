@@ -50,6 +50,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
                 <span class="admin-role">관리자</span>
             </div>
             <div class="admin-actions">
+                <a href="/smartfarm-ui/" target="_blank" class="admin-action" title="환경제어 시스템">🎮</a>
                 <a href="/" target="_blank" class="admin-action" title="사이트 보기">🌐</a>
                 <a href="/admin/settings/" class="admin-action" title="설정">⚙️</a>
                 <a href="/admin/logout.php" class="admin-action" title="로그아웃">🚪</a>
