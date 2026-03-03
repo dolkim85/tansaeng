@@ -410,14 +410,18 @@ try {
 
     foreach ($statusTopics as $topic) {
         $mqtt->subscribe($topic, function ($topic, $message) use ($db, $daemonStartTime, $STARTUP_GRACE_PERIOD) {
-            // 시작 직후 수신된 메시지는 retained 메시지이므로 무시
-            if ((microtime(true) - $daemonStartTime) < $STARTUP_GRACE_PERIOD) {
-                $parts = explode('/', $topic);
-                echo "[MQTT] Ignoring retained status from {$parts[1]}: {$message}\n";
-                return;
-            }
             $parts = explode('/', $topic);
             $controllerId = $parts[1];
+            $normalized = strtolower(trim($message));
+
+            // 시작 직후 grace period: offline 메시지만 무시 (retained LWT 방지)
+            // online 메시지는 허용 - heartbeat 없는 장치(ctlr-0004 등)가 재시작 후 online 유지되도록
+            if ((microtime(true) - $daemonStartTime) < $STARTUP_GRACE_PERIOD) {
+                if (in_array($normalized, ['offline', 'off', 'disconnected', 'false', 'inactive', 'dead'])) {
+                    echo "[MQTT] Grace period: retained offline 무시 [{$controllerId}]\n";
+                    return;
+                }
+            }
             updateDeviceStatus($db, $controllerId, $message);
         }, 0);
     }
@@ -447,14 +451,9 @@ try {
         }, 0);
     }
 
-    // 장치 state 토픽 구독
-    $mqtt->subscribe('tansaeng/+/+/state', function ($topic, $message) use ($db, $daemonStartTime, $STARTUP_GRACE_PERIOD) {
-        // 시작 직후 수신된 메시지는 retained 메시지이므로 무시
-        if ((microtime(true) - $daemonStartTime) < $STARTUP_GRACE_PERIOD) {
-            $parts = explode('/', $topic);
-            echo "[MQTT] Ignoring retained state from {$parts[1]}: {$message}\n";
-            return;
-        }
+    // 장치 state 토픽 구독 (retained state 포함 - 항상 online 신호이므로 grace period 불필요)
+    // ctlr-0004 같이 heartbeat 없는 장치도 마지막 valve state retained 메시지로 online 감지 가능
+    $mqtt->subscribe('tansaeng/+/+/state', function ($topic, $message) use ($db) {
         $parts = explode('/', $topic);
         $controllerId = $parts[1];
         updateDeviceStatus($db, $controllerId, 'online');
@@ -481,11 +480,15 @@ try {
                 $mqtt->publish("tansaeng/{$deviceId}/ping", "ping", 0);
             }
 
-            // 3분 이상 응답 없는 장치 확인 → 연속 2회 실패 시에만 offline 처리
+            // 응답 없는 장치 오프라인 처리
+            // - heartbeat 장치 (ctlr-0012, ctlr-0021 등): 3분 타임아웃, 2회 실패
+            // - 비-heartbeat 장치 (ctlr-0004 등): 10분 타임아웃, LWT로만 offline → ping timeout 제외
+            $heartbeatDevices = ['ctlr-0001', 'ctlr-0002', 'ctlr-0003', 'ctlr-0012', 'ctlr-0021'];
             $alertCfg = loadAlertConfig();
             $mistZones = loadDeviceSettings()['mist_zones'] ?? [];
 
-            $sql = "SELECT controller_id FROM device_status WHERE status = 'online' AND last_seen < DATE_SUB(NOW(), INTERVAL 3 MINUTE)";
+            $ids = implode("','", $heartbeatDevices);
+            $sql = "SELECT controller_id FROM device_status WHERE status = 'online' AND controller_id IN ('{$ids}') AND last_seen < DATE_SUB(NOW(), INTERVAL 3 MINUTE)";
             $staleDevices = $db->select($sql);
             foreach ($staleDevices as $device) {
                 $cid = $device['controller_id'];

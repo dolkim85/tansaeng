@@ -82,20 +82,42 @@ function updateESP32Status($db, $controllerId, $isConnected) {
     }
 }
 
-// 타임아웃 체크 함수 (90초 동안 heartbeat 없으면 offline)
+// 타임아웃 체크 함수
+// ctlr-0012, ctlr-0021 처럼 60초마다 heartbeat 보내는 장치: 90초 타임아웃
+// ctlr-0004 처럼 heartbeat 없는 장치: 10분 타임아웃 (LWT 메시지로만 offline 판단)
+$HEARTBEAT_DEVICES = ['ctlr-0001', 'ctlr-0002', 'ctlr-0003', 'ctlr-0012', 'ctlr-0021'];
 function checkTimeouts($db) {
+    global $HEARTBEAT_DEVICES;
     try {
+        // heartbeat 보내는 장치: 90초
+        $ids = implode("','", $HEARTBEAT_DEVICES);
         $stmt = $db->prepare("
             UPDATE esp32_status
             SET is_connected = FALSE
             WHERE is_connected = TRUE
+            AND controller_id IN ('{$ids}')
             AND last_heartbeat < DATE_SUB(NOW(), INTERVAL 90 SECOND)
         ");
         $stmt->execute();
 
         $affected = $stmt->rowCount();
         if ($affected > 0) {
-            logMessage("타임아웃으로 {$affected}개 장치 offline 처리");
+            logMessage("타임아웃으로 {$affected}개 heartbeat 장치 offline 처리");
+        }
+
+        // heartbeat 없는 장치(ctlr-0004 등): 10분 타임아웃
+        $stmt2 = $db->prepare("
+            UPDATE esp32_status
+            SET is_connected = FALSE
+            WHERE is_connected = TRUE
+            AND controller_id NOT IN ('{$ids}')
+            AND last_heartbeat < DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+        ");
+        $stmt2->execute();
+
+        $affected2 = $stmt2->rowCount();
+        if ($affected2 > 0) {
+            logMessage("타임아웃으로 {$affected2}개 비-heartbeat 장치 offline 처리");
         }
     } catch (Exception $e) {
         logMessage("타임아웃 체크 오류: " . $e->getMessage());
