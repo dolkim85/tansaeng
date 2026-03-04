@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { getDevicesByType } from "../config/devices";
 import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
 import DeviceCard from "../components/DeviceCard";
 import { getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
-import { sendDeviceCommand, saveDeviceSettings } from "../api/deviceControl";
+import { sendDeviceCommand, saveDeviceSettings, getDeviceSettings } from "../api/deviceControl";
 
 interface DevicesControlProps {
   deviceState: DeviceDesiredState;
@@ -27,14 +27,35 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 천창/측창 작동 상태 (idle: 대기중, running: 작동중, completed: 완료)
   const [operationStatus, setOperationStatus] = useState<Record<string, 'idle' | 'running' | 'completed'>>({});
 
-  // 천창/측창 현재 위치 추적 (0~100%)
+  // 천창/측창 현재 위치 추적 (0~100%) - 서버와 동기화
   const [currentPosition, setCurrentPosition] = useState<Record<string, number>>({});
+
+  // 퍼센트 작동 시작 시각 추적 (STOP 시 현재 위치 계산용)
+  const operationStartInfo = useRef<Record<string, { startTime: number; startPos: number; targetPos: number; fullTimeSeconds: number }>>({});
 
   const fans = getDevicesByType("fan");
   const vents = getDevicesByType("vent");
   const pumps = getDevicesByType("pump");
   const skylights = getDevicesByType("skylight");
   const sidescreens = getDevicesByType("sidescreen");
+
+  // 서버에서 현재 위치 로드 (새로고침/재접속 후에도 유지)
+  useEffect(() => {
+    getDeviceSettings().then((result) => {
+      if (result.success && result.data?.screen_positions) {
+        setCurrentPosition(result.data.screen_positions as Record<string, number>);
+      }
+    });
+  }, []);
+
+  // 현재 위치 업데이트 + 서버 저장
+  const updateCurrentPosition = useCallback((deviceId: string, position: number) => {
+    setCurrentPosition(prev => {
+      const next = { ...prev, [deviceId]: position };
+      saveDeviceSettings({ screen_positions: next });
+      return next;
+    });
+  }, []);
 
   // HiveMQ 연결 상태 모니터링
   useEffect(() => {
@@ -133,15 +154,34 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     if (device) {
       console.log(`[SCREEN] ${device.name} - ${command}`);
 
-      // commandTopic에서 실제 MQTT deviceId 추출
-      // 예: "tansaeng/ctlr-0011/windowL/cmd" → "windowL"
       const topicParts = device.commandTopic.split('/');
-      const mqttDeviceId = topicParts[2]; // windowL 또는 windowR
+      const mqttDeviceId = topicParts[2];
 
-      // API를 통해 명령 전송 (데몬이 MQTT 발행)
+      // 퍼센트 작동 중 STOP이면 타이머 취소 + 현재 위치 계산
+      if (command === "STOP" && percentageTimers.current[deviceId]) {
+        clearTimeout(percentageTimers.current[deviceId]);
+        delete percentageTimers.current[deviceId];
+
+        const info = operationStartInfo.current[deviceId];
+        if (info) {
+          const elapsed = (Date.now() - info.startTime) / 1000;
+          const moved = (elapsed / info.fullTimeSeconds) * 100;
+          const direction = info.targetPos > info.startPos ? 1 : -1;
+          const estimatedPos = Math.round(Math.min(100, Math.max(0, info.startPos + direction * moved)));
+          updateCurrentPosition(deviceId, estimatedPos);
+          delete operationStartInfo.current[deviceId];
+          console.log(`[STOP] 추정 위치: ${estimatedPos}%`);
+        }
+
+        setOperationStatus(prev => ({ ...prev, [deviceId]: 'idle' }));
+      }
+
       const result = await sendDeviceCommand(device.esp32Id, mqttDeviceId, command);
 
       if (result.success) {
+        // 수동 OPEN → 100%, CLOSE → 0% 위치 확정
+        if (command === "OPEN") updateCurrentPosition(deviceId, 100);
+        else if (command === "CLOSE") updateCurrentPosition(deviceId, 0);
         console.log(`[API SUCCESS] ${result.message}`);
       } else {
         console.error(`[API ERROR] ${result.message}`);
@@ -218,41 +258,36 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     console.log(`[EXECUTE] ${device.name} - 현재: ${currentPos}%, 목표: ${targetPercentage}%, 이동: ${difference > 0 ? '+' : ''}${difference}% (${targetTimeSeconds.toFixed(1)}초 ${action})`);
 
-    // commandTopic에서 실제 MQTT deviceId 추출
     const topicParts = device.commandTopic.split('/');
-    const mqttDeviceId = topicParts[2]; // windowL, windowR, sideL, sideR
+    const mqttDeviceId = topicParts[2];
 
     try {
-      // 명령 전송
       await sendDeviceCommand(device.esp32Id, mqttDeviceId, command);
       console.log(`[EXECUTE] ${device.name} - ${targetTimeSeconds.toFixed(1)}초 동안 ${action} 시작`);
+
+      // 작동 시작 정보 저장 (STOP 시 현재 위치 계산용)
+      operationStartInfo.current[deviceId] = {
+        startTime: Date.now(),
+        startPos: currentPos,
+        targetPos: targetPercentage,
+        fullTimeSeconds,
+      };
 
       // 목표 시간만큼 작동 후 자동 정지
       percentageTimers.current[deviceId] = setTimeout(async () => {
         await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
         console.log(`[EXECUTE] ${device.name} - ${targetPercentage}% 위치에서 정지`);
         delete percentageTimers.current[deviceId];
+        delete operationStartInfo.current[deviceId];
 
-        // 현재 위치를 목표 위치로 업데이트
-        setCurrentPosition(prev => ({
-          ...prev,
-          [deviceId]: targetPercentage
-        }));
+        // 현재 위치를 목표 위치로 업데이트 + 서버 저장
+        updateCurrentPosition(deviceId, targetPercentage);
 
-        // 작동 완료 - 상태를 "완료"로 변경
-        setOperationStatus(prev => ({
-          ...prev,
-          [deviceId]: 'completed'
-        }));
+        setOperationStatus(prev => ({ ...prev, [deviceId]: 'completed' }));
       }, targetTimeSeconds * 1000);
     } catch (error) {
       console.error(`[EXECUTE ERROR] ${device.name}:`, error);
-
-      // 에러 발생 시 상태 초기화
-      setOperationStatus({
-        ...operationStatus,
-        [deviceId]: 'idle'
-      });
+      setOperationStatus(prev => ({ ...prev, [deviceId]: 'idle' }));
     }
   };
 
