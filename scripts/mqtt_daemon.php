@@ -165,8 +165,13 @@ function updateRealtimeSensorCache($controllerId, $dataType, $value) {
         ];
     }
 
+    // 유효 범위 검사 (DHT22: 온도 -40~80℃, 습도 0~100%)
+    $floatVal = floatval($value);
+    if ($dataType === 'temperature' && ($floatVal < -40 || $floatVal > 80)) return;
+    if ($dataType === 'humidity'    && ($floatVal < 0   || $floatVal > 100)) return;
+
     // 값 업데이트
-    $cache[$location][$dataType] = floatval($value);
+    $cache[$location][$dataType] = $floatVal;
     $cache[$location]['lastUpdate'] = date('Y-m-d H:i:s');
 
     // 파일 저장
@@ -216,11 +221,16 @@ function saveSensorData($db, $controllerId, $sensorType, $dataType, $value) {
             default => 'unknown'
         };
 
+        // 유효 범위 검사 (DHT22: 온도 -40~80℃, 습도 0~100%)
+        $floatVal = floatval($value);
+        if ($dataType === 'temperature' && ($floatVal < -40 || $floatVal > 80)) return;
+        if ($dataType === 'humidity'    && ($floatVal < 0   || $floatVal > 100)) return;
+
         $data = [
             'controller_id' => $controllerId,
             'sensor_type' => $sensorType,
             'sensor_location' => $location,
-            $dataType => floatval($value),
+            $dataType => $floatVal,
         ];
 
         $db->insert('sensor_data', $data);
