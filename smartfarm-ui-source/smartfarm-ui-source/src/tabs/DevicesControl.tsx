@@ -6,6 +6,94 @@ import DeviceCard from "../components/DeviceCard";
 import { getMqttClient, onConnectionChange, subscribeToTopic, publishCommand } from "../mqtt/mqttClient";
 import { sendDeviceCommand, saveDeviceSettings } from "../api/deviceControl";
 
+// 두 핸들을 한 바 위에서 독립적으로 드래그할 수 있는 슬라이더
+function DualRangeSlider({
+  min, max, step, low, high, onLowChange, onHighChange, markerPct, isActive,
+}: {
+  min: number; max: number; step: number;
+  low: number; high: number;
+  onLowChange: (v: number) => void;
+  onHighChange: (v: number) => void;
+  markerPct: number | null;
+  isActive: boolean;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const range = max - min;
+  const lowPct  = ((low  - min) / range) * 100;
+  const highPct = ((high - min) / range) * 100;
+
+  const pctToVal = (clientX: number) => {
+    if (!trackRef.current) return min;
+    const rect = trackRef.current.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    const raw = min + (pct / 100) * range;
+    return Math.round(raw / step) * step;
+  };
+
+  const handleDrag = (
+    e: React.PointerEvent<HTMLDivElement>,
+    which: "low" | "high"
+  ) => {
+    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleMove = (
+    e: React.PointerEvent<HTMLDivElement>,
+    which: "low" | "high"
+  ) => {
+    if (!(e.currentTarget as HTMLDivElement).hasPointerCapture(e.pointerId)) return;
+    const v = pctToVal(e.clientX);
+    if (which === "low"  && v <= high - step) onLowChange(v);
+    if (which === "high" && v >= low  + step) onHighChange(v);
+  };
+
+  return (
+    <div ref={trackRef} className="relative h-9 flex items-center select-none mx-3">
+      {/* 배경 트랙 */}
+      <div className="absolute inset-x-0 h-2 bg-gray-200 rounded-full pointer-events-none">
+        {/* 활성 구간 */}
+        <div className="absolute h-full bg-orange-400 rounded-full"
+          style={{ left: `${lowPct}%`, width: `${Math.max(0, highPct - lowPct)}%` }} />
+        {/* 기준(0) 중심선 */}
+        <div className="absolute w-px h-5 -top-1.5 bg-gray-500 opacity-40" style={{ left: "50%" }} />
+        {/* 현재온도 마커 */}
+        {markerPct !== null && (
+          <div className="absolute w-1.5 h-7 -top-2.5 rounded-full"
+            style={{
+              left: `${markerPct}%`,
+              transform: "translateX(-50%)",
+              background: isActive ? "#22c55e" : "#ef4444",
+            }} />
+        )}
+      </div>
+      {/* 하한 핸들 (orange) */}
+      <div
+        className="absolute w-7 h-7 bg-orange-500 border-2 border-white rounded-full shadow-lg cursor-grab active:cursor-grabbing touch-none"
+        style={{ left: `${lowPct}%`, transform: "translateX(-50%)", zIndex: 4 }}
+        onPointerDown={(e) => handleDrag(e, "low")}
+        onPointerMove={(e) => handleMove(e, "low")}
+        onPointerUp={(e) => (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId)}
+      >
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-1.5 h-3 border-x border-white opacity-70 rounded-sm" />
+        </div>
+      </div>
+      {/* 상한 핸들 (red) */}
+      <div
+        className="absolute w-7 h-7 bg-red-500 border-2 border-white rounded-full shadow-lg cursor-grab active:cursor-grabbing touch-none"
+        style={{ left: `${highPct}%`, transform: "translateX(-50%)", zIndex: 4 }}
+        onPointerDown={(e) => handleDrag(e, "high")}
+        onPointerMove={(e) => handleMove(e, "high")}
+        onPointerUp={(e) => (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId)}
+      >
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-1.5 h-3 border-x border-white opacity-70 rounded-sm" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface DevicesControlProps {
   deviceState: DeviceDesiredState;
   setDeviceState: React.Dispatch<React.SetStateAction<DeviceDesiredState>>;
@@ -971,50 +1059,22 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                           </span>
                         </div>
 
-                        {/* 하한 슬라이더 */}
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] text-orange-500 font-bold w-5 flex-shrink-0">하한</span>
-                          <input type="range" min={GMIN} max={GMAX} step={0.5} value={range.low}
-                            onChange={(e) => {
-                              const v = Number(e.target.value);
-                              if (v <= range.high - 0.5)
-                                setHpDeviceRanges(prev => ({ ...prev, [key]: { ...prev[key] ?? { low: -2, high: 5 }, low: v } }));
-                            }}
-                            className="flex-1 cursor-pointer accent-orange-500"
-                          />
-                          <span className="text-xs text-orange-600 font-bold w-10 text-right flex-shrink-0">
-                            {range.low >= 0 ? '+' : ''}{range.low.toFixed(1)}°
-                          </span>
-                        </div>
-
-                        {/* 시각 바 (활성 구간 + 현재온도 마커) */}
-                        <div className="relative h-3 bg-gray-200 rounded-full mx-8 mb-1">
-                          <div className="absolute h-full bg-orange-400 rounded-full"
-                            style={{ left: `${lowPct}%`, width: `${Math.max(0, highPct - lowPct)}%` }} />
-                          <div className="absolute w-0.5 h-full bg-gray-500 opacity-40" style={{ left: '50%' }} />
-                          {markerPct !== null && (
-                            <div className="absolute w-1.5 h-full rounded-full"
-                              style={{ left: `${markerPct}%`, background: inRange ? '#22c55e' : '#ef4444' }} />
-                          )}
-                        </div>
-                        <div className="flex justify-between text-[10px] text-gray-400 mx-8 mb-1">
+                        {/* 듀얼 핸들 슬라이더 */}
+                        <DualRangeSlider
+                          min={GMIN} max={GMAX} step={0.5}
+                          low={range.low} high={range.high}
+                          onLowChange={(v) =>
+                            setHpDeviceRanges(prev => ({ ...prev, [key]: { ...prev[key] ?? { low: -2, high: 5 }, low: v } }))
+                          }
+                          onHighChange={(v) =>
+                            setHpDeviceRanges(prev => ({ ...prev, [key]: { ...prev[key] ?? { low: -2, high: 5 }, high: v } }))
+                          }
+                          markerPct={markerPct}
+                          isActive={inRange}
+                        />
+                        {/* 눈금 */}
+                        <div className="flex justify-between text-[10px] text-gray-400 mx-3 mt-0.5">
                           <span>-30°</span><span>0°</span><span>+30°</span>
-                        </div>
-
-                        {/* 상한 슬라이더 */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-red-500 font-bold w-5 flex-shrink-0">상한</span>
-                          <input type="range" min={GMIN} max={GMAX} step={0.5} value={range.high}
-                            onChange={(e) => {
-                              const v = Number(e.target.value);
-                              if (v >= range.low + 0.5)
-                                setHpDeviceRanges(prev => ({ ...prev, [key]: { ...prev[key] ?? { low: -2, high: 5 }, high: v } }));
-                            }}
-                            className="flex-1 cursor-pointer accent-red-500"
-                          />
-                          <span className="text-xs text-red-600 font-bold w-10 text-right flex-shrink-0">
-                            {range.high >= 0 ? '+' : ''}{range.high.toFixed(1)}°
-                          </span>
                         </div>
                       </div>
                     );
