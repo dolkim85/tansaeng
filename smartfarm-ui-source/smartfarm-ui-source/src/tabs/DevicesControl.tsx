@@ -30,8 +30,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 천창/측창 현재 위치 추적 (0~100%)
   const [currentPosition, setCurrentPosition] = useState<Record<string, number>>({});
 
-  // 히트펌프 시스템 상태
-  const [hpMode, setHpMode] = useState<"AUTO" | "MANUAL">("AUTO");
+  // 히트펌프 시스템 상태 (MQTT 공유 — 모든 브라우저에서 동기화)
+  const [hpSystemOn, setHpSystemOn] = useState<boolean>(false);  // tansaeng/ctlr-heat-001/system/state
+  const [hpMode, setHpMode] = useState<"AUTO" | "MANUAL">("AUTO"); // tansaeng/ctlr-heat-001/mode/state
   const [hpSensors, setHpSensors] = useState<{
     airTemp: number | null;
     airHumidity: number | null;
@@ -69,10 +70,19 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     };
   }, []);
 
-  // 히트펌프 MQTT 센서 & 상태 구독
+  // 히트펌프 MQTT 센서 & 상태 구독 (모든 브라우저에서 실시간 동기화)
   useEffect(() => {
     const HP = "ctlr-heat-001";
     const unsubs = [
+      // 시스템 전원 (공유 스위치)
+      subscribeToTopic(`tansaeng/${HP}/system/state`, (v) =>
+        setHpSystemOn(v === "ON")
+      ),
+      // 제어 모드 (공유)
+      subscribeToTopic(`tansaeng/${HP}/mode/state`, (v) => {
+        if (v === "AUTO" || v === "MANUAL") setHpMode(v);
+      }),
+      // 센서
       subscribeToTopic(`tansaeng/${HP}/air/temperature`, (v) =>
         setHpSensors(prev => ({ ...prev, airTemp: parseFloat(v) }))
       ),
@@ -82,6 +92,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       subscribeToTopic(`tansaeng/${HP}/water/temperature`, (v) =>
         setHpSensors(prev => ({ ...prev, waterTemp: parseFloat(v) }))
       ),
+      // 개별 장치 상태
       subscribeToTopic(`tansaeng/${HP}/pump/state`, (v) =>
         setHpDeviceStates(prev => ({ ...prev, hp_pump: v as "ON" | "OFF" }))
       ),
@@ -683,19 +694,37 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           </header>
           <div className="bg-white shadow-sm rounded-b-lg p-2 sm:p-4">
 
-            {/* 모드 선택 + 센서 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 mb-3 sm:mb-4">
+            {/* 상단 제어 영역: 스위치 + 모드 + 센서 */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 mb-3 sm:mb-4">
 
-              {/* 모드 선택 */}
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 sm:p-3">
+              {/* 시스템 전원 스위치 (MQTT 공유 — 다른 브라우저와 동기화) */}
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 sm:p-3 flex flex-col items-center justify-center gap-2">
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-700">시스템 전원</p>
+                <button
+                  onClick={() => {
+                    const next = !hpSystemOn;
+                    getMqttClient().publish("tansaeng/ctlr-heat-001/system/cmd", next ? "ON" : "OFF", { qos: 1, retain: true });
+                  }}
+                  className={`w-full py-3 rounded-lg text-sm font-bold transition-colors shadow-sm ${
+                    hpSystemOn
+                      ? "bg-orange-500 text-white"
+                      : "bg-gray-200 text-gray-500 hover:bg-gray-300"
+                  }`}
+                >
+                  {hpSystemOn ? "🟠 ON" : "⚫ OFF"}
+                </button>
+                <p className="text-[10px] text-gray-400 text-center">모든 기기에서 공유됩니다</p>
+              </div>
+
+              {/* 제어 모드 (MQTT 공유) */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3">
                 <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">제어 모드</p>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-1.5">
                   <button
                     onClick={() => {
-                      setHpMode("AUTO");
-                      getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "AUTO", { qos: 1 });
+                      getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "AUTO", { qos: 1, retain: true });
                     }}
-                    className={`flex-1 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                    className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
                       hpMode === "AUTO"
                         ? "bg-orange-500 text-white shadow"
                         : "bg-white border border-orange-300 text-orange-600 hover:bg-orange-50"
@@ -705,10 +734,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </button>
                   <button
                     onClick={() => {
-                      setHpMode("MANUAL");
-                      getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1 });
+                      getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
                     }}
-                    className={`flex-1 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                    className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
                       hpMode === "MANUAL"
                         ? "bg-gray-700 text-white shadow"
                         : "bg-white border border-gray-300 text-gray-600 hover:bg-gray-50"
@@ -718,30 +746,28 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </button>
                 </div>
                 <p className="text-[10px] text-gray-500 mt-1.5">
-                  {hpMode === "AUTO"
-                    ? "온도 기준에 따라 ESP32가 자동 제어합니다"
-                    : "수동 모드: 아래 장치를 직접 ON/OFF 하세요"}
+                  {hpMode === "AUTO" ? "ESP32 자동 제어" : "직접 장치 ON/OFF"}
                 </p>
               </div>
 
               {/* 센서 값 */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
                 <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">장치제어실 내부</p>
-                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                <div className="grid grid-cols-3 gap-1 sm:gap-2">
                   <div className="text-center">
-                    <div className="text-lg sm:text-2xl font-bold text-red-500">
+                    <div className="text-base sm:text-2xl font-bold text-red-500">
                       {hpSensors.airTemp !== null ? `${hpSensors.airTemp.toFixed(1)}°` : "—"}
                     </div>
                     <div className="text-[9px] sm:text-[10px] text-gray-500">공기온도</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg sm:text-2xl font-bold text-blue-500">
+                    <div className="text-base sm:text-2xl font-bold text-blue-500">
                       {hpSensors.airHumidity !== null ? `${hpSensors.airHumidity.toFixed(0)}%` : "—"}
                     </div>
                     <div className="text-[9px] sm:text-[10px] text-gray-500">공기습도</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg sm:text-2xl font-bold text-cyan-600">
+                    <div className="text-base sm:text-2xl font-bold text-cyan-600">
                       {hpSensors.waterTemp !== null ? `${hpSensors.waterTemp.toFixed(1)}°` : "—"}
                     </div>
                     <div className="text-[9px] sm:text-[10px] text-gray-500">물온도</div>
@@ -752,7 +778,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
             {/* 장치 제어 카드 */}
             <p className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1.5 sm:mb-2">
-              장치 제어{hpMode === "AUTO" ? " (자동 모드 — 수동 명령이 AUTO 로직에 의해 덮어씌워질 수 있음)" : ""}
+              장치 제어{hpMode === "AUTO" ? " (자동 모드 — ESP32가 자동 제어)" : " (수동 모드 — 직접 ON/OFF)"}
             </p>
             <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
               {/* 순환펌프 */}

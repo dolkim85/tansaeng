@@ -635,6 +635,61 @@ export default function Environment() {
 
         </div>
 
+        {/* ===== 평균 온습도 요약 ===== */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 mb-3 sm:mb-6">
+          {/* 현재 평균 */}
+          <section>
+            <header className="bg-farm-500 px-3 py-2 rounded-t-lg flex items-center gap-1.5">
+              <span className="text-base">📊</span>
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-900 m-0">현재 평균 (앞/뒤/천장)</h3>
+            </header>
+            <div className="bg-white rounded-b-lg shadow-sm p-2 sm:p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">평균 온도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-red-500">
+                    {avgTemp !== null ? avgTemp.toFixed(1) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">°C</div>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">평균 습도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-blue-500">
+                    {avgHum !== null ? avgHum.toFixed(0) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">%RH</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* 10분 평균 */}
+          <section>
+            <header className="bg-farm-500 px-3 py-2 rounded-t-lg flex items-center gap-1.5">
+              <span className="text-base">⏱️</span>
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-900 m-0">10분 평균</h3>
+            </header>
+            <div className="bg-white rounded-b-lg shadow-sm p-2 sm:p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">평균 온도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-red-500">
+                    {tenMinAvg.temperature !== null ? tenMinAvg.temperature.toFixed(1) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">°C</div>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">평균 습도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-blue-500">
+                    {tenMinAvg.humidity !== null ? tenMinAvg.humidity.toFixed(0) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">%RH</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
         {/* 히스토리 데이터 조회 섹션 */}
         <section className="mb-3 sm:mb-6">
           <header className="bg-farm-500 px-3 sm:px-6 py-2 sm:py-4 rounded-t-lg sm:rounded-t-xl">
