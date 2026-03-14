@@ -726,7 +726,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
               {/* 센서 값 */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
-                <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">실시간 센서</p>
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">장치제어실 내부</p>
                 <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   <div className="text-center">
                     <div className="text-lg sm:text-2xl font-bold text-red-500">
