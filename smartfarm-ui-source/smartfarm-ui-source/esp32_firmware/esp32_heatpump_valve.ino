@@ -49,7 +49,10 @@ const unsigned long STATUS_MS    = 30000;  // 상태 재발행 주기
 // ======================================================
 
 // MQTT 토픽 (탄생 UI와 동일한 tansaeng/ prefix)
+String topicSystemCmd   = "tansaeng/" + String(CONTROLLER_ID) + "/system/cmd";   // UI 전원 스위치
+String topicSystemState = "tansaeng/" + String(CONTROLLER_ID) + "/system/state"; // 전원 상태 공유
 String topicModeCmd     = "tansaeng/" + String(CONTROLLER_ID) + "/mode/cmd";
+String topicModeState   = "tansaeng/" + String(CONTROLLER_ID) + "/mode/state";   // 모드 상태 공유
 String topicPumpCmd     = "tansaeng/" + String(CONTROLLER_ID) + "/pump/cmd";
 String topicHeaterCmd   = "tansaeng/" + String(CONTROLLER_ID) + "/heater/cmd";
 String topicFanCmd      = "tansaeng/" + String(CONTROLLER_ID) + "/fan/cmd";
@@ -75,6 +78,8 @@ DallasTemperature ds18b20(&oneWire);
 // 상태
 enum Mode { AUTO_MODE, MANUAL_MODE };
 Mode mode = AUTO_MODE;
+
+bool systemOn  = true;   // 시스템 전원 (UI 스위치와 동기화)
 
 bool pumpOn   = false;
 bool heaterOn = false;
@@ -143,7 +148,10 @@ void publishSensor() {
   }
 }
 
+// 모든 공유 상태를 retain 으로 발행 (다른 브라우저/기기가 접속 시 즉시 동기화)
 void publishStates() {
+  mqtt.publish(topicSystemState.c_str(), systemOn ? "ON" : "OFF", true);
+  mqtt.publish(topicModeState.c_str(),   mode == AUTO_MODE ? "AUTO" : "MANUAL", true);
   mqtt.publish(topicPumpState.c_str(),   pumpOn   ? "ON" : "OFF", true);
   mqtt.publish(topicHeaterState.c_str(), heaterOn ? "ON" : "OFF", true);
   mqtt.publish(topicFanState.c_str(),    fanOn    ? "ON" : "OFF", true);
@@ -152,7 +160,8 @@ void publishStates() {
 void publishHeartbeat() {
   char payload[320];
   snprintf(payload, sizeof(payload),
-    "{\"mode\":\"%s\","
+    "{\"system\":\"%s\","
+    "\"mode\":\"%s\","
     "\"pump\":\"%s\","
     "\"heater\":\"%s\","
     "\"fan\":\"%s\","
@@ -160,6 +169,7 @@ void publishHeartbeat() {
     "\"air_hum\":%.2f,"
     "\"water_temp\":%.2f,"
     "\"uptime\":%lu}",
+    systemOn ? "ON" : "OFF",
     mode == AUTO_MODE ? "AUTO" : "MANUAL",
     pumpOn   ? "ON" : "OFF",
     heaterOn ? "ON" : "OFF",
@@ -177,6 +187,16 @@ void publishHeartbeat() {
 
 // ===================== AUTO 로직 =====================
 void handleAutoControl() {
+  // 시스템 전원이 OFF이면 전부 끔
+  if (!systemOn) {
+    setHeater(false);
+    setPump(false);
+    setFan(false);
+    heatDemand    = false;
+    postRunActive = false;
+    return;
+  }
+
   bool airValid   = !isnan(lastAirTemp);
   bool waterValid = !isnan(lastWaterTemp);
 
@@ -250,18 +270,49 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
 
   Serial.printf("[MQTT IN] %s => %s\n", t.c_str(), msg.c_str());
 
-  // 모드 전환
+  // 시스템 전원 스위치 (모든 브라우저와 공유)
+  if (t == topicSystemCmd) {
+    if (msg == "ON") {
+      systemOn = true;
+      mqtt.publish(topicSystemState.c_str(), "ON", true);
+      Serial.println("[SYSTEM] ON");
+      // 시스템 ON 시 현재 모드로 재가동
+      if (mode == AUTO_MODE) {
+        handleAutoControl();
+      } else {
+        setPump(manualPump);
+        setHeater(manualHeater);
+        setFan(manualFan);
+      }
+    } else if (msg == "OFF") {
+      systemOn = false;
+      mqtt.publish(topicSystemState.c_str(), "OFF", true);
+      Serial.println("[SYSTEM] OFF -> all OFF");
+      setHeater(false);
+      setPump(false);
+      setFan(false);
+      heatDemand    = false;
+      postRunActive = false;
+    }
+    return;
+  }
+
+  // 모드 전환 (모든 브라우저와 공유)
   if (t == topicModeCmd) {
     if (msg == "AUTO") {
       mode = AUTO_MODE;
+      mqtt.publish(topicModeState.c_str(), "AUTO", true);
       Serial.println("[MODE] AUTO");
-      handleAutoControl();
+      if (systemOn) handleAutoControl();
     } else if (msg == "MANUAL") {
       mode = MANUAL_MODE;
+      mqtt.publish(topicModeState.c_str(), "MANUAL", true);
       Serial.println("[MODE] MANUAL");
-      setPump(manualPump);
-      setHeater(manualHeater);
-      setFan(manualFan);
+      if (systemOn) {
+        setPump(manualPump);
+        setHeater(manualHeater);
+        setFan(manualFan);
+      }
     }
     return;
   }
@@ -270,10 +321,10 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
   if (t == topicPumpCmd) {
     if (msg == "ON") {
       manualPump = true;
-      if (mode == MANUAL_MODE) setPump(true);
+      if (mode == MANUAL_MODE && systemOn) setPump(true);
     } else if (msg == "OFF") {
       manualPump = false;
-      if (mode == MANUAL_MODE) setPump(false);
+      if (mode == MANUAL_MODE && systemOn) setPump(false);
     }
     return;
   }
@@ -282,10 +333,10 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
   if (t == topicHeaterCmd) {
     if (msg == "ON") {
       manualHeater = true;
-      if (mode == MANUAL_MODE) setHeater(true);
+      if (mode == MANUAL_MODE && systemOn) setHeater(true);
     } else if (msg == "OFF") {
       manualHeater = false;
-      if (mode == MANUAL_MODE) setHeater(false);
+      if (mode == MANUAL_MODE && systemOn) setHeater(false);
     }
     return;
   }
@@ -294,10 +345,10 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
   if (t == topicFanCmd) {
     if (msg == "ON") {
       manualFan = true;
-      if (mode == MANUAL_MODE) setFan(true);
+      if (mode == MANUAL_MODE && systemOn) setFan(true);
     } else if (msg == "OFF") {
       manualFan = false;
-      if (mode == MANUAL_MODE) setFan(false);
+      if (mode == MANUAL_MODE && systemOn) setFan(false);
     }
     return;
   }
@@ -337,11 +388,14 @@ void connectMQTT() {
       Serial.println("connected");
       mqtt.publish(topicStatus.c_str(), "online", false);
 
-      mqtt.subscribe(topicModeCmd.c_str(),   1);
+      // 명령 토픽 구독
+      mqtt.subscribe(topicSystemCmd.c_str(), 1);  // 시스템 전원
+      mqtt.subscribe(topicModeCmd.c_str(),   1);  // 모드
       mqtt.subscribe(topicPumpCmd.c_str(),   1);
       mqtt.subscribe(topicHeaterCmd.c_str(), 1);
       mqtt.subscribe(topicFanCmd.c_str(),    1);
 
+      // 현재 상태 전체 발행 (UI가 접속하면 즉시 동기화)
       publishStates();
       publishHeartbeat();
     } else {
