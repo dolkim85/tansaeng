@@ -8,6 +8,8 @@
 use PhpMqtt\Client\MqttClient;
 use PhpMqtt\Client\ConnectionSettings;
 
+date_default_timezone_set('Asia/Seoul');
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -103,32 +105,52 @@ if (!empty($data['mist_zones']) && is_array($data['mist_zones'])) {
 }
 
 // MQTT 브로드캐스트: 접속 중인 모든 기기에 즉시 동기화
-if (!empty($newSettings['mist_zones'])) {
-    try {
-        require_once __DIR__ . '/../../vendor/autoload.php';
+try {
+    require_once __DIR__ . '/../../vendor/autoload.php';
 
-        $mqtt = new MqttClient(
-            '22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud',
-            8883,
-            'php-sync-' . uniqid()
-        );
-        $mqtt->connect(
-            (new ConnectionSettings)
-                ->setUsername('esp32-client-01')
-                ->setPassword('Qjawns3445')
-                ->setUseTls(true)
-                ->setTlsSelfSignedAllowed(true),
-            true
-        );
-        // retain=true: 나중에 접속하는 기기도 마지막 상태 즉시 수신
+    $mqtt = new MqttClient(
+        '22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud',
+        8883,
+        'php-sync-' . uniqid()
+    );
+    $mqtt->connect(
+        (new ConnectionSettings)
+            ->setUsername('esp32-client-01')
+            ->setPassword('Qjawns3445')
+            ->setUseTls(true)
+            ->setTlsSelfSignedAllowed(true),
+        true
+    );
+
+    // 분무수경 동기화 (retain=true: 나중에 접속하는 기기도 즉시 수신)
+    if (!empty($newSettings['mist_zones'])) {
         $mqtt->publish(
             'tansaeng/settings/mist_sync',
             json_encode($newSettings['mist_zones'], JSON_UNESCAPED_UNICODE),
             0,
             true
         );
-        $mqtt->disconnect();
-    } catch (Exception $e) {
-        error_log('[MQTT Sync] 브로드캐스트 실패: ' . $e->getMessage());
     }
+
+    // 장치 상태 동기화 (팬, 천창, 측창)
+    $devicePayload = [];
+    foreach (['fans', 'skylights', 'sidescreens'] as $cat) {
+        if (!empty($newSettings[$cat]) && is_array($newSettings[$cat])) {
+            foreach ($newSettings[$cat] as $devId => $devInfo) {
+                $devicePayload[$devId] = ['power' => $devInfo['power'] ?? null];
+            }
+        }
+    }
+    if (!empty($devicePayload)) {
+        $mqtt->publish(
+            'tansaeng/settings/device_sync',
+            json_encode($devicePayload, JSON_UNESCAPED_UNICODE),
+            0,
+            true
+        );
+    }
+
+    $mqtt->disconnect();
+} catch (Exception $e) {
+    error_log('[MQTT Sync] 브로드캐스트 실패: ' . $e->getMessage());
 }

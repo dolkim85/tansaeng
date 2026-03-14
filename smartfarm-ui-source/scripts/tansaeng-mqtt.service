@@ -1,0 +1,16 @@
+[Unit]
+Description=Tansaeng MQTT Daemon
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/html
+ExecStart=/usr/bin/php /var/www/html/scripts/mqtt_daemon.php
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/tansaeng-mqtt.log
+StandardError=append:/var/log/tansaeng-mqtt-error.log
+
+[Install]
+WantedBy=multi-user.target
