@@ -47,10 +47,13 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   }>({ front: null, back: null, top: null, frontHum: null, backHum: null, topHum: null });
   const hpAutoDemandRef = useRef<boolean>(false); // AUTO 모드 난방 수요 추적
 
-  // AUTO 기준값 (온도: ≤18 ON / ≥20 OFF, 습도: ≥80% 과습 시 OFF 우선)
-  const HP_TEMP_ON  = 18.0;
-  const HP_TEMP_OFF = 20.0;
-  const HP_HUM_MAX  = 80.0; // 습도 80% 초과 시 난방 정지
+  // AUTO 범위 설정 (게이지 슬라이더로 조정)
+  const [hpAutoLow, setHpAutoLow] = useState(18.0);
+  const [hpAutoHigh, setHpAutoHigh] = useState(20.0);
+  const [hpAutoRunning, setHpAutoRunning] = useState(false); // 작동중/정지 표시용
+
+  // AUTO 기준값 (습도 ≥80% 과습 시 OFF 우선)
+  const HP_HUM_MAX  = 80.0;
 
   // 히트펌프 전용 장치는 일반 섹션에서 제외
   const fans = getDevicesByType("fan").filter(d => d.esp32Id !== "ctlr-heat-001");
@@ -143,7 +146,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => clearInterval(interval);
   }, []);
 
-  // AUTO 모드 제어 로직 — farmSensors 변경 시에만 실행 (hpModeRef로 stale closure 방지)
+  // AUTO 모드 제어 로직 — 범위 사이 온도일 때 ON, 범위 밖이면 OFF
   useEffect(() => {
     if (hpModeRef.current !== "AUTO") return;
 
@@ -155,27 +158,27 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     const avgHum  = hums.length > 0 ? hums.reduce((a, b) => a + b, 0) / hums.length : null;
 
     const HP = "ctlr-heat-001";
-    // 과습(습도 80% 초과)이면 즉시 정지
     const overHumid = avgHum !== null && avgHum > HP_HUM_MAX;
+    const inRange = !overHumid && avgTemp >= hpAutoLow && avgTemp <= hpAutoHigh;
 
-    if (overHumid && hpAutoDemandRef.current) {
-      hpAutoDemandRef.current = false;
-      setHpDeviceStates(prev => ({ ...prev, hp_heater: "OFF" }));
-      sendDeviceCommand(HP, "heater", "OFF");
-    } else if (!hpAutoDemandRef.current && !overHumid && avgTemp <= HP_TEMP_ON) {
-      // 난방 시작
+    if (inRange && !hpAutoDemandRef.current) {
+      // 범위 진입 → 전체 가동
       hpAutoDemandRef.current = true;
+      setHpAutoRunning(true);
       setHpDeviceStates(prev => ({ ...prev, hp_pump: "ON", hp_heater: "ON", hp_fan: "ON" }));
       sendDeviceCommand(HP, "pump",   "ON");
       sendDeviceCommand(HP, "heater", "ON");
       sendDeviceCommand(HP, "fan",    "ON");
-    } else if (hpAutoDemandRef.current && avgTemp >= HP_TEMP_OFF) {
-      // 난방 종료
+    } else if (!inRange && hpAutoDemandRef.current) {
+      // 범위 이탈 또는 과습 → 전체 정지
       hpAutoDemandRef.current = false;
-      setHpDeviceStates(prev => ({ ...prev, hp_heater: "OFF" }));
+      setHpAutoRunning(false);
+      setHpDeviceStates(prev => ({ ...prev, hp_pump: "OFF", hp_heater: "OFF", hp_fan: "OFF" }));
+      sendDeviceCommand(HP, "pump",   "OFF");
       sendDeviceCommand(HP, "heater", "OFF");
+      sendDeviceCommand(HP, "fan",    "OFF");
     }
-  }, [farmSensors]); // farmSensors 변경 시에만 실행 — 모드 전환으로 오발동 방지
+  }, [farmSensors, hpAutoLow, hpAutoHigh]);
 
   // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
@@ -782,9 +785,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 const overHumid = avgHum !== null && avgHum > HP_HUM_MAX;
                 const autoStatus = avgTemp === null ? "센서 없음"
                   : overHumid ? "💧 과습 정지"
-                  : avgTemp <= HP_TEMP_ON  ? "🔥 난방 조건"
-                  : avgTemp >= HP_TEMP_OFF ? "✅ 정지 조건"
-                  : "대기 중";
+                  : (avgTemp >= hpAutoLow && avgTemp <= hpAutoHigh) ? "🔥 범위 내 가동"
+                  : "범위 외 정지";
                 return (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3">
                     <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1.5">
@@ -893,42 +895,126 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
               </div>
             </div>
 
-            {/* 장치 제어 카드 */}
-            <p className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1.5 sm:mb-2">
-              장치 제어{hpMode === "AUTO" ? " (자동 모드 — 팜 평균온도 기준 자동 제어)" : " (수동 모드 — 직접 ON/OFF)"}
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 sm:gap-3">
-              {/* 순환펌프 */}
-              {heatPumpPumps.map((device) => (
-                <DeviceCard
-                  key={device.id}
-                  device={device}
-                  power={hpDeviceStates[device.id] === "ON" ? "on" : "off"}
-                  lastSavedAt={deviceState[device.id]?.lastSavedAt}
-                  onToggle={(isOn) => handleToggle(device.id, isOn)}
-                />
-              ))}
-              {/* 전기온열기 */}
-              {heatPumpHeaters.map((device) => (
-                <DeviceCard
-                  key={device.id}
-                  device={device}
-                  power={hpDeviceStates[device.id] === "ON" ? "on" : "off"}
-                  lastSavedAt={deviceState[device.id]?.lastSavedAt}
-                  onToggle={(isOn) => handleToggle(device.id, isOn)}
-                />
-              ))}
-              {/* 팬 */}
-              {heatPumpFans.map((device) => (
-                <DeviceCard
-                  key={device.id}
-                  device={device}
-                  power={hpDeviceStates[device.id] === "ON" ? "on" : "off"}
-                  lastSavedAt={deviceState[device.id]?.lastSavedAt}
-                  onToggle={(isOn) => handleToggle(device.id, isOn)}
-                />
-              ))}
-            </div>
+            {/* AUTO 모드: 온도 범위 게이지 / MANUAL 모드: 장치 카드 */}
+            {hpMode === "AUTO" ? (() => {
+              const GMIN = 0, GMAX = 35;
+              const gRange = GMAX - GMIN;
+              const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+              const hums  = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
+              const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+              const avgHum  = hums.length > 0 ? hums.reduce((a, b) => a + b, 0) / hums.length : null;
+              const overHumid = avgHum !== null && avgHum > HP_HUM_MAX;
+              const lowPct  = ((hpAutoLow  - GMIN) / gRange) * 100;
+              const highPct = ((hpAutoHigh - GMIN) / gRange) * 100;
+              const avgPct  = avgTemp !== null ? Math.max(0, Math.min(100, ((avgTemp - GMIN) / gRange) * 100)) : null;
+              const inRange = avgTemp !== null && !overHumid && avgTemp >= hpAutoLow && avgTemp <= hpAutoHigh;
+              return (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4">
+                  {/* 상태 헤더 */}
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs sm:text-sm font-semibold text-gray-700">자동 제어 온도 범위</p>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-3 h-3 rounded-full flex-shrink-0 ${hpAutoRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                      <span className={`text-xs sm:text-sm font-bold ${hpAutoRunning ? 'text-green-600' : 'text-gray-500'}`}>
+                        {hpAutoRunning ? '작동중' : '정지'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 수치 표시 */}
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <div>
+                      <span className="text-gray-500">하한 </span>
+                      <span className="font-bold text-orange-500 text-sm">{hpAutoLow.toFixed(1)}°C</span>
+                    </div>
+                    {avgTemp !== null && (
+                      <div className="text-center">
+                        <span className="text-gray-500">현재 </span>
+                        <span className={`font-bold text-sm ${inRange ? 'text-green-600' : 'text-red-500'}`}>
+                          {avgTemp.toFixed(1)}°C
+                        </span>
+                      </div>
+                    )}
+                    <div className="text-right">
+                      <span className="text-gray-500">상한 </span>
+                      <span className="font-bold text-red-500 text-sm">{hpAutoHigh.toFixed(1)}°C</span>
+                    </div>
+                  </div>
+
+                  {/* 게이지 바 + 두 핸들 */}
+                  <div className="relative h-12 flex items-center select-none mb-2">
+                    {/* 배경 트랙 */}
+                    <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-3 bg-gray-200 rounded-full pointer-events-none">
+                      {/* 활성 구간 */}
+                      <div className="absolute h-full bg-orange-400 rounded-full"
+                        style={{ left: `${lowPct}%`, width: `${Math.max(0, highPct - lowPct)}%` }} />
+                      {/* 하한 핸들 표시 */}
+                      <div className="absolute w-6 h-6 top-1/2 -translate-y-1/2 -translate-x-3 bg-orange-500 border-2 border-white rounded-full shadow-lg pointer-events-none"
+                        style={{ left: `${lowPct}%` }} />
+                      {/* 상한 핸들 표시 */}
+                      <div className="absolute w-6 h-6 top-1/2 -translate-y-1/2 -translate-x-3 bg-red-500 border-2 border-white rounded-full shadow-lg pointer-events-none"
+                        style={{ left: `${highPct}%` }} />
+                      {/* 현재 온도 마커 */}
+                      {avgPct !== null && (
+                        <div className="absolute w-2 h-8 top-1/2 -translate-y-1/2 -translate-x-1 rounded-full pointer-events-none"
+                          style={{ left: `${avgPct}%`, background: inRange ? '#22c55e' : '#ef4444' }} />
+                      )}
+                    </div>
+                    {/* 하한 드래그 input (투명) */}
+                    <input type="range" min={GMIN} max={GMAX} step={0.5} value={hpAutoLow}
+                      onChange={(e) => { const v = Number(e.target.value); if (v <= hpAutoHigh - 0.5) setHpAutoLow(v); }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      style={{ zIndex: hpAutoLow > (GMIN + GMAX) / 2 ? 5 : 3 }}
+                    />
+                    {/* 상한 드래그 input (투명) */}
+                    <input type="range" min={GMIN} max={GMAX} step={0.5} value={hpAutoHigh}
+                      onChange={(e) => { const v = Number(e.target.value); if (v >= hpAutoLow + 0.5) setHpAutoHigh(v); }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      style={{ zIndex: hpAutoHigh < (GMIN + GMAX) / 2 ? 5 : 3 }}
+                    />
+                  </div>
+
+                  {/* 눈금 */}
+                  <div className="flex justify-between text-[10px] text-gray-400 mb-2">
+                    <span>{GMIN}°C</span>
+                    <span>{Math.round((GMIN + GMAX) / 2)}°C</span>
+                    <span>{GMAX}°C</span>
+                  </div>
+
+                  {/* 안내 */}
+                  <p className="text-[10px] text-gray-500 text-center">
+                    {hpAutoLow.toFixed(1)}°C ~ {hpAutoHigh.toFixed(1)}°C 범위 진입 시 자동 가동
+                    {overHumid && <span className="ml-1 text-blue-500 font-semibold">· 💧 과습 강제 정지</span>}
+                  </p>
+                </div>
+              );
+            })() : (
+              <>
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1.5 sm:mb-2">
+                  장치 제어 (수동 모드 — 직접 ON/OFF)
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 sm:gap-3">
+                  {heatPumpPumps.map((device) => (
+                    <DeviceCard key={device.id} device={device}
+                      power={hpDeviceStates[device.id] === "ON" ? "on" : "off"}
+                      lastSavedAt={deviceState[device.id]?.lastSavedAt}
+                      onToggle={(isOn) => handleToggle(device.id, isOn)} />
+                  ))}
+                  {heatPumpHeaters.map((device) => (
+                    <DeviceCard key={device.id} device={device}
+                      power={hpDeviceStates[device.id] === "ON" ? "on" : "off"}
+                      lastSavedAt={deviceState[device.id]?.lastSavedAt}
+                      onToggle={(isOn) => handleToggle(device.id, isOn)} />
+                  ))}
+                  {heatPumpFans.map((device) => (
+                    <DeviceCard key={device.id} device={device}
+                      power={hpDeviceStates[device.id] === "ON" ? "on" : "off"}
+                      lastSavedAt={deviceState[device.id]?.lastSavedAt}
+                      onToggle={(isOn) => handleToggle(device.id, isOn)} />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </section>
       </div>
