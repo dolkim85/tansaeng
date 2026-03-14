@@ -58,8 +58,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 마지막 전송 명령 추적 (중복 전송 방지)
   const hpDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({ hp_pump: null, hp_heater: null, hp_fan: null });
 
-  // AUTO 기준값 (습도 ≥80% 과습 시 OFF 우선)
-  const HP_HUM_MAX = 80.0;
 
   // 히트펌프 전용 장치는 일반 섹션에서 제외
   const fans = getDevicesByType("fan").filter(d => d.esp32Id !== "ctlr-heat-001");
@@ -158,13 +156,10 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     if (hpBaseTemp === null) return;
 
     const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
-    const hums  = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
     if (temps.length === 0) return;
 
     const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
-    const avgHum  = hums.length > 0 ? hums.reduce((a, b) => a + b, 0) / hums.length : null;
     const HP = "ctlr-heat-001";
-    const overHumid = avgHum !== null && avgHum > HP_HUM_MAX;
 
     const deviceMap: Array<{ key: string; mqttId: string }> = [
       { key: "hp_pump",   mqttId: "pump"   },
@@ -174,8 +169,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     deviceMap.forEach(({ key, mqttId }) => {
       const range = hpDeviceRanges[key] ?? { low: -2, high: 5 };
-      const inRange = !overHumid
-        && avgTemp >= (hpBaseTemp + range.low)
+      const inRange = avgTemp >= (hpBaseTemp + range.low)
         && avgTemp <= (hpBaseTemp + range.high);
       const newCmd: "ON" | "OFF" = inRange ? "ON" : "OFF";
       if (hpDeviceLastCmd.current[key] !== newCmd) {
@@ -788,9 +782,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 const hums  = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
                 const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
                 const avgHum  = hums.length > 0  ? hums.reduce((a, b) => a + b, 0)  / hums.length  : null;
-                const overHumid = avgHum !== null && avgHum > HP_HUM_MAX;
                 const autoStatus = avgTemp === null ? "센서 없음"
-                  : overHumid ? "💧 과습 정지"
                   : hpBaseTemp === null ? "기준온도 미설정"
                   : (avgTemp >= hpBaseTemp + (hpDeviceRanges.hp_heater?.low ?? -2) && avgTemp <= hpBaseTemp + (hpDeviceRanges.hp_heater?.high ?? 5)) ? "🔥 범위 내 가동"
                   : "범위 외 정지";
@@ -912,10 +904,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
               const GMIN = -30, GMAX = 30;
               const gRange = GMAX - GMIN; // 60
               const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
-              const hums  = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
               const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
-              const avgHum  = hums.length > 0 ? hums.reduce((a, b) => a + b, 0) / hums.length : null;
-              const overHumid = avgHum !== null && avgHum > HP_HUM_MAX;
               // 현재온도 오프셋 (기준온도 대비 델타 → 바 위치로 변환)
               const delta = (avgTemp !== null && hpBaseTemp !== null) ? (avgTemp - hpBaseTemp) : null;
               const markerPct = delta !== null ? Math.max(0, Math.min(100, ((delta - GMIN) / gRange) * 100)) : null;
@@ -950,8 +939,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     const lowPct  = ((range.low  - GMIN) / gRange) * 100;
                     const highPct = ((range.high - GMIN) / gRange) * 100;
                     const isOn = hpDeviceStates[key] === "ON";
-                    const inRange = !overHumid && delta !== null
-                      && delta >= range.low && delta <= range.high;
+                    const inRange = delta !== null && delta >= range.low && delta <= range.high;
 
                     return (
                       <div key={key} className="bg-orange-50 border border-orange-200 rounded-lg p-2.5 sm:p-3">
@@ -983,58 +971,51 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                           </span>
                         </div>
 
-                        {/* 게이지 바 */}
-                        <div className="relative h-10 flex items-center select-none mb-1">
-                          <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-3 bg-gray-200 rounded-full pointer-events-none">
-                            {/* 활성 구간 */}
-                            <div className="absolute h-full bg-orange-400 rounded-full"
-                              style={{ left: `${lowPct}%`, width: `${Math.max(0, highPct - lowPct)}%` }} />
-                            {/* 하한 핸들 */}
-                            <div className="absolute w-5 h-5 top-1/2 -translate-y-1/2 -translate-x-2.5 bg-orange-500 border-2 border-white rounded-full shadow pointer-events-none"
-                              style={{ left: `${lowPct}%` }} />
-                            {/* 상한 핸들 */}
-                            <div className="absolute w-5 h-5 top-1/2 -translate-y-1/2 -translate-x-2.5 bg-red-500 border-2 border-white rounded-full shadow pointer-events-none"
-                              style={{ left: `${highPct}%` }} />
-                            {/* 현재 온도 마커 (델타 기준) */}
-                            {markerPct !== null && (
-                              <div className="absolute w-2 h-8 top-1/2 -translate-y-1/2 -translate-x-1 rounded-full pointer-events-none"
-                                style={{ left: `${markerPct}%`, background: inRange ? '#22c55e' : '#ef4444' }} />
-                            )}
-                            {/* 0(기준온도) 중심선 */}
-                            <div className="absolute w-0.5 h-5 top-1/2 -translate-y-1/2 bg-gray-400 opacity-50 pointer-events-none"
-                              style={{ left: '50%' }} />
-                          </div>
-                          {/* 하한 드래그 input */}
+                        {/* 하한 슬라이더 */}
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] text-orange-500 font-bold w-5 flex-shrink-0">하한</span>
                           <input type="range" min={GMIN} max={GMAX} step={0.5} value={range.low}
                             onChange={(e) => {
                               const v = Number(e.target.value);
                               if (v <= range.high - 0.5)
                                 setHpDeviceRanges(prev => ({ ...prev, [key]: { ...prev[key] ?? { low: -2, high: 5 }, low: v } }));
                             }}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            style={{ zIndex: range.low > 0 ? 5 : 3 }}
+                            className="flex-1 cursor-pointer accent-orange-500"
                           />
-                          {/* 상한 드래그 input */}
+                          <span className="text-xs text-orange-600 font-bold w-10 text-right flex-shrink-0">
+                            {range.low >= 0 ? '+' : ''}{range.low.toFixed(1)}°
+                          </span>
+                        </div>
+
+                        {/* 시각 바 (활성 구간 + 현재온도 마커) */}
+                        <div className="relative h-3 bg-gray-200 rounded-full mx-8 mb-1">
+                          <div className="absolute h-full bg-orange-400 rounded-full"
+                            style={{ left: `${lowPct}%`, width: `${Math.max(0, highPct - lowPct)}%` }} />
+                          <div className="absolute w-0.5 h-full bg-gray-500 opacity-40" style={{ left: '50%' }} />
+                          {markerPct !== null && (
+                            <div className="absolute w-1.5 h-full rounded-full"
+                              style={{ left: `${markerPct}%`, background: inRange ? '#22c55e' : '#ef4444' }} />
+                          )}
+                        </div>
+                        <div className="flex justify-between text-[10px] text-gray-400 mx-8 mb-1">
+                          <span>-30°</span><span>0°</span><span>+30°</span>
+                        </div>
+
+                        {/* 상한 슬라이더 */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-red-500 font-bold w-5 flex-shrink-0">상한</span>
                           <input type="range" min={GMIN} max={GMAX} step={0.5} value={range.high}
                             onChange={(e) => {
                               const v = Number(e.target.value);
                               if (v >= range.low + 0.5)
                                 setHpDeviceRanges(prev => ({ ...prev, [key]: { ...prev[key] ?? { low: -2, high: 5 }, high: v } }));
                             }}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            style={{ zIndex: range.high < 0 ? 5 : 3 }}
+                            className="flex-1 cursor-pointer accent-red-500"
                           />
+                          <span className="text-xs text-red-600 font-bold w-10 text-right flex-shrink-0">
+                            {range.high >= 0 ? '+' : ''}{range.high.toFixed(1)}°
+                          </span>
                         </div>
-
-                        {/* 눈금 */}
-                        <div className="flex justify-between text-[10px] text-gray-400">
-                          <span>-30°</span>
-                          <span>0°</span>
-                          <span>+30°</span>
-                        </div>
-                        {overHumid && (
-                          <p className="text-[10px] text-blue-500 font-semibold text-center mt-1">💧 과습 강제 정지</p>
-                        )}
                       </div>
                     );
                   })}
