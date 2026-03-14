@@ -30,15 +30,22 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 천창/측창 현재 위치 추적 (0~100%)
   const [currentPosition, setCurrentPosition] = useState<Record<string, number>>({});
 
-  // 히트펌프 시스템 상태 (MQTT 공유 — 모든 브라우저에서 동기화)
-  const [hpSystemOn, setHpSystemOn] = useState<boolean>(false);  // tansaeng/ctlr-heat-001/system/state
-  const [hpMode, setHpMode] = useState<"AUTO" | "MANUAL">("AUTO"); // tansaeng/ctlr-heat-001/mode/state
+  // 히트펌프 시스템 상태
+  const [hpMode, setHpMode] = useState<"AUTO" | "MANUAL">("AUTO");
   const [hpSensors, setHpSensors] = useState<{
     airTemp: number | null;
     airHumidity: number | null;
     waterTemp: number | null;
   }>({ airTemp: null, airHumidity: null, waterTemp: null });
   const [hpDeviceStates, setHpDeviceStates] = useState<Record<string, "ON" | "OFF">>({});
+
+  // 팜 내부 온도 (앞/뒤/천장) — AUTO 기준 온도
+  const [farmSensors, setFarmSensors] = useState<{
+    front: number | null;
+    back: number | null;
+    top: number | null;
+  }>({ front: null, back: null, top: null });
+  const hpAutoDemandRef = useRef<boolean>(false); // AUTO 모드 난방 수요 추적
 
   // 히트펌프 전용 장치는 일반 섹션에서 제외
   const fans = getDevicesByType("fan").filter(d => d.esp32Id !== "ctlr-heat-001");
@@ -70,28 +77,27 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     };
   }, []);
 
-  // 히트펌프 MQTT 센서 & 상태 구독 (모든 브라우저에서 실시간 동기화)
+  // 히트펌프 MQTT 센서 & 상태 구독
   useEffect(() => {
     const HP = "ctlr-heat-001";
     const unsubs = [
-      // 시스템 전원 (공유 스위치)
-      subscribeToTopic(`tansaeng/${HP}/system/state`, (v) =>
-        setHpSystemOn(v === "ON")
-      ),
       // 제어 모드 (공유)
       subscribeToTopic(`tansaeng/${HP}/mode/state`, (v) => {
         if (v === "AUTO" || v === "MANUAL") setHpMode(v);
       }),
-      // 센서
-      subscribeToTopic(`tansaeng/${HP}/air/temperature`, (v) =>
-        setHpSensors(prev => ({ ...prev, airTemp: parseFloat(v) }))
-      ),
-      subscribeToTopic(`tansaeng/${HP}/air/humidity`, (v) =>
-        setHpSensors(prev => ({ ...prev, airHumidity: parseFloat(v) }))
-      ),
-      subscribeToTopic(`tansaeng/${HP}/water/temperature`, (v) =>
-        setHpSensors(prev => ({ ...prev, waterTemp: parseFloat(v) }))
-      ),
+      // 장치제어실 센서
+      subscribeToTopic(`tansaeng/${HP}/air/temperature`, (v) => {
+        const n = parseFloat(v);
+        if (!isNaN(n)) setHpSensors(prev => ({ ...prev, airTemp: n }));
+      }),
+      subscribeToTopic(`tansaeng/${HP}/air/humidity`, (v) => {
+        const n = parseFloat(v);
+        if (!isNaN(n)) setHpSensors(prev => ({ ...prev, airHumidity: n }));
+      }),
+      subscribeToTopic(`tansaeng/${HP}/water/temperature`, (v) => {
+        const n = parseFloat(v);
+        if (!isNaN(n)) setHpSensors(prev => ({ ...prev, waterTemp: n }));
+      }),
       // 개별 장치 상태
       subscribeToTopic(`tansaeng/${HP}/pump/state`, (v) =>
         setHpDeviceStates(prev => ({ ...prev, hp_pump: v as "ON" | "OFF" }))
@@ -105,6 +111,50 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     ];
     return () => unsubs.forEach(u => u());
   }, []);
+
+  // 팜 내부 온도 폴링 (앞/뒤/천장 — AUTO 기준)
+  useEffect(() => {
+    const fetchFarmSensors = async () => {
+      try {
+        const res = await fetch('/api/smartfarm/get_realtime_sensor_data.php');
+        const result = await res.json();
+        if (result.success) {
+          setFarmSensors({
+            front: result.data.front.temperature,
+            back:  result.data.back.temperature,
+            top:   result.data.top.temperature,
+          });
+        }
+      } catch {}
+    };
+    fetchFarmSensors();
+    const interval = setInterval(fetchFarmSensors, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // AUTO 모드 제어 로직 (팜 평균 온도 기준)
+  useEffect(() => {
+    if (hpMode !== "AUTO") return;
+    const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+    if (temps.length === 0) return;
+    const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
+
+    const HP = "ctlr-heat-001";
+    if (!hpAutoDemandRef.current && avg <= 18.0) {
+      // 난방 시작
+      hpAutoDemandRef.current = true;
+      setHpDeviceStates(prev => ({ ...prev, hp_pump: "ON", hp_heater: "ON", hp_fan: "ON" }));
+      sendDeviceCommand(HP, "pump",   "ON");
+      sendDeviceCommand(HP, "heater", "ON");
+      sendDeviceCommand(HP, "fan",    "ON");
+    } else if (hpAutoDemandRef.current && avg >= 20.0) {
+      // 난방 종료
+      hpAutoDemandRef.current = false;
+      setHpDeviceStates(prev => ({ ...prev, hp_heater: "OFF" }));
+      sendDeviceCommand(HP, "heater", "OFF");
+      // 펌프·팬은 60초 후 자동 종료 (ESP32 후순환 로직)
+    }
+  }, [farmSensors, hpMode]);
 
   // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
@@ -145,6 +195,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       },
     };
     setDeviceState(newState);
+
+    // HP 장치는 즉시 시각적 업데이트 (MQTT 응답 기다리지 않음)
+    if (heatPumpDevices.find(d => d.id === deviceId)) {
+      setHpDeviceStates(prev => ({ ...prev, [deviceId]: isOn ? "ON" : "OFF" }));
+    }
 
     const device = [...fans, ...vents, ...pumps, ...heatPumpDevices].find((d) => d.id === deviceId);
     if (device) {
@@ -694,34 +749,57 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           </header>
           <div className="bg-white shadow-sm rounded-b-lg p-2 sm:p-4">
 
-            {/* 상단 제어 영역: 스위치 + 모드 + 센서 */}
+            {/* 상단: 팜 평균온도 + 모드 + 장치제어실 센서 */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 mb-3 sm:mb-4">
 
-              {/* 시스템 전원 스위치 (MQTT 공유 — 다른 브라우저와 동기화) */}
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 sm:p-3 flex flex-col items-center justify-center gap-2">
-                <p className="text-[10px] sm:text-xs font-semibold text-gray-700">시스템 전원</p>
-                <button
-                  onClick={() => {
-                    const next = !hpSystemOn;
-                    getMqttClient().publish("tansaeng/ctlr-heat-001/system/cmd", next ? "ON" : "OFF", { qos: 1, retain: true });
-                  }}
-                  className={`w-full py-3 rounded-lg text-sm font-bold transition-colors shadow-sm ${
-                    hpSystemOn
-                      ? "bg-orange-500 text-white"
-                      : "bg-gray-200 text-gray-500 hover:bg-gray-300"
-                  }`}
-                >
-                  {hpSystemOn ? "🟠 ON" : "⚫ OFF"}
-                </button>
-                <p className="text-[10px] text-gray-400 text-center">모든 기기에서 공유됩니다</p>
-              </div>
+              {/* 팜 내부 평균온도 (AUTO 기준) */}
+              {(() => {
+                const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+                const avg = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+                return (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3">
+                    <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">
+                      팜 내부 평균온도
+                      {hpMode === "AUTO" && (
+                        <span className="ml-1.5 text-orange-500">(AUTO 기준)</span>
+                      )}
+                    </p>
+                    <div className="text-center mb-2">
+                      <div className="text-2xl sm:text-3xl font-bold text-red-500">
+                        {avg !== null ? `${avg.toFixed(1)}°` : "—"}
+                      </div>
+                      <div className="text-[9px] text-gray-400 mt-0.5">
+                        {hpMode === "AUTO"
+                          ? avg !== null
+                            ? avg <= 18.0 ? "🔥 난방 조건" : avg >= 20.0 ? "✅ 정지 조건" : "대기 중"
+                            : "센서 없음"
+                          : "수동 모드"}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 text-center">
+                      {[
+                        { label: "팬 앞", val: farmSensors.front },
+                        { label: "팬 뒤", val: farmSensors.back },
+                        { label: "천장",  val: farmSensors.top },
+                      ].map(({ label, val }) => (
+                        <div key={label}>
+                          <div className="text-xs font-semibold text-gray-700">{val !== null ? `${val.toFixed(1)}°` : "—"}</div>
+                          <div className="text-[9px] text-gray-400">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* 제어 모드 (MQTT 공유) */}
+              {/* 제어 모드 */}
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3">
                 <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">제어 모드</p>
                 <div className="flex flex-col gap-1.5">
                   <button
                     onClick={() => {
+                      setHpMode("AUTO");
+                      hpAutoDemandRef.current = false;
                       getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "AUTO", { qos: 1, retain: true });
                     }}
                     className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
@@ -734,6 +812,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </button>
                   <button
                     onClick={() => {
+                      setHpMode("MANUAL");
+                      hpAutoDemandRef.current = false;
                       getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
                     }}
                     className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
@@ -746,29 +826,29 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </button>
                 </div>
                 <p className="text-[10px] text-gray-500 mt-1.5">
-                  {hpMode === "AUTO" ? "ESP32 자동 제어" : "직접 장치 ON/OFF"}
+                  {hpMode === "AUTO" ? "팜 평균 18°C 이하 → 자동 가동" : "직접 장치 ON/OFF"}
                 </p>
               </div>
 
-              {/* 센서 값 */}
+              {/* 장치제어실 센서 */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
                 <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">장치제어실 내부</p>
                 <div className="grid grid-cols-3 gap-1 sm:gap-2">
                   <div className="text-center">
                     <div className="text-base sm:text-2xl font-bold text-red-500">
-                      {hpSensors.airTemp !== null ? `${hpSensors.airTemp.toFixed(1)}°` : "—"}
+                      {hpSensors.airTemp !== null && !isNaN(hpSensors.airTemp) ? `${hpSensors.airTemp.toFixed(1)}°` : "—"}
                     </div>
                     <div className="text-[9px] sm:text-[10px] text-gray-500">공기온도</div>
                   </div>
                   <div className="text-center">
                     <div className="text-base sm:text-2xl font-bold text-blue-500">
-                      {hpSensors.airHumidity !== null ? `${hpSensors.airHumidity.toFixed(0)}%` : "—"}
+                      {hpSensors.airHumidity !== null && !isNaN(hpSensors.airHumidity) ? `${hpSensors.airHumidity.toFixed(0)}%` : "—"}
                     </div>
                     <div className="text-[9px] sm:text-[10px] text-gray-500">공기습도</div>
                   </div>
                   <div className="text-center">
                     <div className="text-base sm:text-2xl font-bold text-cyan-600">
-                      {hpSensors.waterTemp !== null ? `${hpSensors.waterTemp.toFixed(1)}°` : "—"}
+                      {hpSensors.waterTemp !== null && !isNaN(hpSensors.waterTemp) ? `${hpSensors.waterTemp.toFixed(1)}°` : "—"}
                     </div>
                     <div className="text-[9px] sm:text-[10px] text-gray-500">물온도</div>
                   </div>
@@ -778,7 +858,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
             {/* 장치 제어 카드 */}
             <p className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1.5 sm:mb-2">
-              장치 제어{hpMode === "AUTO" ? " (자동 모드 — ESP32가 자동 제어)" : " (수동 모드 — 직접 ON/OFF)"}
+              장치 제어{hpMode === "AUTO" ? " (자동 모드 — 팜 평균온도 기준 자동 제어)" : " (수동 모드 — 직접 ON/OFF)"}
             </p>
             <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
               {/* 순환펌프 */}
