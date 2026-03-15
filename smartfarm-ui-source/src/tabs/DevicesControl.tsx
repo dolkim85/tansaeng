@@ -189,13 +189,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   useEffect(() => {
     const HP = "ctlr-heat-001";
     const unsubs = [
-      // 제어 모드 (공유)
-      subscribeToTopic(`tansaeng/${HP}/mode/state`, (v) => {
-        if (v === "AUTO" || v === "MANUAL") {
-          hpModeRef.current = v;
-          setHpMode(v);
-        }
-      }),
+      // mode/state는 구독하되 UI 모드에 반영 안 함 — ESP32는 항상 MANUAL, UI 모드는 버튼으로만 제어
+      subscribeToTopic(`tansaeng/${HP}/mode/state`, (_v) => { /* display only */ }),
       // 장치제어실 센서
       subscribeToTopic(`tansaeng/${HP}/air/temperature`, (v) => {
         const n = parseFloat(v);
@@ -296,7 +291,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       if (hpDeviceLastCmd.current[key] !== newCmd) {
         hpDeviceLastCmd.current[key] = newCmd;
         setHpDeviceStates(prev => ({ ...prev, [key]: newCmd }));
-        sendDeviceCommand(HP, mqttId, newCmd);
+        const deviceName = { hp_pump: "히트펌프 순환펌프", hp_heater: "전기온열기", hp_fan: "열교환기 팬" }[key];
+        sendDeviceCommand(HP, mqttId, newCmd).then(result => {
+          if (result.success) console.log(`[API SUCCESS] ${deviceName} - ${newCmd}`);
+          else console.error(`[API ERROR] ${deviceName} - ${newCmd}: ${result.message}`);
+        });
       }
     });
   }, [farmSensors, hpDeviceRanges, hpAutoActive]);
@@ -1182,7 +1181,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       hpAutoDemandRef.current = false;
                       setHpAutoActive(false); // 모드 전환 시 작동 초기화
                       hpDeviceLastCmd.current = { hp_pump: null, hp_heater: null, hp_fan: null };
-                      getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "AUTO", { qos: 1, retain: true });
+                      // ESP32는 항상 MANUAL 유지 — 브라우저 명령(pump/heater/fan cmd)을 수신할 수 있어야 함
+                      getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
                     }}
                     className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
                       hpMode === "AUTO"
