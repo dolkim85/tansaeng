@@ -570,29 +570,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           </div>
         </section>
 
-        {/* 팬 제어 섹션 */}
-        <section className="mb-2 sm:mb-3">
-          <header className="bg-farm-500 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
-            <h2 className="text-sm sm:text-base font-semibold flex items-center gap-1.5 text-gray-900">
-              팬 제어
-            </h2>
-            <span className="text-[10px] sm:text-xs text-gray-800">{fans.length}개</span>
-          </header>
-          <div className="bg-white shadow-sm rounded-b-lg p-1.5 sm:p-3">
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-3">
-              {fans.map((fan) => (
-                <DeviceCard
-                  key={fan.id}
-                  device={fan}
-                  power={deviceState[fan.id]?.power ?? "off"}
-                  lastSavedAt={deviceState[fan.id]?.lastSavedAt}
-                  onToggle={(isOn) => handleToggle(fan.id, isOn)}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* 천창 스크린 제어 섹션 */}
         <section className="mb-2 sm:mb-3">
           <header className="bg-amber-400 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
@@ -821,23 +798,23 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           </div>
         </section>
 
-        {/* 펌프 제어 섹션 */}
+        {/* 팬 제어 섹션 */}
         <section className="mb-2 sm:mb-3">
           <header className="bg-farm-500 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
             <h2 className="text-sm sm:text-base font-semibold flex items-center gap-1.5 text-gray-900">
-              펌프 제어
+              팬 제어
             </h2>
-            <span className="text-[10px] sm:text-xs text-gray-800">{pumps.length}개</span>
+            <span className="text-[10px] sm:text-xs text-gray-800">{fans.length}개</span>
           </header>
           <div className="bg-white shadow-sm rounded-b-lg p-1.5 sm:p-3">
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-3">
-              {pumps.map((pump) => (
+              {fans.map((fan) => (
                 <DeviceCard
-                  key={pump.id}
-                  device={pump}
-                  power={deviceState[pump.id]?.power ?? "off"}
-                  lastSavedAt={deviceState[pump.id]?.lastSavedAt}
-                  onToggle={(isOn) => handleToggle(pump.id, isOn)}
+                  key={fan.id}
+                  device={fan}
+                  power={deviceState[fan.id]?.power ?? "off"}
+                  lastSavedAt={deviceState[fan.id]?.lastSavedAt}
+                  onToggle={(isOn) => handleToggle(fan.id, isOn)}
                 />
               ))}
             </div>
@@ -1128,6 +1105,29 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 </div>
               </>
             )}
+          </div>
+        </section>
+
+        {/* 펌프 제어 섹션 */}
+        <section className="mb-2 sm:mb-3">
+          <header className="bg-farm-500 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
+            <h2 className="text-sm sm:text-base font-semibold flex items-center gap-1.5 text-gray-900">
+              펌프 제어
+            </h2>
+            <span className="text-[10px] sm:text-xs text-gray-800">{pumps.length}개</span>
+          </header>
+          <div className="bg-white shadow-sm rounded-b-lg p-1.5 sm:p-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-3">
+              {pumps.map((pump) => (
+                <DeviceCard
+                  key={pump.id}
+                  device={pump}
+                  power={deviceState[pump.id]?.power ?? "off"}
+                  lastSavedAt={deviceState[pump.id]?.lastSavedAt}
+                  onToggle={(isOn) => handleToggle(pump.id, isOn)}
+                />
+              ))}
+            </div>
           </div>
         </section>
       </div>
