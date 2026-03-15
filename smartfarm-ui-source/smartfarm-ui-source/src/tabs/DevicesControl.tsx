@@ -146,6 +146,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 마지막 전송 명령 추적 (중복 전송 방지)
   const hpDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({ hp_pump: null, hp_heater: null, hp_fan: null });
 
+  // 팬 AUTO 제어 상태
+  const [fanMode, setFanMode] = useState<"AUTO" | "MANUAL">("MANUAL");
+  const fanModeRef = useRef<"AUTO" | "MANUAL">("MANUAL");
+  const [fanDeviceRanges, setFanDeviceRanges] = useState<Record<string, { low: number; high: number }>>({});
+  const [fanAutoActive, setFanAutoActive] = useState(false);
+  const fanDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({});
+  // ranges 변경이 MQTT 복원에서 온 경우 재발행 방지
+  const fanRangesFromMqttRef = useRef(false);
 
   // 히트펌프 전용 장치는 일반 섹션에서 제외
   const fans = getDevicesByType("fan").filter(d => d.esp32Id !== "ctlr-heat-001");
@@ -215,6 +223,31 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => unsubs.forEach(u => u());
   }, []);
 
+  // 팬 제어 상태 MQTT 구독 (retain 메시지로 다른 브라우저 상태 복원)
+  useEffect(() => {
+    const unsubs = [
+      subscribeToTopic("tansaeng/fan-control/mode", (v) => {
+        if (v === "AUTO" || v === "MANUAL") {
+          fanModeRef.current = v;
+          setFanMode(v);
+        }
+      }),
+      subscribeToTopic("tansaeng/fan-control/autoActive", (v) => {
+        setFanAutoActive(v === "true");
+      }),
+      subscribeToTopic("tansaeng/fan-control/ranges", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed && typeof parsed === "object") {
+            fanRangesFromMqttRef.current = true; // MQTT 복원임을 표시
+            setFanDeviceRanges(parsed);
+          }
+        } catch {}
+      }),
+    ];
+    return () => unsubs.forEach(u => u());
+  }, []);
+
   // 팜 내부 온도 폴링 (앞/뒤/천장 — AUTO 기준)
   useEffect(() => {
     const fetchFarmSensors = async () => {
@@ -267,6 +300,36 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       }
     });
   }, [farmSensors, hpDeviceRanges, hpAutoActive]);
+
+  // 팬 AUTO 모드 제어 로직 — avgTemp가 설정 범위 안에 있으면 ON, 벗어나면 OFF
+  useEffect(() => {
+    if (fanModeRef.current !== "AUTO") return;
+    if (!fanAutoActive) return;
+    const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+    if (temps.length === 0) return;
+    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+    fans.forEach((fan) => {
+      const range = fanDeviceRanges[fan.id] ?? { low: 15, high: 22 };
+      const inRange = avgTemp >= range.low && avgTemp <= range.high;
+      const newCmd: "ON" | "OFF" = inRange ? "ON" : "OFF";
+      if (fanDeviceLastCmd.current[fan.id] !== newCmd) {
+        fanDeviceLastCmd.current[fan.id] = newCmd;
+        setDeviceState(prev => ({
+          ...prev,
+          [fan.id]: { ...prev[fan.id], power: inRange ? "on" : "off", lastSavedAt: new Date().toISOString() }
+        }));
+        const mqttDeviceId = fan.commandTopic.split('/')[2];
+        sendDeviceCommand(fan.esp32Id, mqttDeviceId, newCmd);
+      }
+    });
+  }, [farmSensors, fanDeviceRanges, fanAutoActive]);
+
+  // 팬 온도 범위 변경 시 MQTT retain 발행 (MQTT 복원에서 온 변경은 재발행 안함)
+  useEffect(() => {
+    if (fanRangesFromMqttRef.current) { fanRangesFromMqttRef.current = false; return; }
+    if (Object.keys(fanDeviceRanges).length === 0) return;
+    getMqttClient().publish("tansaeng/fan-control/ranges", JSON.stringify(fanDeviceRanges), { qos: 1, retain: true });
+  }, [fanDeviceRanges]);
 
   // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
@@ -802,22 +865,236 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         <section className="mb-2 sm:mb-3">
           <header className="bg-farm-500 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
             <h2 className="text-sm sm:text-base font-semibold flex items-center gap-1.5 text-gray-900">
-              팬 제어
+              🌀 팬 제어
             </h2>
-            <span className="text-[10px] sm:text-xs text-gray-800">{fans.length}개</span>
-          </header>
-          <div className="bg-white shadow-sm rounded-b-lg p-1.5 sm:p-3">
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-3">
-              {fans.map((fan) => (
-                <DeviceCard
-                  key={fan.id}
-                  device={fan}
-                  power={deviceState[fan.id]?.power ?? "off"}
-                  lastSavedAt={deviceState[fan.id]?.lastSavedAt}
-                  onToggle={(isOn) => handleToggle(fan.id, isOn)}
-                />
-              ))}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] sm:text-xs text-gray-800">{fans.length}개</span>
             </div>
+          </header>
+          <div className="bg-white shadow-sm rounded-b-lg p-2 sm:p-4">
+
+            {/* 상단: 팜 평균온도 + 모드 (2열) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 mb-3 sm:mb-4">
+
+              {/* 팜 내부 평균온도/습도 */}
+              {(() => {
+                const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+                const hums  = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
+                const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+                const avgHum  = hums.length > 0  ? hums.reduce((a, b) => a + b, 0)  / hums.length  : null;
+                const fanAutoStatus = avgTemp === null ? "센서 없음"
+                  : !fanAutoActive ? "⏸ 작동 대기"
+                  : "🌀 AUTO 작동 중";
+                return (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3">
+                    <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1.5">
+                      팜 내부 평균
+                      {fanMode === "AUTO" && <span className="ml-1 text-farm-600">(AUTO 기준)</span>}
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5 mb-2">
+                      <div className="bg-red-50 border border-red-100 rounded p-1.5 text-center">
+                        <div className="text-lg sm:text-2xl font-bold text-red-500">
+                          {avgTemp !== null ? `${avgTemp.toFixed(1)}°` : "—"}
+                        </div>
+                        <div className="text-[9px] text-gray-400">평균온도</div>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-100 rounded p-1.5 text-center">
+                        <div className="text-lg sm:text-2xl font-bold text-blue-500">
+                          {avgHum !== null ? `${avgHum.toFixed(0)}%` : "—"}
+                        </div>
+                        <div className="text-[9px] text-gray-400">평균습도</div>
+                      </div>
+                    </div>
+                    {fanMode === "AUTO" && (
+                      <div className="text-center text-[10px] font-semibold text-farm-600 mb-1.5">{fanAutoStatus}</div>
+                    )}
+                    <div className="grid grid-cols-3 gap-1 text-center">
+                      {[
+                        { label: "팬 앞", t: farmSensors.front, h: farmSensors.frontHum },
+                        { label: "팬 뒤", t: farmSensors.back,  h: farmSensors.backHum },
+                        { label: "천장",  t: farmSensors.top,   h: farmSensors.topHum },
+                      ].map(({ label, t, h }) => (
+                        <div key={label} className="bg-white rounded p-1">
+                          <div className="text-[10px] font-semibold text-red-500">{t !== null ? `${t.toFixed(1)}°` : "—"}</div>
+                          <div className="text-[10px] text-blue-400">{h !== null ? `${h.toFixed(0)}%` : "—"}</div>
+                          <div className="text-[9px] text-gray-400">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 제어 모드 */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3">
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">제어 모드</p>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    onClick={() => {
+                      fanModeRef.current = "AUTO";
+                      setFanMode("AUTO");
+                      setFanAutoActive(false);
+                      fanDeviceLastCmd.current = {};
+                      getMqttClient().publish("tansaeng/fan-control/mode", "AUTO", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/fan-control/autoActive", "false", { qos: 1, retain: true });
+                    }}
+                    className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                      fanMode === "AUTO"
+                        ? "bg-gray-900 text-white shadow"
+                        : "bg-white border border-farm-300 text-farm-600 hover:bg-farm-50"
+                    }`}
+                  >
+                    자동 (AUTO)
+                  </button>
+                  <button
+                    onClick={() => {
+                      fanModeRef.current = "MANUAL";
+                      setFanMode("MANUAL");
+                      getMqttClient().publish("tansaeng/fan-control/mode", "MANUAL", { qos: 1, retain: true });
+                    }}
+                    className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                      fanMode === "MANUAL"
+                        ? "bg-gray-700 text-yellow-300 shadow"
+                        : "bg-white border border-gray-300 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    수동 (MANUAL)
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1.5">
+                  {fanMode === "AUTO" ? "온도 범위 설정에 따라 자동 제어" : "직접 장치 ON/OFF"}
+                </p>
+              </div>
+            </div>
+
+            {/* AUTO 모드: 장치별 개별 게이지 / MANUAL 모드: 장치 카드 */}
+            {fanMode === "AUTO" ? (() => {
+              const GMIN = -10, GMAX = 50;
+              const gRange = GMAX - GMIN;
+              const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+              const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+              const markerPct = avgTemp !== null
+                ? Math.max(0, Math.min(100, ((avgTemp - GMIN) / gRange) * 100))
+                : null;
+
+              return (
+                <div className="space-y-2 sm:space-y-3">
+                  {/* 현재온도 + 작동시작/멈춤 버튼 */}
+                  <div className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2 gap-2">
+                    <div className="text-xs text-gray-600">
+                      현재 평균온도:{" "}
+                      <span className="font-bold text-gray-800">
+                        {avgTemp !== null ? `${avgTemp.toFixed(1)}°C` : "—"}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          fanDeviceLastCmd.current = {};
+                          setFanAutoActive(true);
+                          getMqttClient().publish("tansaeng/fan-control/autoActive", "true", { qos: 1, retain: true });
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                          fanAutoActive
+                            ? "bg-green-500 text-white shadow"
+                            : "bg-white border border-green-400 text-green-600 hover:bg-green-50"
+                        }`}
+                      >
+                        ▶ 작동시작
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFanAutoActive(false);
+                          getMqttClient().publish("tansaeng/fan-control/autoActive", "false", { qos: 1, retain: true });
+                          fans.forEach((fan) => {
+                            fanDeviceLastCmd.current[fan.id] = "OFF";
+                            setDeviceState(prev => ({
+                              ...prev,
+                              [fan.id]: { ...prev[fan.id], power: "off", lastSavedAt: new Date().toISOString() }
+                            }));
+                            const mqttDeviceId = fan.commandTopic.split('/')[2];
+                            sendDeviceCommand(fan.esp32Id, mqttDeviceId, "OFF");
+                          });
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                          !fanAutoActive
+                            ? "bg-gray-500 text-white shadow"
+                            : "bg-white border border-gray-400 text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        ■ 작동멈춤
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 장치별 게이지 */}
+                  {fans.map((fan) => {
+                    const range = fanDeviceRanges[fan.id] ?? { low: 15, high: 22 };
+                    const isOn = deviceState[fan.id]?.power === "on";
+                    const inRange = avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high;
+
+                    return (
+                      <div key={fan.id} className="bg-green-50 border border-green-200 rounded-lg p-2.5 sm:p-3">
+                        {/* 헤더: 장치명 + 작동상태 LED */}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs sm:text-sm font-semibold text-gray-700">🌀 {fan.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isOn ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                            <span className={`text-xs font-bold ${isOn ? 'text-green-600' : 'text-gray-500'}`}>
+                              {isOn ? '작동중' : '정지'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 온도 범위 표시 */}
+                        <div className="flex justify-between text-xs mb-1 px-3">
+                          <span className="text-farm-600 font-bold">{range.low.toFixed(1)}°C</span>
+                          <span className="text-[10px] text-gray-400">
+                            {inRange ? "✅ 현재온도 범위 내" : "❌ 현재온도 범위 밖"}
+                          </span>
+                          <span className="text-red-600 font-bold">{range.high.toFixed(1)}°C</span>
+                        </div>
+
+                        {/* 듀얼 핸들 슬라이더 */}
+                        <DualRangeSlider
+                          min={GMIN} max={GMAX} step={0.5}
+                          low={range.low} high={range.high}
+                          onLowChange={(v) =>
+                            setFanDeviceRanges(prev => ({ ...prev, [fan.id]: { ...prev[fan.id] ?? { low: 15, high: 22 }, low: v } }))
+                          }
+                          onHighChange={(v) =>
+                            setFanDeviceRanges(prev => ({ ...prev, [fan.id]: { ...prev[fan.id] ?? { low: 15, high: 22 }, high: v } }))
+                          }
+                          markerPct={markerPct}
+                          isActive={inRange}
+                        />
+                        {/* 눈금 */}
+                        <div className="flex justify-between text-[10px] text-gray-400 mx-3 mt-0.5">
+                          <span>-10°C</span><span>+20°C</span><span>+50°C</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })() : (
+              <>
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1.5 sm:mb-2">
+                  장치 제어 (수동 모드 — 직접 ON/OFF)
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-3">
+                  {fans.map((fan) => (
+                    <DeviceCard
+                      key={fan.id}
+                      device={fan}
+                      power={deviceState[fan.id]?.power ?? "off"}
+                      lastSavedAt={deviceState[fan.id]?.lastSavedAt}
+                      onToggle={(isOn) => handleToggle(fan.id, isOn)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </section>
 
