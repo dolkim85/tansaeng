@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { SensorSnapshot } from "../types";
 import SensorRow from "../components/SensorRow";
+import { subscribeToTopic } from "../mqtt/mqttClient";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -76,6 +77,13 @@ export default function Environment() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 30;
 
+  // 장치제어실 온습도 (ctlr-heat-001 MQTT)
+  const [deviceRoomSensor, setDeviceRoomSensor] = useState<{
+    temperature: number | null;
+    humidity: number | null;
+    lastUpdate: number | null;
+  }>({ temperature: null, humidity: null, lastUpdate: null });
+
   // 기타 센서 데이터
   const [currentValues] = useState<Partial<SensorSnapshot>>({
     rootTemp: null,
@@ -86,6 +94,23 @@ export default function Environment() {
     co2: null,
     ppfd: null,
   });
+
+  // 장치제어실 MQTT 구독 (ctlr-heat-001)
+  useEffect(() => {
+    const unsubTemp = subscribeToTopic("tansaeng/ctlr-heat-001/air/temperature", (v) => {
+      const val = parseFloat(v);
+      if (!isNaN(val)) {
+        setDeviceRoomSensor(prev => ({ ...prev, temperature: val, lastUpdate: Date.now() }));
+      }
+    });
+    const unsubHum = subscribeToTopic("tansaeng/ctlr-heat-001/air/humidity", (v) => {
+      const val = parseFloat(v);
+      if (!isNaN(val)) {
+        setDeviceRoomSensor(prev => ({ ...prev, humidity: val, lastUpdate: Date.now() }));
+      }
+    });
+    return () => { unsubTemp(); unsubHum(); };
+  }, []);
 
   // 서버 연결 상태 체크 (API 응답 확인)
   useEffect(() => {
@@ -473,108 +498,192 @@ export default function Environment() {
           </div>
         </header>
 
-        {/* 온습도 센서 데이터 - 개선된 레이아웃 */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4 mb-3 sm:mb-6">
-          {/* 평균 온습도 (좌측) */}
-          <section className="col-span-1">
-            <header className="bg-farm-500 px-2 sm:px-3 py-1.5 sm:py-2 rounded-t-lg sm:rounded-t-xl">
-              <h3 className="text-xs sm:text-sm font-semibold m-0">평균</h3>
+        {/* ===== 온습도 센서 통합 표시 ===== */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-3 sm:mb-6">
+
+          {/* 팬 앞 */}
+          <section>
+            <header className="bg-farm-500 px-3 py-2 rounded-t-lg flex items-center gap-1.5">
+              <span className="text-base">🌀</span>
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-900 m-0">내부팬 앞</h3>
+              <span className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${frontSensor.lastUpdate ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
             </header>
-            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-3 space-y-2 sm:space-y-3">
-              <div className="text-center">
-                <div className="text-[10px] sm:text-xs text-gray-600 mb-0.5 sm:mb-1">평균 온도</div>
-                <div className="text-lg sm:text-2xl font-bold text-green-600">
-                  {avgTemp !== null ? avgTemp.toFixed(1) : '0.0'}°C
+            <div className="bg-white rounded-b-lg shadow-sm p-2 sm:p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">온도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-red-500">
+                    {frontSensor.temperature !== null ? frontSensor.temperature.toFixed(1) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">°C</div>
+                  <div className="text-[9px] text-gray-400 mt-0.5">
+                    {frontSensor.lastUpdate ? new Date(frontSensor.lastUpdate).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '미수신'}
+                  </div>
                 </div>
-              </div>
-              <div className="text-center">
-                <div className="text-[10px] sm:text-xs text-gray-600 mb-0.5 sm:mb-1">평균 습도</div>
-                <div className="text-lg sm:text-2xl font-bold text-blue-600">
-                  {avgHum !== null ? avgHum.toFixed(1) : '0.0'}%
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">습도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-blue-500">
+                    {frontSensor.humidity !== null ? frontSensor.humidity.toFixed(0) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">%RH</div>
+                  <div className="text-[9px] text-gray-400 mt-0.5">
+                    {frontSensor.lastUpdate ? new Date(frontSensor.lastUpdate).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '미수신'}
+                  </div>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* 내부팬 앞 */}
-          <section className="col-span-1">
-            <header className="bg-farm-500 px-2 sm:px-3 py-1.5 sm:py-2 rounded-t-lg sm:rounded-t-xl">
-              <h3 className="text-xs sm:text-sm font-semibold m-0">팬 앞</h3>
+          {/* 팬 뒤 */}
+          <section>
+            <header className="bg-farm-500 px-3 py-2 rounded-t-lg flex items-center gap-1.5">
+              <span className="text-base">🌀</span>
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-900 m-0">내부팬 뒤</h3>
+              <span className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${backSensor.lastUpdate ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
             </header>
-            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-3 space-y-1.5 sm:space-y-2">
-              <div className="text-center">
-                <div className="text-[10px] sm:text-xs text-gray-600">온도</div>
-                <div className="text-base sm:text-xl font-semibold text-green-600">
-                  {frontSensor.temperature !== null ? frontSensor.temperature.toFixed(1) : '0.0'}°C
+            <div className="bg-white rounded-b-lg shadow-sm p-2 sm:p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">온도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-red-500">
+                    {backSensor.temperature !== null ? backSensor.temperature.toFixed(1) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">°C</div>
+                  <div className="text-[9px] text-gray-400 mt-0.5">
+                    {backSensor.lastUpdate ? new Date(backSensor.lastUpdate).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '미수신'}
+                  </div>
                 </div>
-              </div>
-              <div className="text-center">
-                <div className="text-[10px] sm:text-xs text-gray-600">습도</div>
-                <div className="text-base sm:text-xl font-semibold text-blue-600">
-                  {frontSensor.humidity !== null ? frontSensor.humidity.toFixed(1) : '0.0'}%
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* 내부팬 뒤 */}
-          <section className="col-span-1">
-            <header className="bg-farm-500 px-2 sm:px-3 py-1.5 sm:py-2 rounded-t-lg sm:rounded-t-xl">
-              <h3 className="text-xs sm:text-sm font-semibold m-0">팬 뒤</h3>
-            </header>
-            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-3 space-y-1.5 sm:space-y-2">
-              <div className="text-center">
-                <div className="text-[10px] sm:text-xs text-gray-600">온도</div>
-                <div className="text-base sm:text-xl font-semibold text-green-600">
-                  {backSensor.temperature !== null ? backSensor.temperature.toFixed(1) : '0.0'}°C
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-[10px] sm:text-xs text-gray-600">습도</div>
-                <div className="text-base sm:text-xl font-semibold text-blue-600">
-                  {backSensor.humidity !== null ? backSensor.humidity.toFixed(1) : '0.0'}%
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">습도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-blue-500">
+                    {backSensor.humidity !== null ? backSensor.humidity.toFixed(0) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">%RH</div>
+                  <div className="text-[9px] text-gray-400 mt-0.5">
+                    {backSensor.lastUpdate ? new Date(backSensor.lastUpdate).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '미수신'}
+                  </div>
                 </div>
               </div>
             </div>
           </section>
 
           {/* 천장 */}
-          <section className="col-span-1">
-            <header className="bg-farm-500 px-2 sm:px-3 py-1.5 sm:py-2 rounded-t-lg sm:rounded-t-xl">
-              <h3 className="text-xs sm:text-sm font-semibold m-0">천장</h3>
+          <section>
+            <header className="bg-farm-500 px-3 py-2 rounded-t-lg flex items-center gap-1.5">
+              <span className="text-base">🏭</span>
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-900 m-0">천장</h3>
+              <span className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${topSensor.lastUpdate ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
             </header>
-            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-3 space-y-1.5 sm:space-y-2">
-              <div className="text-center">
-                <div className="text-[10px] sm:text-xs text-gray-600">온도</div>
-                <div className="text-base sm:text-xl font-semibold text-green-600">
-                  {topSensor.temperature !== null ? topSensor.temperature.toFixed(1) : '0.0'}°C
+            <div className="bg-white rounded-b-lg shadow-sm p-2 sm:p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">온도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-red-500">
+                    {topSensor.temperature !== null ? topSensor.temperature.toFixed(1) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">°C</div>
+                  <div className="text-[9px] text-gray-400 mt-0.5">
+                    {topSensor.lastUpdate ? new Date(topSensor.lastUpdate).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '미수신'}
+                  </div>
                 </div>
-              </div>
-              <div className="text-center">
-                <div className="text-[10px] sm:text-xs text-gray-600">습도</div>
-                <div className="text-base sm:text-xl font-semibold text-blue-600">
-                  {topSensor.humidity !== null ? topSensor.humidity.toFixed(1) : '0.0'}%
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">습도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-blue-500">
+                    {topSensor.humidity !== null ? topSensor.humidity.toFixed(0) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">%RH</div>
+                  <div className="text-[9px] text-gray-400 mt-0.5">
+                    {topSensor.lastUpdate ? new Date(topSensor.lastUpdate).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '미수신'}
+                  </div>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* 10분 평균 온습도 (우측) */}
-          <section className="col-span-2 sm:col-span-1">
-            <header className="bg-farm-500 px-2 sm:px-3 py-1.5 sm:py-2 rounded-t-lg sm:rounded-t-xl">
-              <h3 className="text-xs sm:text-sm font-semibold m-0">10분 평균</h3>
+          {/* 장치제어실 (ctlr-heat-001 MQTT) */}
+          <section>
+            <header className="bg-orange-400 px-3 py-2 rounded-t-lg flex items-center gap-1.5">
+              <span className="text-base">🔥</span>
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-900 m-0">장치제어실</h3>
+              <span className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${deviceRoomSensor.lastUpdate ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
             </header>
-            <div className="bg-white rounded-b-lg sm:rounded-b-xl shadow-card p-2 sm:p-3 space-y-2 sm:space-y-3">
-              <div className="text-center">
-                <div className="text-[10px] sm:text-xs text-gray-600 mb-0.5 sm:mb-1">평균 온도</div>
-                <div className="text-lg sm:text-2xl font-bold text-green-600">
-                  {tenMinAvg.temperature !== null ? tenMinAvg.temperature.toFixed(1) : '0.0'}°C
+            <div className="bg-white rounded-b-lg shadow-sm p-2 sm:p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">온도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-red-500">
+                    {deviceRoomSensor.temperature !== null ? deviceRoomSensor.temperature.toFixed(1) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">°C</div>
+                  <div className="text-[9px] text-gray-400 mt-0.5">
+                    {deviceRoomSensor.lastUpdate ? new Date(deviceRoomSensor.lastUpdate).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '미수신'}
+                  </div>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">습도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-blue-500">
+                    {deviceRoomSensor.humidity !== null ? deviceRoomSensor.humidity.toFixed(0) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">%RH</div>
+                  <div className="text-[9px] text-gray-400 mt-0.5">
+                    {deviceRoomSensor.lastUpdate ? new Date(deviceRoomSensor.lastUpdate).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '미수신'}
+                  </div>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="text-[10px] sm:text-xs text-gray-600 mb-0.5 sm:mb-1">평균 습도</div>
-                <div className="text-lg sm:text-2xl font-bold text-blue-600">
-                  {tenMinAvg.humidity !== null ? tenMinAvg.humidity.toFixed(1) : '0.0'}%
+            </div>
+          </section>
+
+        </div>
+
+        {/* ===== 평균 온습도 요약 ===== */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 mb-3 sm:mb-6">
+          {/* 현재 평균 */}
+          <section>
+            <header className="bg-farm-500 px-3 py-2 rounded-t-lg flex items-center gap-1.5">
+              <span className="text-base">📊</span>
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-900 m-0">현재 평균 (앞/뒤/천장)</h3>
+            </header>
+            <div className="bg-white rounded-b-lg shadow-sm p-2 sm:p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">평균 온도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-red-500">
+                    {avgTemp !== null ? avgTemp.toFixed(1) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">°C</div>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">평균 습도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-blue-500">
+                    {avgHum !== null ? avgHum.toFixed(0) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">%RH</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* 10분 평균 */}
+          <section>
+            <header className="bg-farm-500 px-3 py-2 rounded-t-lg flex items-center gap-1.5">
+              <span className="text-base">⏱️</span>
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-900 m-0">10분 평균</h3>
+            </header>
+            <div className="bg-white rounded-b-lg shadow-sm p-2 sm:p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">평균 온도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-red-500">
+                    {tenMinAvg.temperature !== null ? tenMinAvg.temperature.toFixed(1) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">°C</div>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">평균 습도</div>
+                  <div className="text-xl sm:text-3xl font-bold text-blue-500">
+                    {tenMinAvg.humidity !== null ? tenMinAvg.humidity.toFixed(0) : '—'}
+                  </div>
+                  <div className="text-[10px] text-gray-400">%RH</div>
                 </div>
               </div>
             </div>

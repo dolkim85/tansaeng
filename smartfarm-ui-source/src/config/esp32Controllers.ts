@@ -85,6 +85,13 @@ export const ESP32_CONTROLLERS: ESP32Controller[] = [
     controllerId: "ctlr-0013",
     statusTopic: "tansaeng/ctlr-0013/status",
   },
+  {
+    id: "esp32-heatpump-valve",
+    name: "히트펌프 밸브 제어기",
+    controllerId: "ctlr-heat-001",
+    statusTopic: "tansaeng/ctlr-heat-001/status",
+    category: "heatpump" as any,
+  },
 ];
 
 /**

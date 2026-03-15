@@ -23,6 +23,7 @@ export default function DeviceCard({
     if (device.type === "fan") return "🌀";
     if (device.type === "vent") return "🪟";
     if (device.type === "pump") return "💧";
+    if (device.type === "heater") return "🔥";
     return "⚙️";
   };
 
@@ -37,7 +38,7 @@ export default function DeviceCard({
               {device.name}
             </h3>
             <p className="text-2xs text-gray-500 m-0 hidden sm:block">
-              {device.type === "fan" ? "팬" : device.type === "vent" ? "개폐기" : "펌프"}
+              {device.type === "fan" ? "팬" : device.type === "vent" ? "개폐기" : device.type === "heater" ? "온열기" : "펌프"}
             </p>
           </div>
         </div>

@@ -112,6 +112,34 @@ export const DEVICES: DeviceConfig[] = [
     stateTopic: "tansaeng/esp32-node-3/pump_heating_fill/state",
   },
 
+  // ========== 히트펌프 밸브 시스템 (ctlr-heat-001) ==========
+  // ESP32 펌웨어: esp32_firmware/esp32_heatpump_valve.ino
+  // 기능: 히트펌프 제어, 전기온열기 제어, 물온도 측정, 팬 제어, 온습도 측정
+  {
+    id: "hp_pump",
+    name: "히트펌프 순환펌프",
+    type: "pump",
+    esp32Id: "ctlr-heat-001",
+    commandTopic: "tansaeng/ctlr-heat-001/pump/cmd",
+    stateTopic: "tansaeng/ctlr-heat-001/pump/state",
+  },
+  {
+    id: "hp_heater",
+    name: "전기온열기",
+    type: "heater",
+    esp32Id: "ctlr-heat-001",
+    commandTopic: "tansaeng/ctlr-heat-001/heater/cmd",
+    stateTopic: "tansaeng/ctlr-heat-001/heater/state",
+  },
+  {
+    id: "hp_fan",
+    name: "열교환기 팬",
+    type: "fan",
+    esp32Id: "ctlr-heat-001",
+    commandTopic: "tansaeng/ctlr-heat-001/fan/cmd",
+    stateTopic: "tansaeng/ctlr-heat-001/fan/state",
+  },
+
   // ========== 카메라 (추가 가능) ==========
   // {
   //   id: "camera_1",

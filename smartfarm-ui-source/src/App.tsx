@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Header from "./components/Header";
 import TabNavigation from "./components/TabNavigation";
+import Dashboard from "./tabs/Dashboard";
 import DevicesControl from "./tabs/DevicesControl";
 import MistControl from "./tabs/MistControl";
 import Environment from "./tabs/Environment";
@@ -61,6 +62,7 @@ function App() {
 
       {/* 메인 콘텐츠 - 스크롤 가능 */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden pb-5 min-h-0">
+        {activeTab === "dashboard" && <Dashboard mistZones={mistZones} />}
         {activeTab === "devices" && (
           <DevicesControl
             deviceState={deviceState}

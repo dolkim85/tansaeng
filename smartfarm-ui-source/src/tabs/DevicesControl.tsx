@@ -1,10 +1,98 @@
 import { useState, useEffect, useRef } from "react";
-import { getDevicesByType } from "../config/devices";
+import { getDevicesByType, DEVICES } from "../config/devices";
 import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
 import DeviceCard from "../components/DeviceCard";
-import { getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
+import { getMqttClient, onConnectionChange, subscribeToTopic, publishCommand } from "../mqtt/mqttClient";
 import { sendDeviceCommand, saveDeviceSettings } from "../api/deviceControl";
+
+// 두 핸들을 한 바 위에서 독립적으로 드래그할 수 있는 슬라이더
+function DualRangeSlider({
+  min, max, step, low, high, onLowChange, onHighChange, markerPct, isActive,
+}: {
+  min: number; max: number; step: number;
+  low: number; high: number;
+  onLowChange: (v: number) => void;
+  onHighChange: (v: number) => void;
+  markerPct: number | null;
+  isActive: boolean;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const range = max - min;
+  const lowPct  = ((low  - min) / range) * 100;
+  const highPct = ((high - min) / range) * 100;
+
+  const pctToVal = (clientX: number) => {
+    if (!trackRef.current) return min;
+    const rect = trackRef.current.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    const raw = min + (pct / 100) * range;
+    return Math.round(raw / step) * step;
+  };
+
+  const handleDrag = (
+    e: React.PointerEvent<HTMLDivElement>,
+    which: "low" | "high"
+  ) => {
+    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleMove = (
+    e: React.PointerEvent<HTMLDivElement>,
+    which: "low" | "high"
+  ) => {
+    if (!(e.currentTarget as HTMLDivElement).hasPointerCapture(e.pointerId)) return;
+    const v = pctToVal(e.clientX);
+    if (which === "low"  && v <= high - step) onLowChange(v);
+    if (which === "high" && v >= low  + step) onHighChange(v);
+  };
+
+  return (
+    <div ref={trackRef} className="relative h-9 flex items-center select-none mx-3">
+      {/* 배경 트랙 */}
+      <div className="absolute inset-x-0 h-2 bg-gray-200 rounded-full pointer-events-none">
+        {/* 활성 구간 */}
+        <div className="absolute h-full bg-orange-400 rounded-full"
+          style={{ left: `${lowPct}%`, width: `${Math.max(0, highPct - lowPct)}%` }} />
+        {/* 기준(0) 중심선 */}
+        <div className="absolute w-px h-5 -top-1.5 bg-gray-500 opacity-40" style={{ left: "50%" }} />
+        {/* 현재온도 마커 */}
+        {markerPct !== null && (
+          <div className="absolute w-1.5 h-7 -top-2.5 rounded-full"
+            style={{
+              left: `${markerPct}%`,
+              transform: "translateX(-50%)",
+              background: isActive ? "#22c55e" : "#ef4444",
+            }} />
+        )}
+      </div>
+      {/* 하한 핸들 (orange) */}
+      <div
+        className="absolute w-7 h-7 bg-orange-500 border-2 border-white rounded-full shadow-lg cursor-grab active:cursor-grabbing touch-none"
+        style={{ left: `${lowPct}%`, transform: "translateX(-50%)", zIndex: 4 }}
+        onPointerDown={(e) => handleDrag(e, "low")}
+        onPointerMove={(e) => handleMove(e, "low")}
+        onPointerUp={(e) => (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId)}
+      >
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-1.5 h-3 border-x border-white opacity-70 rounded-sm" />
+        </div>
+      </div>
+      {/* 상한 핸들 (red) */}
+      <div
+        className="absolute w-7 h-7 bg-red-500 border-2 border-white rounded-full shadow-lg cursor-grab active:cursor-grabbing touch-none"
+        style={{ left: `${highPct}%`, transform: "translateX(-50%)", zIndex: 4 }}
+        onPointerDown={(e) => handleDrag(e, "high")}
+        onPointerMove={(e) => handleMove(e, "high")}
+        onPointerUp={(e) => (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId)}
+      >
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-1.5 h-3 border-x border-white opacity-70 rounded-sm" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface DevicesControlProps {
   deviceState: DeviceDesiredState;
@@ -30,11 +118,55 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 천창/측창 현재 위치 추적 (0~100%)
   const [currentPosition, setCurrentPosition] = useState<Record<string, number>>({});
 
-  const fans = getDevicesByType("fan");
-  const vents = getDevicesByType("vent");
-  const pumps = getDevicesByType("pump");
+  // 히트펌프 시스템 상태
+  const [hpMode, setHpMode] = useState<"AUTO" | "MANUAL">("AUTO");
+  const hpModeRef = useRef<"AUTO" | "MANUAL">("AUTO"); // AUTO 로직에서 stale closure 방지
+  const [hpSensors, setHpSensors] = useState<{
+    airTemp: number | null;
+    airHumidity: number | null;
+    waterTemp: number | null;
+  }>({ airTemp: null, airHumidity: null, waterTemp: null });
+  const [hpDeviceStates, setHpDeviceStates] = useState<Record<string, "ON" | "OFF">>({});
+
+  // 팜 내부 온도/습도 (앞/뒤/천장) — AUTO 기준
+  const [farmSensors, setFarmSensors] = useState<{
+    front: number | null; back: number | null; top: number | null;
+    frontHum: number | null; backHum: number | null; topHum: number | null;
+  }>({ front: null, back: null, top: null, frontHum: null, backHum: null, topHum: null });
+  const hpAutoDemandRef = useRef<boolean>(false);
+
+  // 장치별 절대온도 범위 (-30~+30°C 내 실제 온도값)
+  const [hpDeviceRanges, setHpDeviceRanges] = useState<Record<string, { low: number; high: number }>>({
+    hp_pump:   { low: 15, high: 22 },
+    hp_heater: { low: 15, high: 22 },
+    hp_fan:    { low: 15, high: 22 },
+  });
+  // AUTO 작동 활성화 여부 (작동시작/작동멈춤 버튼으로 제어)
+  const [hpAutoActive, setHpAutoActive] = useState(false);
+  // 마지막 전송 명령 추적 (중복 전송 방지)
+  const hpDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({ hp_pump: null, hp_heater: null, hp_fan: null });
+
+  // 팬 AUTO 제어 상태
+  const [fanMode, setFanMode] = useState<"AUTO" | "MANUAL">("MANUAL");
+  const fanModeRef = useRef<"AUTO" | "MANUAL">("MANUAL");
+  const [fanDeviceRanges, setFanDeviceRanges] = useState<Record<string, { low: number; high: number }>>({});
+  const [fanAutoActive, setFanAutoActive] = useState(false);
+  const fanDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({});
+  // ranges 변경이 MQTT 복원에서 온 경우 재발행 방지
+  const fanRangesFromMqttRef = useRef(false);
+
+  // 히트펌프 전용 장치는 일반 섹션에서 제외
+  const fans = getDevicesByType("fan").filter(d => d.esp32Id !== "ctlr-heat-001");
+  const vents = getDevicesByType("vent").filter(d => d.esp32Id !== "ctlr-heat-001");
+  const pumps = getDevicesByType("pump").filter(d => d.esp32Id !== "ctlr-heat-001");
   const skylights = getDevicesByType("skylight");
   const sidescreens = getDevicesByType("sidescreen");
+
+  // 히트펌프 시스템 장치
+  const heatPumpDevices = DEVICES.filter(d => d.esp32Id === "ctlr-heat-001");
+  const heatPumpHeaters = heatPumpDevices.filter(d => d.type === "heater");
+  const heatPumpPumps   = heatPumpDevices.filter(d => d.type === "pump");
+  const heatPumpFans    = heatPumpDevices.filter(d => d.type === "fan");
 
   // HiveMQ 연결 상태 모니터링
   useEffect(() => {
@@ -52,6 +184,152 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       unsubscribe();
     };
   }, []);
+
+  // 히트펌프 MQTT 센서 & 상태 구독
+  useEffect(() => {
+    const HP = "ctlr-heat-001";
+    const unsubs = [
+      // 제어 모드 (공유)
+      subscribeToTopic(`tansaeng/${HP}/mode/state`, (v) => {
+        if (v === "AUTO" || v === "MANUAL") {
+          hpModeRef.current = v;
+          setHpMode(v);
+        }
+      }),
+      // 장치제어실 센서
+      subscribeToTopic(`tansaeng/${HP}/air/temperature`, (v) => {
+        const n = parseFloat(v);
+        if (!isNaN(n)) setHpSensors(prev => ({ ...prev, airTemp: n }));
+      }),
+      subscribeToTopic(`tansaeng/${HP}/air/humidity`, (v) => {
+        const n = parseFloat(v);
+        if (!isNaN(n)) setHpSensors(prev => ({ ...prev, airHumidity: n }));
+      }),
+      subscribeToTopic(`tansaeng/${HP}/water/temperature`, (v) => {
+        const n = parseFloat(v);
+        if (!isNaN(n)) setHpSensors(prev => ({ ...prev, waterTemp: n }));
+      }),
+      // 개별 장치 상태
+      subscribeToTopic(`tansaeng/${HP}/pump/state`, (v) =>
+        setHpDeviceStates(prev => ({ ...prev, hp_pump: v as "ON" | "OFF" }))
+      ),
+      subscribeToTopic(`tansaeng/${HP}/heater/state`, (v) =>
+        setHpDeviceStates(prev => ({ ...prev, hp_heater: v as "ON" | "OFF" }))
+      ),
+      subscribeToTopic(`tansaeng/${HP}/fan/state`, (v) =>
+        setHpDeviceStates(prev => ({ ...prev, hp_fan: v as "ON" | "OFF" }))
+      ),
+    ];
+    return () => unsubs.forEach(u => u());
+  }, []);
+
+  // 팬 제어 상태 MQTT 구독 (retain 메시지로 다른 브라우저 상태 복원)
+  useEffect(() => {
+    const unsubs = [
+      subscribeToTopic("tansaeng/fan-control/mode", (v) => {
+        if (v === "AUTO" || v === "MANUAL") {
+          fanModeRef.current = v;
+          setFanMode(v);
+        }
+      }),
+      subscribeToTopic("tansaeng/fan-control/autoActive", (v) => {
+        setFanAutoActive(v === "true");
+      }),
+      subscribeToTopic("tansaeng/fan-control/ranges", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed && typeof parsed === "object") {
+            fanRangesFromMqttRef.current = true; // MQTT 복원임을 표시
+            setFanDeviceRanges(parsed);
+          }
+        } catch {}
+      }),
+    ];
+    return () => unsubs.forEach(u => u());
+  }, []);
+
+  // 팜 내부 온도 폴링 (앞/뒤/천장 — AUTO 기준)
+  useEffect(() => {
+    const fetchFarmSensors = async () => {
+      try {
+        const res = await fetch('/api/smartfarm/get_realtime_sensor_data.php');
+        const result = await res.json();
+        if (result.success) {
+          setFarmSensors({
+            front:    result.data.front.temperature,
+            back:     result.data.back.temperature,
+            top:      result.data.top.temperature,
+            frontHum: result.data.front.humidity,
+            backHum:  result.data.back.humidity,
+            topHum:   result.data.top.humidity,
+          });
+        }
+      } catch {}
+    };
+    fetchFarmSensors();
+    const interval = setInterval(fetchFarmSensors, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // AUTO 모드 제어 로직 — 평균온도가 설정 범위 안에 있으면 ON, 벗어나면 OFF
+  useEffect(() => {
+    if (hpModeRef.current !== "AUTO") return;
+    if (!hpAutoActive) return; // 작동시작 버튼을 눌러야 활성화
+
+    const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+    if (temps.length === 0) return;
+
+    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+    const HP = "ctlr-heat-001";
+
+    const deviceMap: Array<{ key: string; mqttId: string }> = [
+      { key: "hp_pump",   mqttId: "pump"   },
+      { key: "hp_heater", mqttId: "heater" },
+      { key: "hp_fan",    mqttId: "fan"    },
+    ];
+
+    deviceMap.forEach(({ key, mqttId }) => {
+      const range = hpDeviceRanges[key] ?? { low: 15, high: 22 };
+      // 평균온도가 [low, high] 안에 있으면 ON, 벗어나면 OFF
+      const inRange = avgTemp >= range.low && avgTemp <= range.high;
+      const newCmd: "ON" | "OFF" = inRange ? "ON" : "OFF";
+      if (hpDeviceLastCmd.current[key] !== newCmd) {
+        hpDeviceLastCmd.current[key] = newCmd;
+        setHpDeviceStates(prev => ({ ...prev, [key]: newCmd }));
+        sendDeviceCommand(HP, mqttId, newCmd);
+      }
+    });
+  }, [farmSensors, hpDeviceRanges, hpAutoActive]);
+
+  // 팬 AUTO 모드 제어 로직 — avgTemp가 설정 범위 안에 있으면 ON, 벗어나면 OFF
+  useEffect(() => {
+    if (fanModeRef.current !== "AUTO") return;
+    if (!fanAutoActive) return;
+    const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+    if (temps.length === 0) return;
+    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+    fans.forEach((fan) => {
+      const range = fanDeviceRanges[fan.id] ?? { low: 15, high: 22 };
+      const inRange = avgTemp >= range.low && avgTemp <= range.high;
+      const newCmd: "ON" | "OFF" = inRange ? "ON" : "OFF";
+      if (fanDeviceLastCmd.current[fan.id] !== newCmd) {
+        fanDeviceLastCmd.current[fan.id] = newCmd;
+        setDeviceState(prev => ({
+          ...prev,
+          [fan.id]: { ...prev[fan.id], power: inRange ? "on" : "off", lastSavedAt: new Date().toISOString() }
+        }));
+        const mqttDeviceId = fan.commandTopic.split('/')[2];
+        sendDeviceCommand(fan.esp32Id, mqttDeviceId, newCmd);
+      }
+    });
+  }, [farmSensors, fanDeviceRanges, fanAutoActive]);
+
+  // 팬 온도 범위 변경 시 MQTT retain 발행 (MQTT 복원에서 온 변경은 재발행 안함)
+  useEffect(() => {
+    if (fanRangesFromMqttRef.current) { fanRangesFromMqttRef.current = false; return; }
+    if (Object.keys(fanDeviceRanges).length === 0) return;
+    getMqttClient().publish("tansaeng/fan-control/ranges", JSON.stringify(fanDeviceRanges), { qos: 1, retain: true });
+  }, [fanDeviceRanges]);
 
   // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
@@ -93,7 +371,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     };
     setDeviceState(newState);
 
-    const device = [...fans, ...vents, ...pumps].find((d) => d.id === deviceId);
+    // HP 장치는 즉시 시각적 업데이트 (MQTT 응답 기다리지 않음)
+    if (heatPumpDevices.find(d => d.id === deviceId)) {
+      setHpDeviceStates(prev => ({ ...prev, [deviceId]: isOn ? "ON" : "OFF" }));
+    }
+
+    const device = [...fans, ...vents, ...pumps, ...heatPumpDevices].find((d) => d.id === deviceId);
     if (device) {
       // commandTopic에서 실제 MQTT deviceId 추출
       // 예: "tansaeng/ctlr-0001/fan1/cmd" → "fan1"
@@ -350,29 +633,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           </div>
         </section>
 
-        {/* 팬 제어 섹션 */}
-        <section className="mb-2 sm:mb-3">
-          <header className="bg-farm-500 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
-            <h2 className="text-sm sm:text-base font-semibold flex items-center gap-1.5 text-gray-900">
-              팬 제어
-            </h2>
-            <span className="text-[10px] sm:text-xs text-gray-800">{fans.length}개</span>
-          </header>
-          <div className="bg-white shadow-sm rounded-b-lg p-1.5 sm:p-3">
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-3">
-              {fans.map((fan) => (
-                <DeviceCard
-                  key={fan.id}
-                  device={fan}
-                  power={deviceState[fan.id]?.power ?? "off"}
-                  lastSavedAt={deviceState[fan.id]?.lastSavedAt}
-                  onToggle={(isOn) => handleToggle(fan.id, isOn)}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* 천창 스크린 제어 섹션 */}
         <section className="mb-2 sm:mb-3">
           <header className="bg-amber-400 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
@@ -598,6 +858,530 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* 팬 제어 섹션 */}
+        <section className="mb-2 sm:mb-3">
+          <header className="bg-farm-500 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
+            <h2 className="text-sm sm:text-base font-semibold flex items-center gap-1.5 text-gray-900">
+              🌀 팬 제어
+            </h2>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] sm:text-xs text-gray-800">{fans.length}개</span>
+            </div>
+          </header>
+          <div className="bg-white shadow-sm rounded-b-lg p-2 sm:p-4">
+
+            {/* 상단: 팜 평균온도 + 모드 (2열) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 mb-3 sm:mb-4">
+
+              {/* 팜 내부 평균온도/습도 */}
+              {(() => {
+                const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+                const hums  = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
+                const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+                const avgHum  = hums.length > 0  ? hums.reduce((a, b) => a + b, 0)  / hums.length  : null;
+                const fanAutoStatus = avgTemp === null ? "센서 없음"
+                  : !fanAutoActive ? "⏸ 작동 대기"
+                  : "🌀 AUTO 작동 중";
+                return (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3">
+                    <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1.5">
+                      팜 내부 평균
+                      {fanMode === "AUTO" && <span className="ml-1 text-farm-600">(AUTO 기준)</span>}
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5 mb-2">
+                      <div className="bg-red-50 border border-red-100 rounded p-1.5 text-center">
+                        <div className="text-lg sm:text-2xl font-bold text-red-500">
+                          {avgTemp !== null ? `${avgTemp.toFixed(1)}°` : "—"}
+                        </div>
+                        <div className="text-[9px] text-gray-400">평균온도</div>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-100 rounded p-1.5 text-center">
+                        <div className="text-lg sm:text-2xl font-bold text-blue-500">
+                          {avgHum !== null ? `${avgHum.toFixed(0)}%` : "—"}
+                        </div>
+                        <div className="text-[9px] text-gray-400">평균습도</div>
+                      </div>
+                    </div>
+                    {fanMode === "AUTO" && (
+                      <div className="text-center text-[10px] font-semibold text-farm-600 mb-1.5">{fanAutoStatus}</div>
+                    )}
+                    <div className="grid grid-cols-3 gap-1 text-center">
+                      {[
+                        { label: "팬 앞", t: farmSensors.front, h: farmSensors.frontHum },
+                        { label: "팬 뒤", t: farmSensors.back,  h: farmSensors.backHum },
+                        { label: "천장",  t: farmSensors.top,   h: farmSensors.topHum },
+                      ].map(({ label, t, h }) => (
+                        <div key={label} className="bg-white rounded p-1">
+                          <div className="text-[10px] font-semibold text-red-500">{t !== null ? `${t.toFixed(1)}°` : "—"}</div>
+                          <div className="text-[10px] text-blue-400">{h !== null ? `${h.toFixed(0)}%` : "—"}</div>
+                          <div className="text-[9px] text-gray-400">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 제어 모드 */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3">
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">제어 모드</p>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    onClick={() => {
+                      fanModeRef.current = "AUTO";
+                      setFanMode("AUTO");
+                      setFanAutoActive(false);
+                      fanDeviceLastCmd.current = {};
+                      getMqttClient().publish("tansaeng/fan-control/mode", "AUTO", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/fan-control/autoActive", "false", { qos: 1, retain: true });
+                    }}
+                    className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                      fanMode === "AUTO"
+                        ? "bg-gray-900 text-white shadow"
+                        : "bg-white border border-farm-300 text-farm-600 hover:bg-farm-50"
+                    }`}
+                  >
+                    자동 (AUTO)
+                  </button>
+                  <button
+                    onClick={() => {
+                      fanModeRef.current = "MANUAL";
+                      setFanMode("MANUAL");
+                      getMqttClient().publish("tansaeng/fan-control/mode", "MANUAL", { qos: 1, retain: true });
+                    }}
+                    className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                      fanMode === "MANUAL"
+                        ? "bg-gray-700 text-yellow-300 shadow"
+                        : "bg-white border border-gray-300 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    수동 (MANUAL)
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1.5">
+                  {fanMode === "AUTO" ? "온도 범위 설정에 따라 자동 제어" : "직접 장치 ON/OFF"}
+                </p>
+              </div>
+            </div>
+
+            {/* AUTO 모드: 장치별 개별 게이지 / MANUAL 모드: 장치 카드 */}
+            {fanMode === "AUTO" ? (() => {
+              const GMIN = -10, GMAX = 50;
+              const gRange = GMAX - GMIN;
+              const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+              const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+              const markerPct = avgTemp !== null
+                ? Math.max(0, Math.min(100, ((avgTemp - GMIN) / gRange) * 100))
+                : null;
+
+              return (
+                <div className="space-y-2 sm:space-y-3">
+                  {/* 현재온도 + 작동시작/멈춤 버튼 */}
+                  <div className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2 gap-2">
+                    <div className="text-xs text-gray-600">
+                      현재 평균온도:{" "}
+                      <span className="font-bold text-gray-800">
+                        {avgTemp !== null ? `${avgTemp.toFixed(1)}°C` : "—"}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          fanDeviceLastCmd.current = {};
+                          setFanAutoActive(true);
+                          getMqttClient().publish("tansaeng/fan-control/autoActive", "true", { qos: 1, retain: true });
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                          fanAutoActive
+                            ? "bg-green-500 text-white shadow"
+                            : "bg-white border border-green-400 text-green-600 hover:bg-green-50"
+                        }`}
+                      >
+                        ▶ 작동시작
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFanAutoActive(false);
+                          getMqttClient().publish("tansaeng/fan-control/autoActive", "false", { qos: 1, retain: true });
+                          fans.forEach((fan) => {
+                            fanDeviceLastCmd.current[fan.id] = "OFF";
+                            setDeviceState(prev => ({
+                              ...prev,
+                              [fan.id]: { ...prev[fan.id], power: "off", lastSavedAt: new Date().toISOString() }
+                            }));
+                            const mqttDeviceId = fan.commandTopic.split('/')[2];
+                            sendDeviceCommand(fan.esp32Id, mqttDeviceId, "OFF");
+                          });
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                          !fanAutoActive
+                            ? "bg-gray-500 text-white shadow"
+                            : "bg-white border border-gray-400 text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        ■ 작동멈춤
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 장치별 게이지 */}
+                  {fans.map((fan) => {
+                    const range = fanDeviceRanges[fan.id] ?? { low: 15, high: 22 };
+                    const isOn = deviceState[fan.id]?.power === "on";
+                    const inRange = avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high;
+
+                    return (
+                      <div key={fan.id} className="bg-green-50 border border-green-200 rounded-lg p-2.5 sm:p-3">
+                        {/* 헤더: 장치명 + 작동상태 LED */}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs sm:text-sm font-semibold text-gray-700">🌀 {fan.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isOn ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                            <span className={`text-xs font-bold ${isOn ? 'text-green-600' : 'text-gray-500'}`}>
+                              {isOn ? '작동중' : '정지'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 온도 범위 표시 */}
+                        <div className="flex justify-between text-xs mb-1 px-3">
+                          <span className="text-farm-600 font-bold">{range.low.toFixed(1)}°C</span>
+                          <span className="text-[10px] text-gray-400">
+                            {inRange ? "✅ 현재온도 범위 내" : "❌ 현재온도 범위 밖"}
+                          </span>
+                          <span className="text-red-600 font-bold">{range.high.toFixed(1)}°C</span>
+                        </div>
+
+                        {/* 듀얼 핸들 슬라이더 */}
+                        <DualRangeSlider
+                          min={GMIN} max={GMAX} step={0.5}
+                          low={range.low} high={range.high}
+                          onLowChange={(v) =>
+                            setFanDeviceRanges(prev => ({ ...prev, [fan.id]: { ...prev[fan.id] ?? { low: 15, high: 22 }, low: v } }))
+                          }
+                          onHighChange={(v) =>
+                            setFanDeviceRanges(prev => ({ ...prev, [fan.id]: { ...prev[fan.id] ?? { low: 15, high: 22 }, high: v } }))
+                          }
+                          markerPct={markerPct}
+                          isActive={inRange}
+                        />
+                        {/* 눈금 */}
+                        <div className="flex justify-between text-[10px] text-gray-400 mx-3 mt-0.5">
+                          <span>-10°C</span><span>+20°C</span><span>+50°C</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })() : (
+              <>
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1.5 sm:mb-2">
+                  장치 제어 (수동 모드 — 직접 ON/OFF)
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-3">
+                  {fans.map((fan) => (
+                    <DeviceCard
+                      key={fan.id}
+                      device={fan}
+                      power={deviceState[fan.id]?.power ?? "off"}
+                      lastSavedAt={deviceState[fan.id]?.lastSavedAt}
+                      onToggle={(isOn) => handleToggle(fan.id, isOn)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+
+        {/* 히트펌프 시스템 섹션 */}
+        <section className="mb-2 sm:mb-3">
+          <header className="bg-orange-400 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
+            <h2 className="text-sm sm:text-base font-semibold flex items-center gap-1.5 text-gray-900">
+              🔥 히트펌프 시스템
+            </h2>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] sm:text-xs text-gray-800">
+                {esp32Status["ctlr-heat-001"] ? "🟢 온라인" : "⚫ 오프라인"}
+              </span>
+              <span className="text-[10px] sm:text-xs text-gray-800">
+                ctlr-heat-001
+              </span>
+            </div>
+          </header>
+          <div className="bg-white shadow-sm rounded-b-lg p-2 sm:p-4">
+
+            {/* 상단: 팜 평균온도 + 모드 + 장치제어실 센서 */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 mb-3 sm:mb-4">
+
+              {/* 팜 내부 평균온도/습도 (AUTO 기준) */}
+              {(() => {
+                const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+                const hums  = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
+                const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+                const avgHum  = hums.length > 0  ? hums.reduce((a, b) => a + b, 0)  / hums.length  : null;
+                const hRange = hpDeviceRanges.hp_heater ?? { low: 15, high: 22 };
+                const autoStatus = avgTemp === null ? "센서 없음"
+                  : !hpAutoActive ? "⏸ 작동 대기"
+                  : (avgTemp >= hRange.low && avgTemp <= hRange.high) ? "🔥 범위 내 가동"
+                  : "범위 외 정지";
+                return (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3">
+                    <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1.5">
+                      팜 내부 평균
+                      {hpMode === "AUTO" && <span className="ml-1 text-orange-500">(AUTO 기준)</span>}
+                    </p>
+                    {/* 평균 온도/습도 */}
+                    <div className="grid grid-cols-2 gap-1.5 mb-2">
+                      <div className="bg-red-50 border border-red-100 rounded p-1.5 text-center">
+                        <div className="text-lg sm:text-2xl font-bold text-red-500">
+                          {avgTemp !== null ? `${avgTemp.toFixed(1)}°` : "—"}
+                        </div>
+                        <div className="text-[9px] text-gray-400">평균온도</div>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-100 rounded p-1.5 text-center">
+                        <div className="text-lg sm:text-2xl font-bold text-blue-500">
+                          {avgHum !== null ? `${avgHum.toFixed(0)}%` : "—"}
+                        </div>
+                        <div className="text-[9px] text-gray-400">평균습도</div>
+                      </div>
+                    </div>
+                    {hpMode === "AUTO" && (
+                      <div className="text-center text-[10px] font-semibold text-orange-600 mb-1.5">{autoStatus}</div>
+                    )}
+                    {/* 개별 센서 */}
+                    <div className="grid grid-cols-3 gap-1 text-center">
+                      {[
+                        { label: "팬 앞", t: farmSensors.front, h: farmSensors.frontHum },
+                        { label: "팬 뒤", t: farmSensors.back,  h: farmSensors.backHum },
+                        { label: "천장",  t: farmSensors.top,   h: farmSensors.topHum },
+                      ].map(({ label, t, h }) => (
+                        <div key={label} className="bg-white rounded p-1">
+                          <div className="text-[10px] font-semibold text-red-500">{t !== null ? `${t.toFixed(1)}°` : "—"}</div>
+                          <div className="text-[10px] text-blue-400">{h !== null ? `${h.toFixed(0)}%` : "—"}</div>
+                          <div className="text-[9px] text-gray-400">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 제어 모드 */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3">
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">제어 모드</p>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    onClick={() => {
+                      hpModeRef.current = "AUTO";
+                      setHpMode("AUTO");
+                      hpAutoDemandRef.current = false;
+                      setHpAutoActive(false); // 모드 전환 시 작동 초기화
+                      hpDeviceLastCmd.current = { hp_pump: null, hp_heater: null, hp_fan: null };
+                      getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "AUTO", { qos: 1, retain: true });
+                    }}
+                    className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                      hpMode === "AUTO"
+                        ? "bg-orange-500 text-white shadow"
+                        : "bg-white border border-orange-300 text-orange-600 hover:bg-orange-50"
+                    }`}
+                  >
+                    자동 (AUTO)
+                  </button>
+                  <button
+                    onClick={() => {
+                      hpModeRef.current = "MANUAL";
+                      setHpMode("MANUAL");
+                      hpAutoDemandRef.current = false;
+                      getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
+                    }}
+                    className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                      hpMode === "MANUAL"
+                        ? "bg-gray-700 text-white shadow"
+                        : "bg-white border border-gray-300 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    수동 (MANUAL)
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1.5">
+                  {hpMode === "AUTO" ? "팜 평균 18°C 이하 → 자동 가동" : "직접 장치 ON/OFF"}
+                </p>
+              </div>
+
+              {/* 장치제어실 센서 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">장치제어실 내부</p>
+                <div className="grid grid-cols-3 gap-1 sm:gap-2">
+                  <div className="text-center">
+                    <div className="text-base sm:text-2xl font-bold text-red-500">
+                      {hpSensors.airTemp !== null && !isNaN(hpSensors.airTemp) ? `${hpSensors.airTemp.toFixed(1)}°` : "—"}
+                    </div>
+                    <div className="text-[9px] sm:text-[10px] text-gray-500">공기온도</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-base sm:text-2xl font-bold text-blue-500">
+                      {hpSensors.airHumidity !== null && !isNaN(hpSensors.airHumidity) ? `${hpSensors.airHumidity.toFixed(0)}%` : "—"}
+                    </div>
+                    <div className="text-[9px] sm:text-[10px] text-gray-500">공기습도</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-base sm:text-2xl font-bold text-cyan-600">
+                      {hpSensors.waterTemp !== null && !isNaN(hpSensors.waterTemp) ? `${hpSensors.waterTemp.toFixed(1)}°` : "—"}
+                    </div>
+                    <div className="text-[9px] sm:text-[10px] text-gray-500">물온도</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* AUTO 모드: 장치별 개별 게이지 / MANUAL 모드: 장치 카드 */}
+            {hpMode === "AUTO" ? (() => {
+              const GMIN = -30, GMAX = 30;
+              const gRange = GMAX - GMIN;
+              const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+              const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+              // 현재 평균온도의 -30~+30 스케일 상 위치
+              const markerPct = avgTemp !== null
+                ? Math.max(0, Math.min(100, ((avgTemp - GMIN) / gRange) * 100))
+                : null;
+
+              const gaugeItems = [
+                { key: "hp_pump",   label: "순환펌프",   icon: "💧" },
+                { key: "hp_heater", label: "전기온열기", icon: "🔥" },
+                { key: "hp_fan",    label: "팬",         icon: "🌀" },
+              ];
+
+              return (
+                <div className="space-y-2 sm:space-y-3">
+
+                  {/* 현재온도 + 작동시작/멈춤 버튼 */}
+                  <div className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2 gap-2">
+                    <div className="text-xs text-gray-600">
+                      현재 평균온도:{" "}
+                      <span className="font-bold text-gray-800">
+                        {avgTemp !== null ? `${avgTemp.toFixed(1)}°C` : "—"}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          hpDeviceLastCmd.current = { hp_pump: null, hp_heater: null, hp_fan: null };
+                          setHpAutoActive(true);
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                          hpAutoActive
+                            ? "bg-green-500 text-white shadow"
+                            : "bg-white border border-green-400 text-green-600 hover:bg-green-50"
+                        }`}
+                      >
+                        ▶ 작동시작
+                      </button>
+                      <button
+                        onClick={() => {
+                          setHpAutoActive(false);
+                          // 모든 HP 장치 정지
+                          const HP = "ctlr-heat-001";
+                          ["hp_pump", "hp_heater", "hp_fan"].forEach((k, i) => {
+                            const mqttId = ["pump", "heater", "fan"][i];
+                            hpDeviceLastCmd.current[k] = "OFF";
+                            setHpDeviceStates(prev => ({ ...prev, [k]: "OFF" }));
+                            sendDeviceCommand(HP, mqttId, "OFF");
+                          });
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                          !hpAutoActive
+                            ? "bg-gray-500 text-white shadow"
+                            : "bg-white border border-gray-400 text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        ■ 작동멈춤
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 장치별 게이지 */}
+                  {gaugeItems.map(({ key, label, icon }) => {
+                    const range = hpDeviceRanges[key] ?? { low: 15, high: 22 };
+                    const isOn = hpDeviceStates[key] === "ON";
+                    // 평균온도가 설정 범위 안에 있는지 표시용
+                    const inRange = avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high;
+
+                    return (
+                      <div key={key} className="bg-orange-50 border border-orange-200 rounded-lg p-2.5 sm:p-3">
+                        {/* 헤더: 장치명 + 작동상태 LED */}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs sm:text-sm font-semibold text-gray-700">{icon} {label}</span>
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isOn ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                            <span className={`text-xs font-bold ${isOn ? 'text-green-600' : 'text-gray-500'}`}>
+                              {isOn ? '작동중' : '정지'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 온도 범위 표시 */}
+                        <div className="flex justify-between text-xs mb-1 px-3">
+                          <span className="text-orange-600 font-bold">{range.low.toFixed(1)}°C</span>
+                          <span className="text-[10px] text-gray-400">
+                            {inRange ? "✅ 현재온도 범위 내" : "❌ 현재온도 범위 밖"}
+                          </span>
+                          <span className="text-red-600 font-bold">{range.high.toFixed(1)}°C</span>
+                        </div>
+
+                        {/* 듀얼 핸들 슬라이더 */}
+                        <DualRangeSlider
+                          min={GMIN} max={GMAX} step={0.5}
+                          low={range.low} high={range.high}
+                          onLowChange={(v) =>
+                            setHpDeviceRanges(prev => ({ ...prev, [key]: { ...prev[key] ?? { low: 15, high: 22 }, low: v } }))
+                          }
+                          onHighChange={(v) =>
+                            setHpDeviceRanges(prev => ({ ...prev, [key]: { ...prev[key] ?? { low: 15, high: 22 }, high: v } }))
+                          }
+                          markerPct={markerPct}
+                          isActive={inRange}
+                        />
+                        {/* 눈금 */}
+                        <div className="flex justify-between text-[10px] text-gray-400 mx-3 mt-0.5">
+                          <span>-30°C</span><span>0°C</span><span>+30°C</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })() : (
+              <>
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1.5 sm:mb-2">
+                  장치 제어 (수동 모드 — 직접 ON/OFF)
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 sm:gap-3">
+                  {heatPumpPumps.map((device) => (
+                    <DeviceCard key={device.id} device={device}
+                      power={hpDeviceStates[device.id] === "ON" ? "on" : "off"}
+                      lastSavedAt={deviceState[device.id]?.lastSavedAt}
+                      onToggle={(isOn) => handleToggle(device.id, isOn)} />
+                  ))}
+                  {heatPumpHeaters.map((device) => (
+                    <DeviceCard key={device.id} device={device}
+                      power={hpDeviceStates[device.id] === "ON" ? "on" : "off"}
+                      lastSavedAt={deviceState[device.id]?.lastSavedAt}
+                      onToggle={(isOn) => handleToggle(device.id, isOn)} />
+                  ))}
+                  {heatPumpFans.map((device) => (
+                    <DeviceCard key={device.id} device={device}
+                      power={hpDeviceStates[device.id] === "ON" ? "on" : "off"}
+                      lastSavedAt={deviceState[device.id]?.lastSavedAt}
+                      onToggle={(isOn) => handleToggle(device.id, isOn)} />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </section>
 
