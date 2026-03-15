@@ -119,8 +119,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [currentPosition, setCurrentPosition] = useState<Record<string, number>>({});
 
   // 히트펌프 시스템 상태
-  const [hpMode, setHpMode] = useState<"AUTO" | "MANUAL">("AUTO");
-  const hpModeRef = useRef<"AUTO" | "MANUAL">("AUTO"); // AUTO 로직에서 stale closure 방지
+  const [hpMode, setHpMode] = useState<"AUTO" | "MANUAL">("MANUAL");
+  const hpModeRef = useRef<"AUTO" | "MANUAL">("MANUAL"); // AUTO 로직에서 stale closure 방지
   const [hpSensors, setHpSensors] = useState<{
     airTemp: number | null;
     airHumidity: number | null;
@@ -154,6 +154,20 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const fanDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({});
   // ranges 변경이 MQTT 복원에서 온 경우 재발행 방지
   const fanRangesFromMqttRef = useRef(false);
+
+  // 측창 AUTO 제어 상태
+  const [sideMode, setSideMode] = useState<"AUTO" | "MANUAL">("MANUAL");
+  const sideModeRef = useRef<"AUTO" | "MANUAL">("MANUAL");
+  const [sideAutoActive, setSideAutoActive] = useState(false);
+  // 온도-개도율 매핑 포인트 (온도 오름차순 유지)
+  const [sideTempPoints, setSideTempPoints] = useState<Array<{ temp: number; rate: number }>>([
+    { temp: 20, rate: 10 },
+    { temp: 23, rate: 30 },
+    { temp: 28, rate: 100 },
+  ]);
+  const sideTempPointsFromMqttRef = useRef(false);
+  // 마지막 전송 개도율 추적 (중복/히스테리시스 방지)
+  const sideLastTargetRef = useRef<Record<string, number | null>>({});
 
   // 히트펌프 전용 장치는 일반 섹션에서 제외
   const fans = getDevicesByType("fan").filter(d => d.esp32Id !== "ctlr-heat-001");
@@ -191,6 +205,16 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     const unsubs = [
       // mode/state는 구독하되 UI 모드에 반영 안 함 — ESP32는 항상 MANUAL, UI 모드는 버튼으로만 제어
       subscribeToTopic(`tansaeng/${HP}/mode/state`, (_v) => { /* display only */ }),
+      // UI 모드 retain 복원 (재접속 시 이전 설정 유지)
+      subscribeToTopic("tansaeng/hp-control/mode", (v) => {
+        if (v === "AUTO" || v === "MANUAL") {
+          hpModeRef.current = v;
+          setHpMode(v);
+        }
+      }),
+      subscribeToTopic("tansaeng/hp-control/autoActive", (v) => {
+        setHpAutoActive(v === "true");
+      }),
       // 장치제어실 센서
       subscribeToTopic(`tansaeng/${HP}/air/temperature`, (v) => {
         const n = parseFloat(v);
@@ -329,6 +353,100 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     if (Object.keys(fanDeviceRanges).length === 0) return;
     getMqttClient().publish("tansaeng/fan-control/ranges", JSON.stringify(fanDeviceRanges), { qos: 1, retain: true });
   }, [fanDeviceRanges]);
+
+  // 측창 MQTT 상태 구독 (retain으로 다른 브라우저 동기화)
+  useEffect(() => {
+    const unsubs = [
+      subscribeToTopic("tansaeng/side-control/mode", (v) => {
+        if (v === "AUTO" || v === "MANUAL") {
+          sideModeRef.current = v;
+          setSideMode(v);
+        }
+      }),
+      subscribeToTopic("tansaeng/side-control/autoActive", (v) => {
+        setSideAutoActive(v === "true");
+      }),
+      subscribeToTopic("tansaeng/side-control/tempPoints", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            sideTempPointsFromMqttRef.current = true;
+            setSideTempPoints(parsed);
+          }
+        } catch {}
+      }),
+    ];
+    return () => unsubs.forEach(u => u());
+  }, []);
+
+  // 측창 온도 포인트 변경 시 MQTT retain 발행
+  useEffect(() => {
+    if (sideTempPointsFromMqttRef.current) { sideTempPointsFromMqttRef.current = false; return; }
+    getMqttClient().publish("tansaeng/side-control/tempPoints", JSON.stringify(sideTempPoints), { qos: 1, retain: true });
+  }, [sideTempPoints]);
+
+  // 측창 AUTO 제어 로직 — 평균온도→개도율 계산 후 자동 이동
+  useEffect(() => {
+    if (sideModeRef.current !== "AUTO") return;
+    if (!sideAutoActive) return;
+    const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+    if (temps.length === 0) return;
+    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+
+    // 온도→개도율 선형 보간
+    const sorted = [...sideTempPoints].sort((a, b) => a.temp - b.temp);
+    let targetRate = 0;
+    if (avgTemp < sorted[0].temp) {
+      targetRate = 0;
+    } else if (avgTemp >= sorted[sorted.length - 1].temp) {
+      targetRate = 100;
+    } else {
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (avgTemp >= sorted[i].temp && avgTemp < sorted[i + 1].temp) {
+          const ratio = (avgTemp - sorted[i].temp) / (sorted[i + 1].temp - sorted[i].temp);
+          targetRate = Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
+          break;
+        }
+      }
+    }
+
+    sidescreens.forEach((sidescreen) => {
+      const lastTarget = sideLastTargetRef.current[sidescreen.id] ?? null;
+      // 히스테리시스: 마지막 목표와 2% 미만 차이면 무시
+      if (lastTarget !== null && Math.abs(targetRate - lastTarget) < 2) return;
+
+      const currentPos = currentPosition[sidescreen.id] ?? 0;
+      const difference = targetRate - currentPos;
+      if (Math.abs(difference) < 1) return;
+
+      sideLastTargetRef.current[sidescreen.id] = targetRate;
+
+      // 기존 타이머 취소
+      if (percentageTimers.current[sidescreen.id]) {
+        clearTimeout(percentageTimers.current[sidescreen.id]);
+        delete percentageTimers.current[sidescreen.id];
+      }
+
+      setOperationStatus(prev => ({ ...prev, [sidescreen.id]: 'running' }));
+
+      const fullTimeSeconds = 120; // ctlr-0021: 2분
+      const targetTimeSeconds = (Math.abs(difference) / 100) * fullTimeSeconds;
+      const command = difference > 0 ? "OPEN" : "CLOSE";
+      const mqttDeviceId = sidescreen.commandTopic.split('/')[2];
+
+      console.log(`[SIDE AUTO] ${sidescreen.name} 온도${avgTemp.toFixed(1)}°→${targetRate}% (현재:${currentPos}%, ${targetTimeSeconds.toFixed(1)}초 ${command})`);
+
+      sendDeviceCommand(sidescreen.esp32Id, mqttDeviceId, command).then(() => {
+        percentageTimers.current[sidescreen.id] = setTimeout(async () => {
+          await sendDeviceCommand(sidescreen.esp32Id, mqttDeviceId, "STOP");
+          delete percentageTimers.current[sidescreen.id];
+          setCurrentPosition(prev => ({ ...prev, [sidescreen.id]: targetRate }));
+          setOperationStatus(prev => ({ ...prev, [sidescreen.id]: 'completed' }));
+          console.log(`[SIDE AUTO] ${sidescreen.name} → ${targetRate}% 완료`);
+        }, targetTimeSeconds * 1000);
+      });
+    });
+  }, [farmSensors, sideTempPoints, sideAutoActive]);
 
   // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
@@ -754,7 +872,209 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             </h2>
             <span className="text-[10px] sm:text-xs text-gray-800">{sidescreens.length}개</span>
           </header>
-          <div className="bg-white shadow-sm rounded-b-lg p-2 sm:p-3">
+          <div className="bg-white shadow-sm rounded-b-lg p-2 sm:p-4">
+
+            {/* 제어 모드 버튼 (항상 최상단에 표시) */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3 mb-3">
+              <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">제어 모드</p>
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={() => {
+                    sideModeRef.current = "AUTO";
+                    setSideMode("AUTO");
+                    setSideAutoActive(false);
+                    sideLastTargetRef.current = {};
+                    getMqttClient().publish("tansaeng/side-control/mode", "AUTO", { qos: 1, retain: true });
+                    getMqttClient().publish("tansaeng/side-control/autoActive", "false", { qos: 1, retain: true });
+                  }}
+                  className={`flex-1 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                    sideMode === "AUTO"
+                      ? "bg-gray-900 text-white shadow"
+                      : "bg-white border border-blue-300 text-blue-600 hover:bg-blue-50"
+                  }`}
+                >
+                  자동 (AUTO)
+                </button>
+                <button
+                  onClick={() => {
+                    sideModeRef.current = "MANUAL";
+                    setSideMode("MANUAL");
+                    setSideAutoActive(false);
+                    getMqttClient().publish("tansaeng/side-control/mode", "MANUAL", { qos: 1, retain: true });
+                    getMqttClient().publish("tansaeng/side-control/autoActive", "false", { qos: 1, retain: true });
+                  }}
+                  className={`flex-1 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                    sideMode === "MANUAL"
+                      ? "bg-gray-700 text-yellow-300 shadow"
+                      : "bg-white border border-gray-300 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  수동 (MANUAL)
+                </button>
+              </div>
+              {/* AUTO 모드: 작동시작/멈춤 + 상태 */}
+              {sideMode === "AUTO" && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setSideAutoActive(true);
+                      sideLastTargetRef.current = {};
+                      getMqttClient().publish("tansaeng/side-control/autoActive", "true", { qos: 1, retain: true });
+                    }}
+                    disabled={sideAutoActive}
+                    className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                      sideAutoActive
+                        ? "bg-blue-500 text-white shadow"
+                        : "bg-white border border-blue-400 text-blue-600 hover:bg-blue-50"
+                    }`}
+                  >
+                    ▶ 작동시작
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSideAutoActive(false);
+                      getMqttClient().publish("tansaeng/side-control/autoActive", "false", { qos: 1, retain: true });
+                    }}
+                    disabled={!sideAutoActive}
+                    className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                      !sideAutoActive
+                        ? "bg-red-500 text-white shadow"
+                        : "bg-white border border-red-400 text-red-600 hover:bg-red-50"
+                    }`}
+                  >
+                    ■ 작동멈춤
+                  </button>
+                  <span className="text-[10px] font-semibold text-blue-600">
+                    {sideAutoActive ? "🪟 AUTO 작동 중" : "⏸ 대기"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 팜 평균온도 + 목표개도율 */}
+            {(() => {
+              const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+              const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+              let autoTargetRate = 0;
+              if (avgTemp !== null) {
+                const sorted = [...sideTempPoints].sort((a, b) => a.temp - b.temp);
+                if (avgTemp >= sorted[sorted.length - 1].temp) {
+                  autoTargetRate = 100;
+                } else if (avgTemp >= sorted[0].temp) {
+                  for (let i = 0; i < sorted.length - 1; i++) {
+                    if (avgTemp >= sorted[i].temp && avgTemp < sorted[i + 1].temp) {
+                      const ratio = (avgTemp - sorted[i].temp) / (sorted[i + 1].temp - sorted[i].temp);
+                      autoTargetRate = Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
+                      break;
+                    }
+                  }
+                }
+              }
+              return (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3 mb-3">
+                  <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1.5">
+                    팜 내부 평균온도
+                    {sideMode === "AUTO" && <span className="ml-1 text-blue-600">(AUTO 기준)</span>}
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    <div className="bg-red-50 border border-red-100 rounded p-1.5 text-center">
+                      <div className="text-lg sm:text-2xl font-bold text-red-500">
+                        {avgTemp !== null ? `${avgTemp.toFixed(1)}°` : "—"}
+                      </div>
+                      <div className="text-[9px] text-gray-400">평균온도</div>
+                    </div>
+                    {sideMode === "AUTO" && (
+                      <div className="bg-blue-50 border border-blue-100 rounded p-1.5 text-center">
+                        <div className="text-lg sm:text-2xl font-bold text-blue-500">
+                          {avgTemp !== null ? `${autoTargetRate}%` : "—"}
+                        </div>
+                        <div className="text-[9px] text-gray-400">목표개도율</div>
+                      </div>
+                    )}
+                    {[
+                      { label: "앞", t: farmSensors.front },
+                      { label: "뒤", t: farmSensors.back },
+                      { label: "천장", t: farmSensors.top },
+                    ].map(({ label, t }) => (
+                      <div key={label} className="bg-white rounded p-1 text-center">
+                        <div className="text-[10px] font-semibold text-red-500">{t !== null ? `${t.toFixed(1)}°` : "—"}</div>
+                        <div className="text-[9px] text-gray-400">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* AUTO 모드: 온도-개도율 설정 테이블 */}
+            {sideMode === "AUTO" && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] sm:text-xs font-semibold text-gray-700">온도-개도율 설정</p>
+                  <button
+                    onClick={() => setSideTempPoints(prev => {
+                      const sorted = [...prev].sort((a, b) => a.temp - b.temp);
+                      const lastTemp = sorted[sorted.length - 1]?.temp ?? 20;
+                      return [...sorted, { temp: lastTemp + 3, rate: 100 }];
+                    })}
+                    className="text-[10px] px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  >
+                    + 포인트 추가
+                  </button>
+                </div>
+                <div className="text-[9px] text-gray-500 mb-2">
+                  설정 온도 미만 → 0% 닫힘 / 최고 온도 이상 → 100% 완전 개방
+                </div>
+                <div className="space-y-1.5">
+                  {[...sideTempPoints]
+                    .sort((a, b) => a.temp - b.temp)
+                    .map((point, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-white rounded p-1.5">
+                      <span className="text-[10px] text-gray-500 w-4">{idx + 1}</span>
+                      <div className="flex items-center gap-1 flex-1">
+                        <span className="text-[10px] text-gray-600">온도</span>
+                        <input
+                          type="number"
+                          value={point.temp}
+                          onChange={(e) => {
+                            const newPoints = [...sideTempPoints];
+                            const realIdx = sideTempPoints.indexOf(point);
+                            newPoints[realIdx] = { ...point, temp: Number(e.target.value) };
+                            setSideTempPoints(newPoints);
+                          }}
+                          className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                        <span className="text-[10px] text-gray-600">°C →</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={point.rate}
+                          onChange={(e) => {
+                            const newPoints = [...sideTempPoints];
+                            const realIdx = sideTempPoints.indexOf(point);
+                            newPoints[realIdx] = { ...point, rate: Math.min(100, Math.max(0, Number(e.target.value))) };
+                            setSideTempPoints(newPoints);
+                          }}
+                          className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                        <span className="text-[10px] text-gray-600">% 개방</span>
+                      </div>
+                      {sideTempPoints.length > 2 && (
+                        <button
+                          onClick={() => setSideTempPoints(prev => prev.filter((_, i) => i !== sideTempPoints.indexOf(point)))}
+                          className="text-[10px] text-red-500 hover:text-red-700 px-1"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 장치 카드: MANUAL 모드에서만 개별 제어 표시, AUTO에서는 현재 위치만 표시 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3">
               {sidescreens.map((sidescreen) => (
                 <div
@@ -765,95 +1085,111 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     <h3 className="text-xs sm:text-sm font-semibold text-gray-900">
                       {sidescreen.name}
                     </h3>
-                    <span className="text-[10px] sm:text-xs text-gray-500 bg-gray-100 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
-                      {sidescreen.esp32Id}
-                    </span>
-                  </div>
-
-                  {/* 버튼 제어 */}
-                  <div className="mb-2 sm:mb-4">
-                    <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-1.5 sm:mb-2">버튼 제어</p>
-                    <div className="flex gap-1.5 sm:gap-2">
-                      <button
-                        onClick={() => handleSkylightCommand(sidescreen.id, "OPEN")}
-                        className="flex-1 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-semibold py-2 sm:py-3 px-2 sm:px-4 rounded-md transition-colors text-xs sm:text-sm"
-                      >
-                        열기
-                      </button>
-                      <button
-                        onClick={() => handleSkylightCommand(sidescreen.id, "STOP")}
-                        className="flex-1 bg-yellow-500 hover:bg-yellow-600 active:bg-yellow-700 text-white font-semibold py-2 sm:py-3 px-2 sm:px-4 rounded-md transition-colors text-xs sm:text-sm"
-                      >
-                        정지
-                      </button>
-                      <button
-                        onClick={() => handleSkylightCommand(sidescreen.id, "CLOSE")}
-                        className="flex-1 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-semibold py-2 sm:py-3 px-2 sm:px-4 rounded-md transition-colors text-xs sm:text-sm"
-                      >
-                        닫기
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 퍼센트 입력 제어 */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-                      <p className="text-[10px] sm:text-xs text-gray-600 font-medium">개폐 퍼센트 설정</p>
-                      {/* 작동 상태 표시 */}
+                    <div className="flex items-center gap-1.5">
                       {operationStatus[sidescreen.id] === 'running' && (
-                        <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-[10px] sm:text-xs font-semibold rounded-full">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-semibold rounded-full">
                           <span className="animate-pulse">●</span> 작동중
                         </span>
                       )}
                       {operationStatus[sidescreen.id] === 'completed' && (
-                        <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-green-100 text-green-700 text-[10px] sm:text-xs font-semibold rounded-full">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] font-semibold rounded-full">
                           완료
                         </span>
                       )}
-                    </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={percentageInputs[sidescreen.id] ?? (deviceState[sidescreen.id]?.targetPercentage ?? 0)}
-                        onChange={(e) => setPercentageInputs({
-                          ...percentageInputs,
-                          [sidescreen.id]: e.target.value
-                        })}
-                        className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="0-100"
-                      />
-                      <span className="text-xs sm:text-sm font-semibold text-gray-900">%</span>
-                      <button
-                        onClick={() => handleSavePercentage(sidescreen.id)}
-                        className="px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-xs sm:text-sm font-medium rounded-md transition-colors"
-                      >
-                        저장
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      <div className="flex-1 text-[10px] sm:text-xs text-gray-600 space-y-0.5 sm:space-y-1">
-                        <div>
-                          현재: <span className="font-semibold text-gray-800">
-                            {currentPosition[sidescreen.id] ?? 0}%
-                          </span>
-                        </div>
-                        <div>
-                          저장: <span className="font-semibold text-blue-600">
-                            {deviceState[sidescreen.id]?.targetPercentage ?? 0}%
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleExecutePercentage(sidescreen.id)}
-                        className="px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                        disabled={operationStatus[sidescreen.id] === 'running'}
-                      >
-                        작동
-                      </button>
+                      <span className="text-[10px] sm:text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                        {sidescreen.esp32Id}
+                      </span>
                     </div>
                   </div>
+
+                  {/* 현재 위치 표시 (AUTO/MANUAL 공통) */}
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between text-[10px] sm:text-xs text-gray-600 mb-1">
+                      <span>현재 위치</span>
+                      <span className="font-bold text-blue-600 text-sm">{currentPosition[sidescreen.id] ?? 0}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${currentPosition[sidescreen.id] ?? 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* MANUAL 모드에서만 수동 제어 표시 */}
+                  {sideMode === "MANUAL" && (
+                    <>
+                      {/* 버튼 제어 */}
+                      <div className="mb-2 sm:mb-3">
+                        <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-1.5">버튼 제어</p>
+                        <div className="flex gap-1.5 sm:gap-2">
+                          <button
+                            onClick={() => handleSkylightCommand(sidescreen.id, "OPEN")}
+                            className="flex-1 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-semibold py-2 px-2 rounded-md transition-colors text-xs sm:text-sm"
+                          >
+                            열기
+                          </button>
+                          <button
+                            onClick={() => handleSkylightCommand(sidescreen.id, "STOP")}
+                            className="flex-1 bg-yellow-500 hover:bg-yellow-600 active:bg-yellow-700 text-white font-semibold py-2 px-2 rounded-md transition-colors text-xs sm:text-sm"
+                          >
+                            정지
+                          </button>
+                          <button
+                            onClick={() => handleSkylightCommand(sidescreen.id, "CLOSE")}
+                            className="flex-1 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-semibold py-2 px-2 rounded-md transition-colors text-xs sm:text-sm"
+                          >
+                            닫기
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 퍼센트 직접 이동 */}
+                      <div>
+                        <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-1.5">개폐 퍼센트 설정</p>
+                        <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={percentageInputs[sidescreen.id] ?? (deviceState[sidescreen.id]?.targetPercentage ?? 0)}
+                            onChange={(e) => setPercentageInputs({
+                              ...percentageInputs,
+                              [sidescreen.id]: e.target.value
+                            })}
+                            className="flex-1 px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="0-100"
+                          />
+                          <span className="text-xs font-semibold text-gray-900">%</span>
+                          <button
+                            onClick={() => handleSavePercentage(sidescreen.id)}
+                            className="px-2 sm:px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-md transition-colors"
+                          >
+                            저장
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-gray-500">
+                            저장: <span className="font-semibold text-blue-600">{deviceState[sidescreen.id]?.targetPercentage ?? 0}%</span>
+                          </span>
+                          <button
+                            onClick={() => handleExecutePercentage(sidescreen.id)}
+                            className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            disabled={operationStatus[sidescreen.id] === 'running'}
+                          >
+                            작동
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* AUTO 모드에서는 자동 제어 안내 표시 */}
+                  {sideMode === "AUTO" && (
+                    <div className="text-center text-[10px] text-blue-600 bg-blue-50 rounded p-1.5">
+                      {sideAutoActive ? "🪟 온도 기반 자동 개폐 중" : "AUTO 모드 — 작동시작 버튼을 누르세요"}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1179,10 +1515,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       hpModeRef.current = "AUTO";
                       setHpMode("AUTO");
                       hpAutoDemandRef.current = false;
-                      setHpAutoActive(false); // 모드 전환 시 작동 초기화
+                      setHpAutoActive(false);
                       hpDeviceLastCmd.current = { hp_pump: null, hp_heater: null, hp_fan: null };
-                      // ESP32는 항상 MANUAL 유지 — 브라우저 명령(pump/heater/fan cmd)을 수신할 수 있어야 함
                       getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/hp-control/mode", "AUTO", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
                     }}
                     className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
                       hpMode === "AUTO"
@@ -1198,6 +1535,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       setHpMode("MANUAL");
                       hpAutoDemandRef.current = false;
                       getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/hp-control/mode", "MANUAL", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
                     }}
                     className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
                       hpMode === "MANUAL"
@@ -1272,6 +1611,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         onClick={() => {
                           hpDeviceLastCmd.current = { hp_pump: null, hp_heater: null, hp_fan: null };
                           setHpAutoActive(true);
+                          getMqttClient().publish("tansaeng/hp-control/autoActive", "true", { qos: 1, retain: true });
                         }}
                         className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
                           hpAutoActive
@@ -1284,6 +1624,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       <button
                         onClick={() => {
                           setHpAutoActive(false);
+                          getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
                           // 모든 HP 장치 정지
                           const HP = "ctlr-heat-001";
                           ["hp_pump", "hp_heater", "hp_fan"].forEach((k, i) => {
