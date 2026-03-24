@@ -145,6 +145,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [hpAutoActive, setHpAutoActive] = useState(false);
   // 마지막 전송 명령 추적 (중복 전송 방지)
   const hpDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({ hp_pump: null, hp_heater: null, hp_fan: null });
+  // MQTT에서 범위 복원 시 재발행 방지
+  const hpDeviceRangesFromMqttRef = useRef(false);
 
   // 팬 AUTO 제어 상태
   const [fanMode, setFanMode] = useState<"AUTO" | "MANUAL">("MANUAL");
@@ -169,12 +171,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [skyAutoType, setSkyAutoType] = useState<"temp" | "time">("temp");
   const skyAutoTypeRef = useRef<"temp" | "time">("temp");
   const skyAutoTypeFromMqttRef = useRef(false);
+  const skyAutoTypeFirstRunRef = useRef(true); // 첫 렌더 시 기본값 publish 방지
   const [skyTimePoints, setSkyTimePoints] = useState<Array<{ time: string; rate: number }>>([
     { time: "08:00", rate: 30 },
     { time: "12:00", rate: 80 },
     { time: "18:00", rate: 0 },
   ]);
   const skyTimePointsFromMqttRef = useRef(false);
+  const skyTimePointsFirstRunRef = useRef(true); // 첫 렌더 시 기본값 publish 방지
   const [currentMinute, setCurrentMinute] = useState(() => {
     const now = new Date(); return now.getHours() * 60 + now.getMinutes();
   });
@@ -247,6 +251,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       }),
       subscribeToTopic("tansaeng/hp-control/autoActive", (v) => {
         setHpAutoActive(v === "true");
+      }),
+      subscribeToTopic("tansaeng/hp-control/ranges", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed && typeof parsed === "object") {
+            hpDeviceRangesFromMqttRef.current = true;
+            setHpDeviceRanges(parsed);
+          }
+        } catch {}
       }),
       // 장치제어실 센서
       subscribeToTopic(`tansaeng/${HP}/air/temperature`, (v) => {
@@ -325,6 +338,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
   // AUTO 모드 제어 로직 — 평균온도가 설정 범위 안에 있으면 ON, 벗어나면 OFF
   useEffect(() => {
+    // state + ref 이중 체크 (MANUAL 모드에서 절대 실행 안 되도록)
+    if (hpMode !== "AUTO") return;
     if (hpModeRef.current !== "AUTO") return;
     if (!hpAutoActive) return; // 작동시작 버튼을 눌러야 활성화
 
@@ -355,7 +370,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         });
       }
     });
-  }, [farmSensors, hpDeviceRanges, hpAutoActive]);
+  }, [farmSensors, hpDeviceRanges, hpAutoActive, hpMode]);
 
   // 팬 AUTO 모드 제어 로직 — avgTemp가 설정 범위 안에 있으면 ON, 벗어나면 OFF
   useEffect(() => {
@@ -386,6 +401,13 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     if (Object.keys(fanDeviceRanges).length === 0) return;
     getMqttClient().publish("tansaeng/fan-control/ranges", JSON.stringify(fanDeviceRanges), { qos: 1, retain: true });
   }, [fanDeviceRanges]);
+
+  // HP 온도 범위 변경 시 MQTT retain 발행 (MQTT 복원에서 온 변경은 재발행 안함)
+  useEffect(() => {
+    if (hpDeviceRangesFromMqttRef.current) { hpDeviceRangesFromMqttRef.current = false; return; }
+    if (Object.keys(hpDeviceRanges).length === 0) return;
+    getMqttClient().publish("tansaeng/hp-control/ranges", JSON.stringify(hpDeviceRanges), { qos: 1, retain: true });
+  }, [hpDeviceRanges]);
 
   // 천창 MQTT 상태 구독 (retain으로 다른 브라우저 동기화)
   useEffect(() => {
@@ -442,14 +464,16 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     getMqttClient().publish("tansaeng/sky-control/tempPoints", JSON.stringify(skyTempPoints), { qos: 1, retain: true });
   }, [skyTempPoints]);
 
-  // 천창 autoType 변경 시 MQTT retain 발행
+  // 천창 autoType 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
   useEffect(() => {
+    if (skyAutoTypeFirstRunRef.current) { skyAutoTypeFirstRunRef.current = false; return; }
     if (skyAutoTypeFromMqttRef.current) { skyAutoTypeFromMqttRef.current = false; return; }
     getMqttClient().publish("tansaeng/sky-control/autoType", skyAutoType, { qos: 1, retain: true });
   }, [skyAutoType]);
 
-  // 천창 시간 포인트 변경 시 MQTT retain 발행
+  // 천창 시간 포인트 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
   useEffect(() => {
+    if (skyTimePointsFirstRunRef.current) { skyTimePointsFirstRunRef.current = false; return; }
     if (skyTimePointsFromMqttRef.current) { skyTimePointsFromMqttRef.current = false; return; }
     getMqttClient().publish("tansaeng/sky-control/timePoints", JSON.stringify(skyTimePoints), { qos: 1, retain: true });
   }, [skyTimePoints]);
@@ -461,7 +485,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     let targetRate = 0;
 
-    if (skyAutoTypeRef.current === "time") {
+    if (skyAutoType === "time" || skyAutoTypeRef.current === "time") {
       // 시간 기반 제어: 현재 시각→개도율 선형 보간
       const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
       const nowMin = currentMinute;
@@ -536,7 +560,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         }, targetTimeSeconds * 1000);
       });
     });
-  }, [farmSensors, skyTempPoints, skyAutoActive, skyTimePoints, currentMinute]);
+  }, [farmSensors, skyTempPoints, skyAutoActive, skyTimePoints, currentMinute, skyAutoType]);
 
   // 측창 MQTT 상태 구독 (retain으로 다른 브라우저 동기화)
   useEffect(() => {
@@ -2102,7 +2126,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     onClick={() => {
                       hpModeRef.current = "MANUAL";
                       setHpMode("MANUAL");
+                      setHpAutoActive(false);
                       hpAutoDemandRef.current = false;
+                      hpDeviceLastCmd.current = { hp_pump: null, hp_heater: null, hp_fan: null };
                       getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/hp-control/mode", "MANUAL", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });

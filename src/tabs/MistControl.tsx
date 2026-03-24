@@ -49,6 +49,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   // AUTO 사이클 타이머 참조
   const cycleTimers = useRef<Record<string, CycleTimer>>({});
 
+  // 경과 시간 추적
+  const lastStateChangeTime = useRef<Record<string, number>>({});
+  const lastKnownValveState = useRef<Record<string, string>>({});
+  const [, forceTimerUpdate] = useState(0);
+
   // MQTT 연결 상태
   const [mqttConnected, setMqttConnected] = useState(false);
 
@@ -60,6 +65,12 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       console.log(`[MQTT] Connection status: ${connected ? "Connected" : "Disconnected"}`);
     });
     return () => unsubscribe();
+  }, []);
+
+  // 1초마다 경과 시간 갱신
+  useEffect(() => {
+    const interval = setInterval(() => forceTimerUpdate(n => n + 1), 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // ESP32 상태 API 폴링 (DevicesControl과 동일한 방식)
@@ -106,8 +117,17 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     const handleMessage = (topic: string, message: Buffer) => {
       const msg = message.toString();
 
+      // 밸브 상태 변경 시 경과 타이머 리셋 헬퍼
+      const recordStateChange = (zoneId: string, newState: string) => {
+        if (lastKnownValveState.current[zoneId] !== newState) {
+          lastKnownValveState.current[zoneId] = newState;
+          lastStateChangeTime.current[zoneId] = Date.now();
+        }
+      };
+
       // Zone A (ctrl-0004) 상태 처리
       if (topic === "tansaeng/ctlr-0004/valve1/state") {
+        recordStateChange("zone_a", msg);
         setValveStatus(prev => ({
           ...prev,
           zone_a: {
@@ -137,6 +157,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       // 다른 Zone들도 같은 패턴으로 처리 (ctrl-0005, ctrl-0006 등)
       // Zone B
       if (topic === "tansaeng/ctlr-0005/valve1/state") {
+        recordStateChange("zone_b", msg);
         setValveStatus(prev => ({
           ...prev,
           zone_b: { ...prev.zone_b, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
@@ -149,6 +170,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // Zone C
       if (topic === "tansaeng/ctlr-0006/valve1/state") {
+        recordStateChange("zone_c", msg);
         setValveStatus(prev => ({
           ...prev,
           zone_c: { ...prev.zone_c, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
@@ -161,6 +183,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // Zone D
       if (topic === "tansaeng/ctlr-0007/valve1/state") {
+        recordStateChange("zone_d", msg);
         setValveStatus(prev => ({
           ...prev,
           zone_d: { ...prev.zone_d, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
@@ -173,6 +196,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // Zone E
       if (topic === "tansaeng/ctlr-0008/valve1/state") {
+        recordStateChange("zone_e", msg);
         setValveStatus(prev => ({
           ...prev,
           zone_e: { ...prev.zone_e, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
@@ -524,6 +548,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     const cmdTopic = getValveCmdTopic(zone.controllerId);
     publishCommand(cmdTopic, { power: "on" });
 
+    // 타이머 리셋
+    if (lastKnownValveState.current[zone.id] !== "OPEN") {
+      lastKnownValveState.current[zone.id] = "OPEN";
+      lastStateChangeTime.current[zone.id] = Date.now();
+    }
     // UI 상태 업데이트
     setManualSprayState(prev => ({ ...prev, [zone.id]: "spraying" }));
 
@@ -541,10 +570,73 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     const cmdTopic = getValveCmdTopic(zone.controllerId);
     publishCommand(cmdTopic, { power: "off" });
 
+    // 타이머 리셋
+    if (lastKnownValveState.current[zone.id] !== "CLOSE") {
+      lastKnownValveState.current[zone.id] = "CLOSE";
+      lastStateChangeTime.current[zone.id] = Date.now();
+    }
     // UI 상태 업데이트
     setManualSprayState(prev => ({ ...prev, [zone.id]: "stopped" }));
 
     console.log(`[MQTT] Published to ${cmdTopic}: OFF`);
+  };
+
+  // 경과 시간 계산
+  const getElapsedSeconds = (zoneId: string): number => {
+    const t = lastStateChangeTime.current[zoneId];
+    if (!t) return 0;
+    return Math.floor((Date.now() - t) / 1000);
+  };
+
+  // MM:SS 포맷
+  const formatMMSS = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  };
+
+  // 경과/남은 시간 표시 컴포넌트
+  const ZoneTimer = ({ zoneId, sprayState, sprayDuration, stopDuration }: {
+    zoneId: string;
+    sprayState: "spraying" | "stopped" | "idle";
+    sprayDuration?: number | null;
+    stopDuration?: number | null;
+  }) => {
+    if (sprayState === "idle") return null;
+    const elapsed = getElapsedSeconds(zoneId);
+    const isSpraying = sprayState === "spraying";
+    const totalSec = isSpraying ? (sprayDuration ?? null) : (stopDuration ?? null);
+    const remaining = totalSec !== null ? Math.max(0, totalSec - elapsed) : null;
+    const progress = totalSec ? Math.min(100, (elapsed / totalSec) * 100) : null;
+
+    return (
+      <div className={`rounded-lg border px-3 py-2 mt-2 ${isSpraying ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+        <div className="flex items-center justify-between mb-1">
+          <span className={`text-xs font-semibold ${isSpraying ? "text-green-700" : "text-red-700"}`}>
+            {isSpraying ? "💧 분무 지속" : "⏸ 정지 지속"}
+          </span>
+          <span className={`text-lg font-bold tabular-nums ${isSpraying ? "text-green-600" : "text-red-600"}`}>
+            {formatMMSS(elapsed)}
+          </span>
+        </div>
+        {totalSec !== null && remaining !== null && (
+          <>
+            <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+              <span>설정: {formatMMSS(totalSec)}</span>
+              <span className="font-medium">남은 시간: {formatMMSS(remaining)}</span>
+            </div>
+            {progress !== null && (
+              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                <div
+                  className={`h-1.5 rounded-full transition-all ${isSpraying ? "bg-green-500" : "bg-red-500"}`}
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
   };
 
   const getModeColor = (mode: MistMode) => {
@@ -661,6 +753,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
               {zone.mode === "MANUAL" && (
                 <div className="space-y-2">
                   <LedIndicator state={sprayState} zoneId={zone.id} controllerId={zone.controllerId} />
+                  <ZoneTimer zoneId={zone.id} sprayState={sprayState} />
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleManualSpray(zone)}
@@ -880,12 +973,23 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                   </div>
 
                   {/* LED 상태 표시 (AUTO 모드) */}
-                  <div className="mb-4">
+                  <div className="mb-2">
                     <LedIndicator
                       state={manualSprayState[zone.id] || "idle"}
                       zoneId={zone.id}
                       controllerId={zone.controllerId}
                     />
+                    {(() => {
+                      const currentSchedule = getCurrentSchedule(zone);
+                      return (
+                        <ZoneTimer
+                          zoneId={zone.id}
+                          sprayState={manualSprayState[zone.id] || "idle"}
+                          sprayDuration={currentSchedule?.sprayDurationSeconds}
+                          stopDuration={currentSchedule?.stopDurationSeconds}
+                        />
+                      );
+                    })()}
                   </div>
 
                   {/* AUTO 사이클 상태 표시 */}
