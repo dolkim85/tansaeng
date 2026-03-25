@@ -1021,8 +1021,10 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     <button
                       onClick={() => {
                         skyAutoTypeRef.current = "temp";
+                        skyAutoTypeFromMqttRef.current = false;
                         setSkyAutoType("temp");
                         skyLastTargetRef.current = {};
+                        getMqttClient().publish("tansaeng/sky-control/autoType", "temp", { qos: 1, retain: true });
                       }}
                       className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                         skyAutoType === "temp"
@@ -1035,8 +1037,10 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     <button
                       onClick={() => {
                         skyAutoTypeRef.current = "time";
+                        skyAutoTypeFromMqttRef.current = false;
                         setSkyAutoType("time");
                         skyLastTargetRef.current = {};
+                        getMqttClient().publish("tansaeng/sky-control/autoType", "time", { qos: 1, retain: true });
                       }}
                       className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                         skyAutoType === "time"
@@ -1053,6 +1057,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       onClick={() => {
                         setSkyAutoActive(true);
                         skyLastTargetRef.current = {};
+                        // autoType을 먼저 재발행해서 데몬이 정확한 모드로 실행되도록 보장
+                        getMqttClient().publish("tansaeng/sky-control/autoType", skyAutoTypeRef.current, { qos: 1, retain: true });
                         getMqttClient().publish("tansaeng/sky-control/autoActive", "true", { qos: 1, retain: true });
                       }}
                       disabled={skyAutoActive}

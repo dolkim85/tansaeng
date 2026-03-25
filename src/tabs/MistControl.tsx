@@ -54,6 +54,9 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   const lastKnownValveState = useRef<Record<string, string>>({});
   const [, forceTimerUpdate] = useState(0);
 
+  // localStorage 키
+  const LS_KEY = "mist_timer_state";
+
   // MQTT 연결 상태
   const [mqttConnected, setMqttConnected] = useState(false);
 
@@ -65,6 +68,20 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       console.log(`[MQTT] Connection status: ${connected ? "Connected" : "Disconnected"}`);
     });
     return () => unsubscribe();
+  }, []);
+
+  // 페이지 로드 시 localStorage에서 타이머 상태 복원
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LS_KEY);
+      if (stored) {
+        const data: Record<string, { state: string; timestamp: number }> = JSON.parse(stored);
+        Object.entries(data).forEach(([zoneId, { state, timestamp }]) => {
+          lastKnownValveState.current[zoneId] = state;
+          lastStateChangeTime.current[zoneId] = timestamp;
+        });
+      }
+    } catch {}
   }, []);
 
   // 1초마다 경과 시간 갱신
@@ -122,6 +139,13 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         if (lastKnownValveState.current[zoneId] !== newState) {
           lastKnownValveState.current[zoneId] = newState;
           lastStateChangeTime.current[zoneId] = Date.now();
+          // localStorage에 타임스탬프 저장 (페이지 재시작 후 복원용)
+          try {
+            const stored = localStorage.getItem(LS_KEY);
+            const data = stored ? JSON.parse(stored) : {};
+            data[zoneId] = { state: newState, timestamp: lastStateChangeTime.current[zoneId] };
+            localStorage.setItem(LS_KEY, JSON.stringify(data));
+          } catch {}
         }
       };
 
@@ -552,6 +576,12 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     if (lastKnownValveState.current[zone.id] !== "OPEN") {
       lastKnownValveState.current[zone.id] = "OPEN";
       lastStateChangeTime.current[zone.id] = Date.now();
+      try {
+        const stored = localStorage.getItem(LS_KEY);
+        const data = stored ? JSON.parse(stored) : {};
+        data[zone.id] = { state: "OPEN", timestamp: lastStateChangeTime.current[zone.id] };
+        localStorage.setItem(LS_KEY, JSON.stringify(data));
+      } catch {}
     }
     // UI 상태 업데이트
     setManualSprayState(prev => ({ ...prev, [zone.id]: "spraying" }));
@@ -574,6 +604,12 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     if (lastKnownValveState.current[zone.id] !== "CLOSE") {
       lastKnownValveState.current[zone.id] = "CLOSE";
       lastStateChangeTime.current[zone.id] = Date.now();
+      try {
+        const stored = localStorage.getItem(LS_KEY);
+        const data = stored ? JSON.parse(stored) : {};
+        data[zone.id] = { state: "CLOSE", timestamp: lastStateChangeTime.current[zone.id] };
+        localStorage.setItem(LS_KEY, JSON.stringify(data));
+      } catch {}
     }
     // UI 상태 업데이트
     setManualSprayState(prev => ({ ...prev, [zone.id]: "stopped" }));
