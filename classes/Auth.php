@@ -21,8 +21,15 @@ class Auth {
     private function initSession() {
         if (session_status() === PHP_SESSION_NONE) {
             if (!headers_sent()) {
-                ini_set('session.cookie_httponly', 1);
-                ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
+                $lifetime = (SESSION_TIMEOUT === 0) ? 30 * 24 * 3600 : SESSION_TIMEOUT;
+                ini_set('session.gc_maxlifetime', $lifetime);
+                session_set_cookie_params([
+                    'lifetime' => $lifetime,
+                    'path'     => '/',
+                    'httponly' => true,
+                    'secure'   => false,
+                    'samesite' => 'Lax',
+                ]);
                 ini_set('session.use_only_cookies', 1);
             }
             session_start();
@@ -34,9 +41,15 @@ class Auth {
     }
 
     private function checkSessionExpiry() {
+        if (SESSION_TIMEOUT === 0) {
+            // 로그아웃하기 전까지 유지 (무제한)
+            $_SESSION['last_activity'] = time();
+            return;
+        }
+
         $timeout = SESSION_TIMEOUT;
-        
-        if (isset($_SESSION['last_activity']) && 
+
+        if (isset($_SESSION['last_activity']) &&
             (time() - $_SESSION['last_activity'] > $timeout)) {
             $this->logout();
             throw new Exception('세션이 만료되었습니다. 다시 로그인해주세요.');
@@ -288,7 +301,7 @@ class Auth {
         return [
             'login_time' => $_SESSION['login_time'] ?? null,
             'last_activity' => $_SESSION['last_activity'] ?? null,
-            'remaining_time' => SESSION_TIMEOUT - (time() - ($_SESSION['last_activity'] ?? time()))
+            'remaining_time' => SESSION_TIMEOUT === 0 ? null : SESSION_TIMEOUT - (time() - ($_SESSION['last_activity'] ?? time()))
         ];
     }
 

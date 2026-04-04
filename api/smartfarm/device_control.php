@@ -83,6 +83,13 @@ if ($returnCode === 0) {
             'timestamp' => date('Y-m-d H:i:s')
         ]
     ]);
+
+    // 응답 전송 후 텔레그램 알림 발송 (클라이언트에 영향 없음)
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    }
+    require_once __DIR__ . '/alert_notifier.php';
+    notifyDeviceCommand($controllerId, $deviceId, $command);
 } else {
     http_response_code(500);
     echo json_encode([

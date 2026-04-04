@@ -65,8 +65,8 @@
                 
                 <li class="nav-section">스마트팜</li>
                 <li class="nav-item">
-                    <a href="/smartfarm-ui/" class="nav-link">
-                        <span class="nav-icon">🏭</span>
+                    <a href="/smartfarm-ui/" class="nav-link" target="_blank">
+                        <span class="nav-icon">🎮</span>
                         <span class="nav-text">환경제어 시스템</span>
                     </a>
                 </li>
@@ -146,6 +146,12 @@
                     <a href="/admin/settings/backup.php" class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'backup.php' ? 'active' : '' ?>">
                         <span class="nav-icon">💾</span>
                         <span class="nav-text">백업 관리</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/admin/settings/alert.php" class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'alert.php' ? 'active' : '' ?>">
+                        <span class="nav-icon">🔔</span>
+                        <span class="nav-text">알림 설정</span>
                     </a>
                 </li>
                 <li class="nav-item">
