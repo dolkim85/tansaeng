@@ -80,6 +80,35 @@ export async function saveDeviceSettings(settings: Record<string, unknown>): Pro
 }
 
 /**
+ * 농장 기본 정보 저장 API 호출
+ * 서버의 farm_settings.json에 농장명/관리자명/메모를 저장합니다.
+ */
+export async function saveFarmSettings(settings: {
+  farmName: string;
+  adminName: string;
+  notes: string;
+}): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await fetch('https://www.tansaeng.com/api/smartfarm/save_farm_settings.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(settings),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('[API Error] saveFarmSettings:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
  * 장치 설정 조회 API 호출
  */
 export async function getDeviceSettings(): Promise<{ success: boolean; data?: Record<string, unknown> }> {

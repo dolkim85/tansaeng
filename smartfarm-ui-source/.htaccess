@@ -1,0 +1,37 @@
+# PHP 업로드 설정 조정
+php_value upload_max_filesize 10M
+php_value post_max_size 12M
+php_value max_file_uploads 20
+php_value max_execution_time 60
+php_value max_input_time 60
+php_value memory_limit 128M
+
+# 보안 설정
+<Files "*.php">
+    Order allow,deny
+    Allow from all
+</Files>
+
+# 이미지 파일 보안
+<FilesMatch "\.(jpg|jpeg|png|gif|webp)$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>
+
+# 업로드 디렉토리 보안
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # uploads 디렉토리에서 PHP 실행 방지
+    RewriteCond %{REQUEST_URI} ^/uploads/
+    RewriteCond %{REQUEST_FILENAME} \.(php|phtml|php3|php4|php5|phps)$ [NC]
+    RewriteRule ^(.*)$ - [F,L]
+</IfModule>
+
+# MIME 타입 설정
+<IfModule mod_mime.c>
+    AddType image/jpeg .jpg .jpeg
+    AddType image/png .png
+    AddType image/gif .gif
+    AddType image/webp .webp
+</IfModule>

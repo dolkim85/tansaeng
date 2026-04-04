@@ -12,7 +12,8 @@ class NaverPay {
     private $client_secret;
     private $chain_id;
     private $mode;
-    private $api_url;
+    private $api_domain;
+    private $service_domain;
 
     public function __construct() {
         $this->partner_id = env('NAVERPAY_PARTNER_ID', '');
@@ -21,8 +22,14 @@ class NaverPay {
         $this->chain_id = env('NAVERPAY_CHAIN_ID', '');
         $this->mode = env('NAVERPAY_MODE', 'development');
 
-        // API URL 설정 (v1 API 사용)
-        $this->api_url = 'https://apis.naver.com/naverpay-partner/naverpay/payments/v1';
+        // API 도메인 설정 (공식 문서 기준)
+        if ($this->mode === 'production') {
+            $this->api_domain = 'https://pay.paygate.naver.com';
+            $this->service_domain = 'https://m.pay.naver.com';
+        } else {
+            $this->api_domain = 'https://dev-pay.paygate.naver.com';
+            $this->service_domain = 'https://test-m.pay.naver.com';
+        }
     }
 
     /**
@@ -64,13 +71,13 @@ class NaverPay {
                     'uid' => (string)$item['product_id'],
                     'name' => $item['name'],
                     'payReferrer' => 'ETC',
-                    'sellerId' => $this->partner_id,
                     'count' => (int)$item['quantity']
                 ];
             }
 
-            // 결제 요청 데이터 구성
+            // 결제 요청 데이터 구성 (공식 문서 v2 reserve API)
             $paymentData = [
+                'modelVersion' => '2',
                 'merchantPayKey' => $merchantPayKey,
                 'merchantUserKey' => $data['user_id'] ?? 'guest_' . time(),
                 'productName' => mb_substr($productName, 0, 128),
@@ -84,17 +91,22 @@ class NaverPay {
 
             error_log("NaverPay Request Data: " . json_encode($paymentData, JSON_UNESCAPED_UNICODE));
 
-            // API 호출
-            $response = $this->sendRequest('POST', $this->api_url . '/reserve', $paymentData);
+            // API 호출 (v2 reserve endpoint, JSON)
+            $reserveUrl = $this->api_domain . '/naverpay-partner/naverpay/payments/v2/reserve';
+            $response = $this->sendRequest('POST', $reserveUrl, $paymentData, 'json');
 
             error_log("NaverPay Response: " . json_encode($response, JSON_UNESCAPED_UNICODE));
 
             if (isset($response['code']) && $response['code'] === 'Success') {
+                $reserveId = $response['body']['reserveId'];
+                // 결제 페이지 URL 구성 (공식 문서 기준)
+                $paymentPageUrl = $this->service_domain . '/payments/' . $reserveId;
+
                 return [
                     'success' => true,
-                    'payment_url' => $response['body']['reserveId'],
+                    'payment_url' => $paymentPageUrl,
                     'merchant_pay_key' => $merchantPayKey,
-                    'reserve_id' => $response['body']['reserveId'],
+                    'reserve_id' => $reserveId,
                     'payment_data' => $paymentData
                 ];
             }
@@ -127,9 +139,11 @@ class NaverPay {
      */
     public function approvePayment($paymentId) {
         try {
-            $response = $this->sendRequest('POST', $this->api_url . '/apply/payment', [
+            // v2.2 apply/payment endpoint, form-urlencoded (공식 문서 기준)
+            $approveUrl = $this->api_domain . '/naverpay-partner/naverpay/payments/v2.2/apply/payment';
+            $response = $this->sendRequest('POST', $approveUrl, [
                 'paymentId' => $paymentId
-            ]);
+            ], 'form');
 
             error_log("NaverPay Approve Response: " . json_encode($response, JSON_UNESCAPED_UNICODE));
 
@@ -162,9 +176,10 @@ class NaverPay {
      */
     public function getPaymentInfo($paymentId) {
         try {
-            $response = $this->sendRequest('POST', $this->api_url . '/at/inquiry', [
+            $inquiryUrl = $this->api_domain . '/naverpay-partner/naverpay/payments/v2.2/at/inquiry';
+            $response = $this->sendRequest('POST', $inquiryUrl, [
                 'paymentId' => $paymentId
-            ]);
+            ], 'form');
 
             if (isset($response['code']) && $response['code'] === 'Success') {
                 return [
@@ -195,12 +210,16 @@ class NaverPay {
      */
     public function cancelPayment($paymentId, $cancelAmount, $cancelReason = '고객 요청') {
         try {
-            $response = $this->sendRequest('POST', $this->api_url . '/cancel', [
+            // v1 cancel endpoint, form-urlencoded (공식 문서 기준)
+            $cancelUrl = $this->api_domain . '/naverpay-partner/naverpay/payments/v1/cancel';
+            $response = $this->sendRequest('POST', $cancelUrl, [
                 'paymentId' => $paymentId,
                 'cancelAmount' => (int)$cancelAmount,
                 'cancelReason' => $cancelReason,
-                'cancelRequester' => '2'
-            ]);
+                'cancelRequester' => '2',
+                'taxScopeAmount' => (int)$cancelAmount,
+                'taxExScopeAmount' => 0
+            ], 'form');
 
             if (isset($response['code']) && $response['code'] === 'Success') {
                 return [
@@ -224,30 +243,43 @@ class NaverPay {
 
     /**
      * HTTP 요청 전송
+     * @param string $method HTTP 메소드
+     * @param string $url 요청 URL
+     * @param array|null $data 요청 데이터
+     * @param string $contentType 'json' 또는 'form'
      */
-    private function sendRequest($method, $url, $data = null) {
+    private function sendRequest($method, $url, $data = null, $contentType = 'json') {
         $ch = curl_init();
 
         $headers = [
-            'Content-Type: application/json',
             'X-Naver-Client-Id: ' . $this->client_id,
             'X-Naver-Client-Secret: ' . $this->client_secret,
             'X-NaverPay-Chain-Id: ' . $this->chain_id
         ];
 
+        if ($contentType === 'json') {
+            $headers[] = 'Content-Type: application/json';
+        } else {
+            $headers[] = 'Content-Type: application/x-www-form-urlencoded';
+        }
+
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 
         if ($method === 'POST') {
             curl_setopt($ch, CURLOPT_POST, true);
             if ($data) {
-                $jsonData = json_encode($data, JSON_UNESCAPED_UNICODE);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
+                if ($contentType === 'json') {
+                    $postData = json_encode($data, JSON_UNESCAPED_UNICODE);
+                } else {
+                    $postData = http_build_query($data);
+                }
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
                 error_log("NaverPay Request URL: " . $url);
-                error_log("NaverPay Request Body: " . $jsonData);
+                error_log("NaverPay Request Body: " . $postData);
             }
         }
 
@@ -283,7 +315,8 @@ class NaverPay {
             'client_id' => substr($this->client_id, 0, 10) . '...',
             'chain_id' => $this->chain_id,
             'mode' => $this->mode,
-            'api_url' => $this->api_url
+            'api_domain' => $this->api_domain,
+            'service_domain' => $this->service_domain
         ];
     }
 }

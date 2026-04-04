@@ -1,0 +1,39 @@
+[Unit]
+Description=SmartFarm Data Collection Daemon
+Documentation=https://tansaeng.com/smartfarm-ui/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/home/spinmoll/tansaeng_new
+ExecStart=/usr/bin/python3 /home/spinmoll/tansaeng_new/daemon-system.py
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=always
+RestartSec=10
+
+# 환경 변수
+Environment=PYTHONPATH=/home/spinmoll/tansaeng_new
+Environment=PYTHONUNBUFFERED=1
+
+# 리소스 제한
+MemoryLimit=512M
+CPUQuota=50%
+
+# 보안 설정
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/spinmoll /var/log /tmp
+
+# 로그 설정
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smartfarm-daemon
+
+[Install]
+WantedBy=multi-user.target

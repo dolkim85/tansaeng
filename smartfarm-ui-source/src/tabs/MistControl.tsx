@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import type { MistZoneConfig, MistMode, MistScheduleSettings } from "../types";
-import { publishCommand, getMqttClient, isMqttConnected, onConnectionChange } from "../mqtt/mqttClient";
+import { publishCommand, getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
 import { sendDeviceCommand } from "../api/deviceControl";
 
 interface MistControlProps {
@@ -42,9 +42,6 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
   // 수동 분무 상태 (UI 표시용)
   const [manualSprayState, setManualSprayState] = useState<{[zoneId: string]: "spraying" | "stopped" | "idle"}>({});
-
-  // AUTO 사이클 상태 (UI 표시용)
-  const [autoCycleState, setAutoCycleState] = useState<{[zoneId: string]: "waiting" | "spraying" | "idle"}>({});
 
   // AUTO 사이클 타이머 참조
   const cycleTimers = useRef<Record<string, CycleTimer>>({});
@@ -120,6 +117,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // Zone A (ctrl-0004) 상태 처리
       if (topic === "tansaeng/ctlr-0004/valve1/state") {
+        console.log(`[MQTT] zone_a 밸브 상태: ${msg} (${new Date().toLocaleTimeString()})`);
         setValveStatus(prev => ({
           ...prev,
           zone_a: {
@@ -130,10 +128,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         }));
         // MANUAL 모드에서는 ESP32 상태로 UI 업데이트하지 않음 (사용자 제어만 반영)
         if (getZoneMode("zone_a") !== "MANUAL") {
-          setManualSprayState(prev => ({
-            ...prev,
-            zone_a: msg === "OPEN" ? "spraying" : "stopped"
-          }));
+          setManualSprayState(prev => ({ ...prev, zone_a: msg === "OPEN" ? "spraying" : "stopped" }));
         }
       }
 
@@ -151,6 +146,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       // 다른 Zone들도 같은 패턴으로 처리 (ctrl-0005, ctrl-0006 등)
       // Zone B
       if (topic === "tansaeng/ctlr-0005/valve1/state") {
+        console.log(`[MQTT] zone_b 밸브 상태: ${msg} (${new Date().toLocaleTimeString()})`);
         setValveStatus(prev => ({
           ...prev,
           zone_b: { ...prev.zone_b, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
@@ -165,6 +161,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // Zone C
       if (topic === "tansaeng/ctlr-0006/valve1/state") {
+        console.log(`[MQTT] zone_c 밸브 상태: ${msg} (${new Date().toLocaleTimeString()})`);
         setValveStatus(prev => ({
           ...prev,
           zone_c: { ...prev.zone_c, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
@@ -179,6 +176,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // Zone D
       if (topic === "tansaeng/ctlr-0007/valve1/state") {
+        console.log(`[MQTT] zone_d 밸브 상태: ${msg} (${new Date().toLocaleTimeString()})`);
         setValveStatus(prev => ({
           ...prev,
           zone_d: { ...prev.zone_d, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
@@ -193,6 +191,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
       // Zone E
       if (topic === "tansaeng/ctlr-0008/valve1/state") {
+        console.log(`[MQTT] zone_e 밸브 상태: ${msg} (${new Date().toLocaleTimeString()})`);
         setValveStatus(prev => ({
           ...prev,
           zone_e: { ...prev.zone_e, valveState: msg === "OPEN" ? "OPEN" : "CLOSE", lastUpdated: new Date().toLocaleTimeString() }
@@ -204,17 +203,42 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       if (topic === "tansaeng/ctlr-0008/status") {
         setValveStatus(prev => ({ ...prev, zone_e: { ...prev.zone_e, online: msg === "online", lastUpdated: new Date().toLocaleTimeString() } }));
       }
+
+      // valve1/cmd 수신: 데몬(AUTO) 또는 수동(MANUAL) 명령을 모든 구독자가 수신
+      const CMD_ZONE_MAP: Record<string, string> = {
+        "tansaeng/ctlr-0004/valve1/cmd": "zone_a",
+        "tansaeng/ctlr-0005/valve1/cmd": "zone_b",
+        "tansaeng/ctlr-0006/valve1/cmd": "zone_c",
+        "tansaeng/ctlr-0007/valve1/cmd": "zone_d",
+        "tansaeng/ctlr-0008/valve1/cmd": "zone_e",
+      };
+      if (CMD_ZONE_MAP[topic]) {
+        const zoneId = CMD_ZONE_MAP[topic];
+        // 데몬: 'OPEN'/'CLOSE' (plain) / 수동: '{"power":"OPEN"}' (JSON)
+        let cmd = msg;
+        try { cmd = (JSON.parse(msg) as { power: string }).power ?? msg; } catch { /* plain text */ }
+        const isOpen = cmd.toUpperCase() === "OPEN";
+
+        if (getZoneMode(zoneId) === "MANUAL") {
+          // MANUAL: 버튼 클릭 즉시 이미 LED 업데이트됨 → 콘솔만 출력
+          console.log(`📤 Published to ${topic}: ${cmd}`);
+        } else {
+          // AUTO: 콘솔 출력 + LED 실시간 업데이트
+          console.log(`📤 Published to ${topic}: ${cmd}`);
+          setManualSprayState(prev => ({ ...prev, [zoneId]: isOpen ? "spraying" : "stopped" }));
+        }
+      }
     };
 
     client.on("message", handleMessage);
 
     // 토픽 구독
     const topics = [
-      "tansaeng/ctlr-0004/valve1/state", "tansaeng/ctlr-0004/status",
-      "tansaeng/ctlr-0005/valve1/state", "tansaeng/ctlr-0005/status",
-      "tansaeng/ctlr-0006/valve1/state", "tansaeng/ctlr-0006/status",
-      "tansaeng/ctlr-0007/valve1/state", "tansaeng/ctlr-0007/status",
-      "tansaeng/ctlr-0008/valve1/state", "tansaeng/ctlr-0008/status",
+      "tansaeng/ctlr-0004/valve1/state", "tansaeng/ctlr-0004/status", "tansaeng/ctlr-0004/valve1/cmd",
+      "tansaeng/ctlr-0005/valve1/state", "tansaeng/ctlr-0005/status", "tansaeng/ctlr-0005/valve1/cmd",
+      "tansaeng/ctlr-0006/valve1/state", "tansaeng/ctlr-0006/status", "tansaeng/ctlr-0006/valve1/cmd",
+      "tansaeng/ctlr-0007/valve1/state", "tansaeng/ctlr-0007/status", "tansaeng/ctlr-0007/valve1/cmd",
+      "tansaeng/ctlr-0008/valve1/state", "tansaeng/ctlr-0008/status", "tansaeng/ctlr-0008/valve1/cmd",
     ];
 
     topics.forEach(topic => {
@@ -251,7 +275,6 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     // OFF 모드로 변경 시 상태 초기화
     if (newMode === "OFF") {
       setManualSprayState(prev => ({ ...prev, [zoneId]: "idle" }));
-      setAutoCycleState(prev => ({ ...prev, [zoneId]: "idle" }));
       // AUTO 사이클 타이머 중지
       if (cycleTimers.current[zoneId]) {
         if (cycleTimers.current[zoneId].stopTimer) clearTimeout(cycleTimers.current[zoneId].stopTimer!);
@@ -302,6 +325,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         body: JSON.stringify({
           mist_zones: {
             [zoneId]: {
+              name: zone.name,
               mode: zone.mode,
               controllerId: zone.controllerId,
               deviceId: 'valve1',
@@ -364,71 +388,6 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       if (timer.sprayTimer) clearTimeout(timer.sprayTimer);
       timer.isRunning = false;
     }
-    setAutoCycleState(prev => ({ ...prev, [zoneId]: "idle" }));
-  };
-
-  // AUTO 사이클 시작 함수 (정지대기 → 분무 → 반복)
-  const startAutoCycle = (zone: MistZoneConfig, schedule: MistScheduleSettings) => {
-    const zoneId = zone.id;
-    const controllerId = zone.controllerId;
-    if (!controllerId) return;
-
-    const cmdTopic = getValveCmdTopic(controllerId);
-    const sprayDuration = (schedule.sprayDurationSeconds ?? 0) * 1000; // ms
-    const stopDuration = (schedule.stopDurationSeconds ?? 0) * 1000;   // ms
-
-    console.log(`[AUTO] Starting cycle for ${zone.name}`);
-    console.log(`[AUTO] Topic: ${cmdTopic}`);
-    console.log(`[AUTO] Spray: ${sprayDuration/1000}s, Stop: ${stopDuration/1000}s`);
-    console.log(`[AUTO] MQTT Connected: ${isMqttConnected()}`);
-
-    // 기존 타이머 정리
-    stopAutoCycle(zoneId);
-
-    // 타이머 초기화
-    cycleTimers.current[zoneId] = {
-      stopTimer: null,
-      sprayTimer: null,
-      isRunning: true,
-    };
-
-    const runCycle = () => {
-      if (!cycleTimers.current[zoneId]?.isRunning) return;
-
-      // MQTT 연결 확인
-      if (!isMqttConnected()) {
-        console.error(`[AUTO] MQTT not connected! Retrying in 3 seconds...`);
-        cycleTimers.current[zoneId].stopTimer = setTimeout(runCycle, 3000);
-        return;
-      }
-
-      // 1. 정지 대기 (밸브 닫힘)
-      console.log(`[AUTO] ${zone.name}: Sending CLOSE to ${cmdTopic}`);
-      publishCommand(cmdTopic, { power: "CLOSE" });
-      setAutoCycleState(prev => ({ ...prev, [zoneId]: "waiting" }));
-      // manualSprayState도 업데이트 (LED 표시용)
-      setManualSprayState(prev => ({ ...prev, [zoneId]: "stopped" }));
-
-      cycleTimers.current[zoneId].stopTimer = setTimeout(() => {
-        if (!cycleTimers.current[zoneId]?.isRunning) return;
-
-        // 2. 분무 (밸브 열림)
-        console.log(`[AUTO] ${zone.name}: Sending OPEN to ${cmdTopic}`);
-        publishCommand(cmdTopic, { power: "OPEN" });
-        setAutoCycleState(prev => ({ ...prev, [zoneId]: "spraying" }));
-        // manualSprayState도 업데이트 (LED 표시용)
-        setManualSprayState(prev => ({ ...prev, [zoneId]: "spraying" }));
-
-        cycleTimers.current[zoneId].sprayTimer = setTimeout(() => {
-          if (!cycleTimers.current[zoneId]?.isRunning) return;
-          // 3. 다음 사이클 시작
-          runCycle();
-        }, sprayDuration);
-      }, stopDuration);
-    };
-
-    // 사이클 시작
-    runCycle();
   };
 
   // 현재 시간대에 맞는 스케줄 가져오기
@@ -481,17 +440,27 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     }
 
     if (zone.mode === "AUTO") {
-      // 현재 시간대에 맞는 스케줄 확인
-      const schedule = getCurrentSchedule(zone);
-      if (!schedule) {
-        alert("현재 시간대에 활성화된 스케줄이 없습니다. 주간/야간 설정을 확인해주세요.");
+      // 스케줄이 하나도 활성화되지 않은 경우에만 차단
+      if (!zone.daySchedule.enabled && !zone.nightSchedule.enabled) {
+        alert("주간 또는 야간 스케줄을 하나 이상 활성화한 후 저장해주세요.");
         return;
       }
 
-      // AUTO 사이클 시작
-      startAutoCycle(zone, schedule);
+      // AUTO 모드: isRunning=true를 서버에 저장 → 데몬이 스케줄 시간에 맞춰 자동 실행
+      const updatedZoneAuto = { ...zone, isRunning: true };
       updateZone(zone.id, { isRunning: true });
-      alert(`${zone.name} AUTO 사이클을 시작합니다.\n정지대기 ${schedule.stopDurationSeconds ?? 0}초 → 분무 ${schedule.sprayDurationSeconds ?? 0}초 → 반복`);
+      saveSettingsToServer(zone.id, updatedZoneAuto);
+
+      // LED 즉시 반영 (MQTT 피드백 오기 전까지 낙관적 표시)
+      // 데몬은 사이클 시작 시 분무(OPEN)부터 시작하므로 "spraying"으로 초기화
+      setManualSprayState(prev => ({ ...prev, [zone.id]: "spraying" }));
+
+      const schedule = getCurrentSchedule(zone);
+      if (schedule) {
+        alert(`${zone.name} AUTO 사이클을 시작합니다.\n정지대기 ${schedule.stopDurationSeconds ?? 0}초 → 분무 ${schedule.sprayDurationSeconds ?? 0}초 → 반복`);
+      } else {
+        alert(`${zone.name} AUTO 대기 중입니다.\n스케줄 시간이 되면 자동으로 시작됩니다.`);
+      }
     } else {
       // MANUAL 모드: 실제 밸브 OPEN 명령 전송
       const cmdTopic = getValveCmdTopic(zone.controllerId);
@@ -564,7 +533,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     // UI 상태 업데이트
     setManualSprayState(prev => ({ ...prev, [zone.id]: "spraying" }));
 
-    console.log(`[MQTT] Published to ${cmdTopic}: OPEN`);
+    // isRunning 상태 저장 → mist_logs 기록 트리거
+    updateZone(zone.id, { isRunning: true });
+    saveSettingsToServer(zone.id, { ...zone, isRunning: true });
+
+    // cmd 토픽 구독 echo로 콘솔 출력됨 (중복 방지를 위해 여기선 생략)
   };
 
   // 수동 분무 중지 - ESP32에 직접 명령
@@ -584,7 +557,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     // UI 상태 업데이트
     setManualSprayState(prev => ({ ...prev, [zone.id]: "stopped" }));
 
-    console.log(`[MQTT] Published to ${cmdTopic}: CLOSE`);
+    // isRunning 상태 저장 → mist_logs 기록 트리거
+    updateZone(zone.id, { isRunning: false });
+    saveSettingsToServer(zone.id, { ...zone, isRunning: false });
+
+    // cmd 토픽 구독 echo로 콘솔 출력됨 (중복 방지를 위해 여기선 생략)
   };
 
   const getModeColor = (mode: MistMode) => {
@@ -594,17 +571,12 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   };
 
   // LED 상태 컴포넌트
-  const LedIndicator = ({ state, zoneId, controllerId, mode }: { state: "spraying" | "stopped" | "idle"; zoneId: string; controllerId?: string; mode?: MistMode }) => {
+  const LedIndicator = ({ state, zoneId, controllerId }: { state: "spraying" | "stopped" | "idle"; zoneId: string; controllerId?: string }) => {
     const status = valveStatus[zoneId];
     // API 폴링에서 가져온 ESP32 연결 상태 사용 (즉시 반영)
     const isOnline = controllerId ? esp32Status[controllerId] === true : (status?.online ?? false);
-    const valveState = status?.valveState ?? "UNKNOWN";
-
-    // MANUAL 모드에서는 사용자 제어 상태만 사용 (ESP32 상태 무시)
-    // AUTO 모드에서만 ESP32 실제 상태 반영
-    const actualState = mode === "MANUAL"
-      ? state
-      : (valveState === "OPEN" ? "spraying" : valveState === "CLOSE" ? "stopped" : state);
+    // manualSprayState를 항상 사용 (MANUAL/AUTO 모두 동일하게 반영됨)
+    const actualState = state;
 
     if (actualState === "spraying") {
       return (
@@ -703,7 +675,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
               {/* MANUAL 모드: 컴팩트 버튼 */}
               {zone.mode === "MANUAL" && (
                 <div className="space-y-2">
-                  <LedIndicator state={sprayState} zoneId={zone.id} controllerId={zone.controllerId} mode={zone.mode} />
+                  <LedIndicator state={sprayState} zoneId={zone.id} controllerId={zone.controllerId} />
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleManualSpray(zone)}
@@ -922,7 +894,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                     <SavedSettingsDisplay schedule={zone.nightSchedule} label="🌙 야간" />
                   </div>
 
-                  {/* LED 상태 표시 (AUTO 모드) */}
+                  {/* LED 상태 표시 - MANUAL과 동일하게 mode 전달 */}
                   <div className="mb-4">
                     <LedIndicator
                       state={manualSprayState[zone.id] || "idle"}
@@ -930,43 +902,6 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                       controllerId={zone.controllerId}
                     />
                   </div>
-
-                  {/* AUTO 사이클 상태 표시 */}
-                  {zone.isRunning && (
-                    <div className={`mb-4 p-3 rounded-lg border flex items-center gap-3 ${
-                      autoCycleState[zone.id] === "spraying"
-                        ? "bg-green-100 border-green-300"
-                        : autoCycleState[zone.id] === "waiting"
-                        ? "bg-yellow-100 border-yellow-300"
-                        : "bg-gray-100 border-gray-300"
-                    }`}>
-                      <div className="relative">
-                        <div className={`w-4 h-4 rounded-full ${
-                          autoCycleState[zone.id] === "spraying"
-                            ? "bg-green-500 animate-pulse"
-                            : autoCycleState[zone.id] === "waiting"
-                            ? "bg-yellow-500"
-                            : "bg-gray-400"
-                        }`}></div>
-                        {autoCycleState[zone.id] === "spraying" && (
-                          <div className="absolute inset-0 w-4 h-4 bg-green-400 rounded-full animate-ping opacity-75"></div>
-                        )}
-                      </div>
-                      <span className={`font-semibold ${
-                        autoCycleState[zone.id] === "spraying"
-                          ? "text-green-700"
-                          : autoCycleState[zone.id] === "waiting"
-                          ? "text-yellow-700"
-                          : "text-gray-600"
-                      }`}>
-                        {autoCycleState[zone.id] === "spraying"
-                          ? "💧 분무 중..."
-                          : autoCycleState[zone.id] === "waiting"
-                          ? "⏳ 정지 대기 중..."
-                          : "대기"}
-                      </span>
-                    </div>
-                  )}
 
                   {/* 제어 버튼들 */}
                   <div className="grid grid-cols-3 gap-3">

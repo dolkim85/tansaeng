@@ -1,5 +1,7 @@
+import { useState } from "react";
 import type { FarmSettings } from "../types";
 import { DEVICES } from "../config/devices";
+import { saveFarmSettings } from "../api/deviceControl";
 
 interface SettingsProps {
   farmSettings: FarmSettings;
@@ -7,6 +9,24 @@ interface SettingsProps {
 }
 
 export default function Settings({ farmSettings, setFarmSettings }: SettingsProps) {
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  const handleSave = async () => {
+    setSaveStatus("saving");
+    const result = await saveFarmSettings({
+      farmName: farmSettings.farmName,
+      adminName: farmSettings.adminName,
+      notes: farmSettings.notes,
+    });
+    if (result.success) {
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2500);
+    } else {
+      setSaveStatus("error");
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    }
+  };
+
   const mqttHost = import.meta.env.VITE_MQTT_HOST || "미설정";
   const mqttPort = import.meta.env.VITE_MQTT_WS_PORT || "미설정";
   const mqttUsername = import.meta.env.VITE_MQTT_USERNAME || "미설정";
@@ -186,9 +206,23 @@ export default function Settings({ farmSettings, setFarmSettings }: SettingsProp
               />
             </div>
             <button
-              className="w-full bg-farm-500 hover:bg-farm-600 text-gray-900 font-medium px-4 py-2 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
+              onClick={handleSave}
+              disabled={saveStatus === "saving"}
+              className={`w-full font-medium px-4 py-2 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70 ${
+                saveStatus === "saved"
+                  ? "bg-green-500 text-white"
+                  : saveStatus === "error"
+                  ? "bg-red-500 text-white"
+                  : "bg-farm-500 hover:bg-farm-600 text-gray-900"
+              }`}
             >
-              저장
+              {saveStatus === "saving"
+                ? "저장 중..."
+                : saveStatus === "saved"
+                ? "저장됨 ✓"
+                : saveStatus === "error"
+                ? "저장 실패 — 다시 시도"
+                : "저장"}
             </button>
           </div>
         </div>
