@@ -5,3 +5,6 @@ dist_new/
 *.log
 .DS_Store
 /index.html
+vendor/
+uploads/
+config/realtime_sensor.json
