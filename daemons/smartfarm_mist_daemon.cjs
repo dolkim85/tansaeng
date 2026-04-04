@@ -12,7 +12,8 @@
 const mqtt  = require('mqtt');
 const fs    = require('fs');
 const path  = require('path');
-const https = require('https');
+const https = require("https");
+const http  = require("http");
 
 // ─── 설정 ────────────────────────────────────────────────────────────────────
 const MQTT_HOST     = '22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud';
@@ -64,7 +65,7 @@ function saveMistLog(zoneId, zoneName, eventType, mode) {
   try {
     const body = JSON.stringify({ zone_id: zoneId, zone_name: zoneName, event_type: eventType, mode });
     const req = https.request({
-      hostname: '1.201.17.34',
+      hostname: 'www.tansaeng.com',
       path:     '/api/smartfarm/save_mist_log.php',
       method:   'POST',
       headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
