@@ -148,6 +148,10 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [fanAutoActive, setFanAutoActive] = useState(false);
   const fanDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({});
   const fanRangesFromMqttRef = useRef(false);
+  const [fanAutoSensor, setFanAutoSensor] = useState<"temp" | "humi">("temp");
+  const fanAutoSensorRef = useRef<"temp" | "humi">("temp");
+  const [fanHumRanges, setFanHumRanges] = useState<Record<string, { low: number; high: number }>>({});
+  const fanHumRangesFromMqttRef = useRef(false);
 
   // 게이지별 마지막 저장 시각 (DB)
   const [rangesSavedAt, setRangesSavedAt] = useState<Record<string, string>>({});
@@ -183,6 +187,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [sideMode, setSideMode] = useState<"AUTO" | "MANUAL">("MANUAL");
   const sideModeRef = useRef<"AUTO" | "MANUAL">("MANUAL");
   const [sideAutoActive, setSideAutoActive] = useState(false);
+  const [sideAutoSensor, setSideAutoSensor] = useState<"temp" | "humi">("temp");
+  const sideAutoSensorRef = useRef<"temp" | "humi">("temp");
   // 온도-개도율 매핑 포인트 (온도 오름차순 유지)
   const [sideTempPoints, setSideTempPoints] = useState<Array<{ temp: number; rate: number }>>([
     { temp: 20, rate: 10 },
@@ -191,6 +197,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   ]);
   const sideTempPointsFromMqttRef = useRef(false);
   const sideTempPointsFirstRunRef = useRef(true);
+  // 습도-개도율 매핑 포인트
+  const [sideHumPoints, setSideHumPoints] = useState<Array<{ humi: number; rate: number }>>([
+    { humi: 60, rate: 10 },
+    { humi: 70, rate: 30 },
+    { humi: 80, rate: 100 },
+  ]);
+  const sideHumPointsFromMqttRef = useRef(false);
+  const sideHumPointsFirstRunRef = useRef(true);
   // 마지막 전송 개도율 추적 (중복/히스테리시스 방지)
   const sideLastTargetRef = useRef<Record<string, number | null>>({});
 
@@ -371,6 +385,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           }
         } catch {}
       }),
+      subscribeToTopic("tansaeng/fan-control/autoSensor", (v) => {
+        if (v === "temp" || v === "humi") { fanAutoSensorRef.current = v; setFanAutoSensor(v); }
+      }),
+      subscribeToTopic("tansaeng/fan-control/humRanges", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed && typeof parsed === "object") { fanHumRangesFromMqttRef.current = true; setFanHumRanges(parsed); }
+        } catch {}
+      }),
     ];
     return () => unsubs.forEach(u => u());
   }, []);
@@ -434,16 +457,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     });
   }, [farmSensors, hpDeviceRanges, hpAutoActive, hpMode]);
 
-  // 팬 AUTO 모드 제어 로직 — avgTemp가 설정 범위 안에 있으면 ON, 벗어나면 OFF
+  // 팬 AUTO 모드 제어 로직 — 선택된 센서(온도/습도) 범위 안에 있으면 ON, 벗어나면 OFF
   useEffect(() => {
     if (fanModeRef.current !== "AUTO") return;
     if (!fanAutoActive) return;
-    const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
-    if (temps.length === 0) return;
-    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+    const useHumi = fanAutoSensorRef.current === "humi";
+    const values = useHumi
+      ? [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[]
+      : [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+    if (values.length === 0) return;
+    const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
     fans.forEach((fan) => {
-      const range = fanDeviceRanges[fan.id] ?? { low: 15, high: 22 };
-      const inRange = avgTemp >= range.low && avgTemp <= range.high;
+      const range = useHumi
+        ? (fanHumRanges[fan.id] ?? { low: 60, high: 80 })
+        : (fanDeviceRanges[fan.id] ?? { low: 15, high: 22 });
+      const inRange = avgValue >= range.low && avgValue <= range.high;
       const newCmd: "ON" | "OFF" = inRange ? "ON" : "OFF";
       if (fanDeviceLastCmd.current[fan.id] !== newCmd) {
         fanDeviceLastCmd.current[fan.id] = newCmd;
@@ -455,7 +483,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         sendDeviceCommand(fan.esp32Id, mqttDeviceId, newCmd);
       }
     });
-  }, [farmSensors, fanDeviceRanges, fanAutoActive]);
+  }, [farmSensors, fanDeviceRanges, fanHumRanges, fanAutoActive, fanAutoSensor]);
 
   // 팬 온도 범위 변경 시 MQTT retain 발행 (MQTT 복원에서 온 변경은 재발행 안함)
   useEffect(() => {
@@ -464,12 +492,26 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     getMqttClient().publish("tansaeng/fan-control/ranges", JSON.stringify(fanDeviceRanges), { qos: 1, retain: true });
   }, [fanDeviceRanges]);
 
+  // 팬 습도 범위 변경 시 MQTT retain 발행
+  useEffect(() => {
+    if (fanHumRangesFromMqttRef.current) { fanHumRangesFromMqttRef.current = false; return; }
+    if (Object.keys(fanHumRanges).length === 0) return;
+    getMqttClient().publish("tansaeng/fan-control/humRanges", JSON.stringify(fanHumRanges), { qos: 1, retain: true });
+  }, [fanHumRanges]);
+
   // HP 온도 범위 변경 시 MQTT retain 발행 (팬 제어와 동일 패턴)
   useEffect(() => {
     if (hpDeviceRangesFromMqttRef.current) { hpDeviceRangesFromMqttRef.current = false; return; }
     if (Object.keys(hpDeviceRanges).length === 0) return; // 빈 초기값 → skip
     getMqttClient().publish("tansaeng/hp-control/ranges", JSON.stringify(hpDeviceRanges), { qos: 1, retain: true });
   }, [hpDeviceRanges]);
+
+  // 측창 습도 포인트 변경 시 MQTT retain 발행
+  useEffect(() => {
+    if (sideHumPointsFirstRunRef.current) { sideHumPointsFirstRunRef.current = false; return; }
+    if (sideHumPointsFromMqttRef.current) { sideHumPointsFromMqttRef.current = false; return; }
+    getMqttClient().publish("tansaeng/side-control/humPoints", JSON.stringify(sideHumPoints), { qos: 1, retain: true });
+  }, [sideHumPoints]);
 
   // 천창 MQTT 상태 구독 (retain으로 다른 브라우저 동기화)
   useEffect(() => {
@@ -691,6 +733,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         const n = Number(v);
         if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, sidescreen_right: n }));
       }),
+      subscribeToTopic("tansaeng/side-control/autoSensor", (v) => {
+        if (v === "temp" || v === "humi") { sideAutoSensorRef.current = v; setSideAutoSensor(v); }
+      }),
+      subscribeToTopic("tansaeng/side-control/humPoints", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (Array.isArray(parsed) && parsed.length > 0) { sideHumPointsFromMqttRef.current = true; setSideHumPoints(parsed); }
+        } catch {}
+      }),
     ];
     return () => unsubs.forEach(u => u());
   }, []);
@@ -702,34 +753,53 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     getMqttClient().publish("tansaeng/side-control/tempPoints", JSON.stringify(sideTempPoints), { qos: 1, retain: true });
   }, [sideTempPoints]);
 
-  // 측창 AUTO 제어 로직 — 평균온도→개도율 계산 후 자동 이동
+  // 측창 AUTO 제어 로직 — 선택된 센서(온도/습도)→개도율 계산 후 자동 이동
   useEffect(() => {
     if (sideModeRef.current !== "AUTO") return;
     if (!sideAutoActive) return;
-    const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
-    if (temps.length === 0) return;
-    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+    const useHumi = sideAutoSensorRef.current === "humi";
 
-    // 온도→개도율 선형 보간
-    const sorted = [...sideTempPoints].sort((a, b) => a.temp - b.temp);
     let targetRate = 0;
-    if (avgTemp < sorted[0].temp) {
-      targetRate = 0;
-    } else if (avgTemp >= sorted[sorted.length - 1].temp) {
-      targetRate = 100;
+    let sensorLabel = "";
+
+    if (useHumi) {
+      const humis = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
+      if (humis.length === 0) return;
+      const avgHumi = humis.reduce((a, b) => a + b, 0) / humis.length;
+      sensorLabel = `습도${avgHumi.toFixed(0)}%`;
+      const sorted = [...sideHumPoints].sort((a, b) => a.humi - b.humi);
+      if (avgHumi < sorted[0].humi) targetRate = 0;
+      else if (avgHumi >= sorted[sorted.length - 1].humi) targetRate = 100;
+      else {
+        for (let i = 0; i < sorted.length - 1; i++) {
+          if (avgHumi >= sorted[i].humi && avgHumi < sorted[i + 1].humi) {
+            const ratio = (avgHumi - sorted[i].humi) / (sorted[i + 1].humi - sorted[i].humi);
+            targetRate = Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
+            break;
+          }
+        }
+      }
     } else {
-      for (let i = 0; i < sorted.length - 1; i++) {
-        if (avgTemp >= sorted[i].temp && avgTemp < sorted[i + 1].temp) {
-          const ratio = (avgTemp - sorted[i].temp) / (sorted[i + 1].temp - sorted[i].temp);
-          targetRate = Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
-          break;
+      const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+      if (temps.length === 0) return;
+      const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+      sensorLabel = `온도${avgTemp.toFixed(1)}°`;
+      const sorted = [...sideTempPoints].sort((a, b) => a.temp - b.temp);
+      if (avgTemp < sorted[0].temp) targetRate = 0;
+      else if (avgTemp >= sorted[sorted.length - 1].temp) targetRate = 100;
+      else {
+        for (let i = 0; i < sorted.length - 1; i++) {
+          if (avgTemp >= sorted[i].temp && avgTemp < sorted[i + 1].temp) {
+            const ratio = (avgTemp - sorted[i].temp) / (sorted[i + 1].temp - sorted[i].temp);
+            targetRate = Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
+            break;
+          }
         }
       }
     }
 
     sidescreens.forEach((sidescreen) => {
       const lastTarget = sideLastTargetRef.current[sidescreen.id] ?? null;
-      // 히스테리시스: 마지막 목표와 2% 미만 차이면 무시
       if (lastTarget !== null && Math.abs(targetRate - lastTarget) < 2) return;
 
       const currentPos = currentPosition[sidescreen.id] ?? 0;
@@ -738,7 +808,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
       sideLastTargetRef.current[sidescreen.id] = targetRate;
 
-      // 기존 타이머 취소
       if (percentageTimers.current[sidescreen.id]) {
         clearTimeout(percentageTimers.current[sidescreen.id]);
         delete percentageTimers.current[sidescreen.id];
@@ -746,12 +815,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
       setOperationStatus(prev => ({ ...prev, [sidescreen.id]: 'running' }));
 
-      const fullTimeSeconds = 120; // ctlr-0021: 2분
+      const fullTimeSeconds = 120;
       const targetTimeSeconds = (Math.abs(difference) / 100) * fullTimeSeconds;
       const command = difference > 0 ? "OPEN" : "CLOSE";
       const mqttDeviceId = sidescreen.commandTopic.split('/')[2];
 
-      console.log(`[SIDE AUTO] ${sidescreen.name} 온도${avgTemp.toFixed(1)}°→${targetRate}% (현재:${currentPos}%, ${targetTimeSeconds.toFixed(1)}초 ${command})`);
+      console.log(`[SIDE AUTO] ${sidescreen.name} ${sensorLabel}→${targetRate}% (현재:${currentPos}%, ${targetTimeSeconds.toFixed(1)}초 ${command})`);
 
       sendDeviceCommand(sidescreen.esp32Id, mqttDeviceId, command).then(() => {
         percentageTimers.current[sidescreen.id] = setTimeout(async () => {
@@ -763,7 +832,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         }, targetTimeSeconds * 1000);
       });
     });
-  }, [farmSensors, sideTempPoints, sideAutoActive]);
+  }, [farmSensors, sideTempPoints, sideHumPoints, sideAutoActive, sideAutoSensor]);
 
   // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
@@ -1848,71 +1917,154 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
               );
             })()}
 
-            {/* AUTO 모드: 온도-개도율 설정 테이블 */}
+            {/* AUTO 모드: 센서 선택 + 포인트 설정 */}
             {sideMode === "AUTO" && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mb-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] sm:text-xs font-semibold text-gray-700">온도-개도율 설정</p>
-                  <button
-                    onClick={() => setSideTempPoints(prev => {
-                      const sorted = [...prev].sort((a, b) => a.temp - b.temp);
-                      const lastTemp = sorted[sorted.length - 1]?.temp ?? 20;
-                      return [...sorted, { temp: lastTemp + 3, rate: 100 }];
-                    })}
-                    className="text-[10px] px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                  >
-                    + 포인트 추가
-                  </button>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mb-3 space-y-3">
+                {/* 센서 선택 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] sm:text-xs font-semibold text-gray-700">제어 기준:</span>
+                  <div className="flex rounded overflow-hidden border border-gray-300">
+                    {(["temp", "humi"] as const).map(s => (
+                      <button
+                        key={s}
+                        onClick={() => {
+                          sideAutoSensorRef.current = s;
+                          setSideAutoSensor(s);
+                          sideLastTargetRef.current = {};
+                          getMqttClient().publish("tansaeng/side-control/autoSensor", s, { qos: 1, retain: true });
+                        }}
+                        className={`px-3 py-1 text-xs font-semibold transition-colors ${sideAutoSensor === s ? "bg-blue-500 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                      >
+                        {s === "temp" ? "🌡 온도" : "💧 습도"}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-gray-500">{sideAutoSensor === "temp" ? "°C 기준" : "%RH 기준"}</span>
                 </div>
-                <div className="text-[9px] text-gray-500 mb-2">
-                  설정 온도 미만 → 0% 닫힘 / 최고 온도 이상 → 100% 완전 개방
-                </div>
-                <div className="space-y-1.5">
-                  {[...sideTempPoints]
-                    .sort((a, b) => a.temp - b.temp)
-                    .map((point, idx) => (
-                    <div key={idx} className="flex items-center gap-2 bg-white rounded p-1.5">
-                      <span className="text-[10px] text-gray-500 w-4">{idx + 1}</span>
-                      <div className="flex items-center gap-1 flex-1">
-                        <span className="text-[10px] text-gray-600">온도</span>
-                        <input
-                          type="number"
-                          value={point.temp}
-                          onChange={(e) => {
-                            const newPoints = [...sideTempPoints];
-                            const realIdx = sideTempPoints.indexOf(point);
-                            newPoints[realIdx] = { ...point, temp: Number(e.target.value) };
-                            setSideTempPoints(newPoints);
-                          }}
-                          className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
-                        />
-                        <span className="text-[10px] text-gray-600">°C →</span>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={point.rate}
-                          onChange={(e) => {
-                            const newPoints = [...sideTempPoints];
-                            const realIdx = sideTempPoints.indexOf(point);
-                            newPoints[realIdx] = { ...point, rate: Math.min(100, Math.max(0, Number(e.target.value))) };
-                            setSideTempPoints(newPoints);
-                          }}
-                          className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
-                        />
-                        <span className="text-[10px] text-gray-600">% 개방</span>
-                      </div>
-                      {sideTempPoints.length > 2 && (
-                        <button
-                          onClick={() => setSideTempPoints(prev => prev.filter((_, i) => i !== sideTempPoints.indexOf(point)))}
-                          className="text-[10px] text-red-500 hover:text-red-700 px-1"
-                        >
-                          ✕
-                        </button>
-                      )}
+
+                {/* 온도 포인트 설정 */}
+                {sideAutoSensor === "temp" && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] sm:text-xs font-semibold text-gray-700">온도-개도율 설정</p>
+                      <button
+                        onClick={() => setSideTempPoints(prev => {
+                          const sorted = [...prev].sort((a, b) => a.temp - b.temp);
+                          const lastTemp = sorted[sorted.length - 1]?.temp ?? 20;
+                          return [...sorted, { temp: lastTemp + 3, rate: 100 }];
+                        })}
+                        className="text-[10px] px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                      >
+                        + 포인트 추가
+                      </button>
                     </div>
-                  ))}
-                </div>
+                    <div className="text-[9px] text-gray-500">
+                      설정 온도 미만 → 0% 닫힘 / 최고 온도 이상 → 100% 완전 개방
+                    </div>
+                    <div className="space-y-1.5">
+                      {[...sideTempPoints].sort((a, b) => a.temp - b.temp).map((point, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-white rounded p-1.5">
+                          <span className="text-[10px] text-gray-500 w-4">{idx + 1}</span>
+                          <div className="flex items-center gap-1 flex-1">
+                            <span className="text-[10px] text-gray-600">온도</span>
+                            <input
+                              type="number"
+                              value={point.temp}
+                              onChange={(e) => {
+                                const newPoints = [...sideTempPoints];
+                                const realIdx = sideTempPoints.indexOf(point);
+                                newPoints[realIdx] = { ...point, temp: Number(e.target.value) };
+                                setSideTempPoints(newPoints);
+                              }}
+                              className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                            />
+                            <span className="text-[10px] text-gray-600">°C →</span>
+                            <input
+                              type="number" min="0" max="100"
+                              value={point.rate}
+                              onChange={(e) => {
+                                const newPoints = [...sideTempPoints];
+                                const realIdx = sideTempPoints.indexOf(point);
+                                newPoints[realIdx] = { ...point, rate: Math.min(100, Math.max(0, Number(e.target.value))) };
+                                setSideTempPoints(newPoints);
+                              }}
+                              className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                            />
+                            <span className="text-[10px] text-gray-600">% 개방</span>
+                          </div>
+                          {sideTempPoints.length > 2 && (
+                            <button
+                              onClick={() => setSideTempPoints(prev => prev.filter((_, i) => i !== sideTempPoints.indexOf(point)))}
+                              className="text-[10px] text-red-500 hover:text-red-700 px-1"
+                            >✕</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* 습도 포인트 설정 */}
+                {sideAutoSensor === "humi" && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] sm:text-xs font-semibold text-gray-700">습도-개도율 설정</p>
+                      <button
+                        onClick={() => setSideHumPoints(prev => {
+                          const sorted = [...prev].sort((a, b) => a.humi - b.humi);
+                          const lastHumi = sorted[sorted.length - 1]?.humi ?? 60;
+                          return [...sorted, { humi: Math.min(100, lastHumi + 5), rate: 100 }];
+                        })}
+                        className="text-[10px] px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                      >
+                        + 포인트 추가
+                      </button>
+                    </div>
+                    <div className="text-[9px] text-gray-500">
+                      설정 습도 미만 → 0% 닫힘 / 최고 습도 이상 → 100% 완전 개방
+                    </div>
+                    <div className="space-y-1.5">
+                      {[...sideHumPoints].sort((a, b) => a.humi - b.humi).map((point, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-white rounded p-1.5">
+                          <span className="text-[10px] text-gray-500 w-4">{idx + 1}</span>
+                          <div className="flex items-center gap-1 flex-1">
+                            <span className="text-[10px] text-gray-600">습도</span>
+                            <input
+                              type="number" min="0" max="100"
+                              value={point.humi}
+                              onChange={(e) => {
+                                const newPoints = [...sideHumPoints];
+                                const realIdx = sideHumPoints.indexOf(point);
+                                newPoints[realIdx] = { ...point, humi: Math.min(100, Math.max(0, Number(e.target.value))) };
+                                setSideHumPoints(newPoints);
+                              }}
+                              className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                            />
+                            <span className="text-[10px] text-gray-600">%RH →</span>
+                            <input
+                              type="number" min="0" max="100"
+                              value={point.rate}
+                              onChange={(e) => {
+                                const newPoints = [...sideHumPoints];
+                                const realIdx = sideHumPoints.indexOf(point);
+                                newPoints[realIdx] = { ...point, rate: Math.min(100, Math.max(0, Number(e.target.value))) };
+                                setSideHumPoints(newPoints);
+                              }}
+                              className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                            />
+                            <span className="text-[10px] text-gray-600">% 개방</span>
+                          </div>
+                          {sideHumPoints.length > 2 && (
+                            <button
+                              onClick={() => setSideHumPoints(prev => prev.filter((_, i) => i !== sideHumPoints.indexOf(point)))}
+                              className="text-[10px] text-red-500 hover:text-red-700 px-1"
+                            >✕</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -2146,22 +2298,49 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
             {/* AUTO 모드: 장치별 개별 게이지 / MANUAL 모드: 장치 카드 */}
             {fanMode === "AUTO" ? (() => {
-              const GMIN = -10, GMAX = 50;
+              const useHumi = fanAutoSensor === "humi";
+              const GMIN = useHumi ? 0 : -10;
+              const GMAX = useHumi ? 100 : 50;
               const gRange = GMAX - GMIN;
               const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+              const humis = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
               const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
-              const markerPct = avgTemp !== null
-                ? Math.max(0, Math.min(100, ((avgTemp - GMIN) / gRange) * 100))
+              const avgHumi = humis.length > 0 ? humis.reduce((a, b) => a + b, 0) / humis.length : null;
+              const avgValue = useHumi ? avgHumi : avgTemp;
+              const markerPct = avgValue !== null
+                ? Math.max(0, Math.min(100, ((avgValue - GMIN) / gRange) * 100))
                 : null;
 
               return (
                 <div className="space-y-2 sm:space-y-3">
-                  {/* 현재온도 + 작동시작/멈춤 버튼 */}
+                  {/* 제어 센서 선택 */}
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    <span className="text-xs text-gray-600 font-medium">제어 기준:</span>
+                    <div className="flex rounded overflow-hidden border border-gray-300">
+                      {(["temp", "humi"] as const).map(s => (
+                        <button
+                          key={s}
+                          onClick={() => {
+                            fanAutoSensorRef.current = s;
+                            setFanAutoSensor(s);
+                            fanDeviceLastCmd.current = {};
+                            getMqttClient().publish("tansaeng/fan-control/autoSensor", s, { qos: 1, retain: true });
+                          }}
+                          className={`px-3 py-1 text-xs font-semibold transition-colors ${fanAutoSensor === s ? "bg-farm-500 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                        >
+                          {s === "temp" ? "🌡 온도" : "💧 습도"}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-gray-500">{useHumi ? "%RH 기준" : "°C 기준"}</span>
+                  </div>
+
+                  {/* 현재값 + 작동시작/멈춤 버튼 */}
                   <div className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2 gap-2">
                     <div className="text-xs text-gray-600">
-                      현재 평균온도:{" "}
+                      현재 {useHumi ? "평균습도" : "평균온도"}:{" "}
                       <span className="font-bold text-gray-800">
-                        {avgTemp !== null ? `${avgTemp.toFixed(1)}°C` : "—"}
+                        {avgValue !== null ? (useHumi ? `${avgValue.toFixed(0)}%RH` : `${avgValue.toFixed(1)}°C`) : "—"}
                       </span>
                     </div>
                     <div className="flex gap-2">
@@ -2206,9 +2385,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
                   {/* 장치별 게이지 */}
                   {fans.map((fan) => {
-                    const range = fanDeviceRanges[fan.id] ?? { low: 15, high: 22 };
+                    const range = useHumi
+                      ? (fanHumRanges[fan.id] ?? { low: 60, high: 80 })
+                      : (fanDeviceRanges[fan.id] ?? { low: 15, high: 22 });
                     const isOn = deviceState[fan.id]?.power === "on";
-                    const inRange = avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high;
+                    const inRange = avgValue !== null && avgValue >= range.low && avgValue <= range.high;
+                    const unit = useHumi ? "%" : "°C";
 
                     return (
                       <div key={fan.id} className="bg-green-50 border border-green-200 rounded-lg p-2.5 sm:p-3">
@@ -2223,39 +2405,47 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                           </div>
                         </div>
 
-                        {/* 온도 범위 표시 */}
+                        {/* 범위 표시 */}
                         <div className="flex justify-between text-xs mb-1 px-3">
-                          <span className="text-farm-600 font-bold">{range.low.toFixed(1)}°C</span>
+                          <span className="text-farm-600 font-bold">{range.low.toFixed(1)}{unit}</span>
                           <span className="text-[10px] text-gray-400">
-                            {inRange ? "✅ 현재온도 범위 내" : "❌ 현재온도 범위 밖"}
+                            {inRange ? `✅ 현재 범위 내` : `❌ 현재 범위 밖`}
                           </span>
-                          <span className="text-red-600 font-bold">{range.high.toFixed(1)}°C</span>
+                          <span className="text-red-600 font-bold">{range.high.toFixed(1)}{unit}</span>
                         </div>
 
                         {/* 듀얼 핸들 슬라이더 */}
                         <DualRangeSlider
-                          min={GMIN} max={GMAX} step={0.5}
+                          min={GMIN} max={GMAX} step={useHumi ? 1 : 0.5}
                           low={range.low} high={range.high}
-                          onLowChange={(v) =>
-                            setFanDeviceRanges(prev => ({ ...prev, [fan.id]: { ...prev[fan.id] ?? { low: 15, high: 22 }, low: v } }))
+                          onLowChange={(v) => useHumi
+                            ? setFanHumRanges(prev => ({ ...prev, [fan.id]: { ...prev[fan.id] ?? { low: 60, high: 80 }, low: v } }))
+                            : setFanDeviceRanges(prev => ({ ...prev, [fan.id]: { ...prev[fan.id] ?? { low: 15, high: 22 }, low: v } }))
                           }
-                          onHighChange={(v) =>
-                            setFanDeviceRanges(prev => ({ ...prev, [fan.id]: { ...prev[fan.id] ?? { low: 15, high: 22 }, high: v } }))
+                          onHighChange={(v) => useHumi
+                            ? setFanHumRanges(prev => ({ ...prev, [fan.id]: { ...prev[fan.id] ?? { low: 60, high: 80 }, high: v } }))
+                            : setFanDeviceRanges(prev => ({ ...prev, [fan.id]: { ...prev[fan.id] ?? { low: 15, high: 22 }, high: v } }))
                           }
                           markerPct={markerPct}
                           isActive={inRange}
                         />
                         {/* 눈금 */}
                         <div className="flex justify-between text-[10px] text-gray-400 mx-3 mt-0.5">
-                          <span>-10°C</span><span>+20°C</span><span>+50°C</span>
+                          {useHumi
+                            ? <><span>0%</span><span>50%</span><span>100%</span></>
+                            : <><span>-10°C</span><span>+20°C</span><span>+50°C</span></>
+                          }
                         </div>
-                        {/* 저장 버튼 + 마지막 저장 시각 */}
+                        {/* 저장 버튼 */}
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-green-100">
                           <span className="text-[10px] text-gray-400">
                             {rangesSavedAt[fan.id] ? `저장: ${rangesSavedAt[fan.id]}` : "미저장"}
                           </span>
                           <button
-                            onClick={() => saveDeviceRange(fan.id, fan.name, range.low, range.high)}
+                            onClick={() => {
+                              if (!useHumi) saveDeviceRange(fan.id, fan.name, range.low, range.high);
+                              else getMqttClient().publish("tansaeng/fan-control/humRanges", JSON.stringify(fanHumRanges), { qos: 1, retain: true });
+                            }}
                             className="px-3 py-1 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
                           >
                             💾 저장
