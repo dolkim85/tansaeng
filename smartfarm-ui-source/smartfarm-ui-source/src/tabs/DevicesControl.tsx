@@ -394,6 +394,23 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           if (parsed && typeof parsed === "object") { fanHumRangesFromMqttRef.current = true; setFanHumRanges(parsed); }
         } catch {}
       }),
+      // 수동 ON/OFF 상태 복원 (다른 기기 동기화)
+      subscribeToTopic("tansaeng/fan-control/manualStates", (v) => {
+        try {
+          const parsed = JSON.parse(v) as Record<string, string>;
+          if (parsed && typeof parsed === "object") {
+            setDeviceState(prev => {
+              const next = { ...prev };
+              Object.entries(parsed).forEach(([fanId, power]) => {
+                if (power === "on" || power === "off") {
+                  next[fanId] = { ...next[fanId], power: power as "on" | "off" };
+                }
+              });
+              return next;
+            });
+          }
+        } catch {}
+      }),
     ];
     return () => unsubs.forEach(u => u());
   }, []);
@@ -906,6 +923,19 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             }
           });
           console.log(`[SETTINGS] Fan ${deviceId} saved to server`);
+
+          // 다른 기기와 ON/OFF 상태 동기화 (retain)
+          const updatedFanStates: Record<string, string> = {};
+          fans.forEach(f => {
+            updatedFanStates[f.id] = f.id === deviceId
+              ? (isOn ? "on" : "off")
+              : (deviceState[f.id]?.power ?? "off");
+          });
+          getMqttClient().publish(
+            "tansaeng/fan-control/manualStates",
+            JSON.stringify(updatedFanStates),
+            { qos: 1, retain: true }
+          );
         }
       } else {
         console.error(`[API ERROR] ${result.message}`);
