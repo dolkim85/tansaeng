@@ -1,119 +1,139 @@
 {
-  "fans": {
-    "fan_front": {
-      "mode": "OFF",
-      "power": "off",
-      "controllerId": "ctlr-0001",
-      "deviceId": "fan1"
+    "fans": {
+        "fan_front": {
+            "mode": "MANUAL",
+            "power": "off",
+            "controllerId": "ctlr-0001",
+            "deviceId": "fan1"
+        },
+        "fan_back": {
+            "mode": "MANUAL",
+            "power": "off",
+            "controllerId": "ctlr-0002",
+            "deviceId": "fan2"
+        },
+        "fan_top": {
+            "mode": "MANUAL",
+            "power": "off",
+            "controllerId": "ctlr-0003",
+            "deviceId": "fan_top"
+        },
+        "hp_fan": {
+            "mode": "MANUAL",
+            "power": "off",
+            "controllerId": "ctlr-heat-001",
+            "deviceId": "fan"
+        }
     },
-    "fan_back": {
-      "mode": "OFF",
-      "power": "off",
-      "controllerId": "ctlr-0002",
-      "deviceId": "fan2"
+    "mist_zones": {
+        "zone_a": {
+            "mode": "AUTO",
+            "controllerId": "ctlr-0004",
+            "deviceId": "valve1",
+            "isRunning": false,
+            "daySchedule": {
+                "enabled": true,
+                "startTime": "06:00",
+                "endTime": "18:00",
+                "sprayDurationSeconds": 20,
+                "stopDurationSeconds": 480
+            },
+            "nightSchedule": {
+                "enabled": true,
+                "startTime": "18:00",
+                "endTime": "06:00",
+                "sprayDurationSeconds": 20,
+                "stopDurationSeconds": 2000
+            },
+            "name": "구역A"
+        },
+        "zone_b": {
+            "mode": "OFF",
+            "controllerId": "",
+            "deviceId": "valve1",
+            "isRunning": false,
+            "daySchedule": {
+                "enabled": false,
+                "startTime": "06:00",
+                "endTime": "18:00",
+                "sprayDurationSeconds": null,
+                "stopDurationSeconds": null
+            },
+            "nightSchedule": {
+                "enabled": false,
+                "startTime": "18:00",
+                "endTime": "06:00",
+                "sprayDurationSeconds": null,
+                "stopDurationSeconds": null
+            }
+        },
+        "zone_c": {
+            "mode": "OFF",
+            "controllerId": "",
+            "deviceId": "valve1",
+            "isRunning": false,
+            "daySchedule": {
+                "enabled": true,
+                "startTime": "06:00",
+                "endTime": "18:00",
+                "sprayDurationSeconds": 15,
+                "stopDurationSeconds": 480
+            },
+            "nightSchedule": {
+                "enabled": true,
+                "startTime": "18:00",
+                "endTime": "06:00",
+                "sprayDurationSeconds": 8,
+                "stopDurationSeconds": 700
+            },
+            "name": "Zone C (테스트베드)"
+        },
+        "zone_d": {
+            "mode": "OFF",
+            "controllerId": "ctlr-0007",
+            "deviceId": "valve1",
+            "isRunning": false,
+            "daySchedule": {
+                "enabled": false,
+                "startTime": "06:00",
+                "endTime": "18:00",
+                "sprayDurationSeconds": 5,
+                "stopDurationSeconds": 10
+            },
+            "nightSchedule": {
+                "enabled": false,
+                "startTime": "18:00",
+                "endTime": "06:00",
+                "sprayDurationSeconds": 8,
+                "stopDurationSeconds": 5
+            }
+        },
+        "zone_e": {
+            "mode": "OFF",
+            "controllerId": "ctlr-0008",
+            "deviceId": "valve1",
+            "isRunning": false,
+            "daySchedule": {
+                "enabled": false,
+                "startTime": "06:00",
+                "endTime": "18:00",
+                "sprayDurationSeconds": 5,
+                "stopDurationSeconds": 10
+            },
+            "nightSchedule": {
+                "enabled": false,
+                "startTime": "18:00",
+                "endTime": "06:00",
+                "sprayDurationSeconds": 8,
+                "stopDurationSeconds": 5
+            }
+        }
+    },
+    "lastUpdated": "2026-04-03 10:31:44",
+    "screen_positions": {
+        "skylight_left": 100,
+        "skylight_right": 0,
+        "sidescreen_left": 0,
+        "sidescreen_right": 0
     }
-  },
-  "mist_zones": {
-    "zone_a": {
-      "mode": "OFF",
-      "controllerId": "ctlr-0004",
-      "deviceId": "valve1",
-      "isRunning": false,
-      "daySchedule": {
-        "enabled": false,
-        "startTime": "06:00",
-        "endTime": "18:00",
-        "sprayDurationSeconds": 5,
-        "stopDurationSeconds": 10
-      },
-      "nightSchedule": {
-        "enabled": false,
-        "startTime": "18:00",
-        "endTime": "06:00",
-        "sprayDurationSeconds": 8,
-        "stopDurationSeconds": 5
-      }
-    },
-    "zone_b": {
-      "mode": "OFF",
-      "controllerId": "ctlr-0005",
-      "deviceId": "valve1",
-      "isRunning": false,
-      "daySchedule": {
-        "enabled": false,
-        "startTime": "06:00",
-        "endTime": "18:00",
-        "sprayDurationSeconds": 5,
-        "stopDurationSeconds": 10
-      },
-      "nightSchedule": {
-        "enabled": false,
-        "startTime": "18:00",
-        "endTime": "06:00",
-        "sprayDurationSeconds": 8,
-        "stopDurationSeconds": 5
-      }
-    },
-    "zone_c": {
-      "mode": "OFF",
-      "controllerId": "ctlr-0006",
-      "deviceId": "valve1",
-      "isRunning": false,
-      "daySchedule": {
-        "enabled": false,
-        "startTime": "06:00",
-        "endTime": "18:00",
-        "sprayDurationSeconds": 5,
-        "stopDurationSeconds": 10
-      },
-      "nightSchedule": {
-        "enabled": false,
-        "startTime": "18:00",
-        "endTime": "06:00",
-        "sprayDurationSeconds": 8,
-        "stopDurationSeconds": 5
-      }
-    },
-    "zone_d": {
-      "mode": "OFF",
-      "controllerId": "ctlr-0007",
-      "deviceId": "valve1",
-      "isRunning": false,
-      "daySchedule": {
-        "enabled": false,
-        "startTime": "06:00",
-        "endTime": "18:00",
-        "sprayDurationSeconds": 5,
-        "stopDurationSeconds": 10
-      },
-      "nightSchedule": {
-        "enabled": false,
-        "startTime": "18:00",
-        "endTime": "06:00",
-        "sprayDurationSeconds": 8,
-        "stopDurationSeconds": 5
-      }
-    },
-    "zone_e": {
-      "mode": "OFF",
-      "controllerId": "ctlr-0008",
-      "deviceId": "valve1",
-      "isRunning": false,
-      "daySchedule": {
-        "enabled": false,
-        "startTime": "06:00",
-        "endTime": "18:00",
-        "sprayDurationSeconds": 5,
-        "stopDurationSeconds": 10
-      },
-      "nightSchedule": {
-        "enabled": false,
-        "startTime": "18:00",
-        "endTime": "06:00",
-        "sprayDurationSeconds": 8,
-        "stopDurationSeconds": 5
-      }
-    }
-  },
-  "lastUpdated": null
 }

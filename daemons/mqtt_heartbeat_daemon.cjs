@@ -54,7 +54,24 @@ async function initDB() {
     queueLimit: 0
   });
 
-  log('데이터베이스 연결 풀 생성 완료');
+  // MySQL 준비 완료까지 재시도 (최대 10회, 5초 간격)
+  const maxRetries = 10;
+  const retryDelay = 5000;
+  for (let i = 1; i <= maxRetries; i++) {
+    try {
+      const conn = await dbPool.getConnection();
+      conn.release();
+      log('데이터베이스 연결 성공 (시도 ' + i + '/' + maxRetries + ')');
+      return;
+    } catch (err) {
+      log('데이터베이스 연결 실패 (시도 ' + i + '/' + maxRetries + '): ' + err.message);
+      if (i < maxRetries) {
+        log((retryDelay / 1000) + '초 후 재시도...');
+        await new Promise(r => setTimeout(r, retryDelay));
+      }
+    }
+  }
+  throw new Error('MySQL에 ' + maxRetries + '번 연결 시도했으나 모두 실패했습니다.');
 }
 
 // ESP32 상태 업데이트 (device_status 테이블 사용)
