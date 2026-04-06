@@ -25,10 +25,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 try {
     $db = Database::getInstance();
 
+    date_default_timezone_set('Asia/Seoul');
+
     // 쿼리 파라미터
-    $startDate = $_GET['start_date'] ?? date('Y-m-d', strtotime('-7 days')); // 기본 7일 전
-    $endDate = $_GET['end_date'] ?? date('Y-m-d'); // 기본 오늘
-    $controllerId = $_GET['controller_id'] ?? null;
+    $startDatetime = $_GET['start_datetime'] ?? null; // YYYY-MM-DD HH:MM:SS (우선)
+    $endDatetime   = $_GET['end_datetime']   ?? null;
+    $startDate     = $_GET['start_date']     ?? date('Y-m-d', strtotime('-7 days'));
+    $endDate       = $_GET['end_date']       ?? date('Y-m-d');
+    $controllerId  = $_GET['controller_id']  ?? null;
     $sensorLocation = $_GET['sensor_location'] ?? null;
 
     // SQL 쿼리 생성
@@ -40,12 +44,26 @@ try {
                 humidity,
                 recorded_at
             FROM sensor_data
-            WHERE DATE(recorded_at) BETWEEN :start_date AND :end_date";
+            WHERE 1=1";
 
-    $params = [
-        'start_date' => $startDate,
-        'end_date' => $endDate
-    ];
+    $params = [];
+
+    // datetime 파라미터 우선 사용 (더 정확한 범위)
+    if ($startDatetime) {
+        $sql .= " AND recorded_at >= :start_datetime";
+        $params['start_datetime'] = $startDatetime;
+    } else {
+        $sql .= " AND DATE(recorded_at) >= :start_date";
+        $params['start_date'] = $startDate;
+    }
+
+    if ($endDatetime) {
+        $sql .= " AND recorded_at <= :end_datetime";
+        $params['end_datetime'] = $endDatetime;
+    } else {
+        $sql .= " AND DATE(recorded_at) <= :end_date";
+        $params['end_date'] = $endDate;
+    }
 
     // 필터 추가
     if ($controllerId) {
@@ -58,7 +76,7 @@ try {
         $params['sensor_location'] = $sensorLocation;
     }
 
-    $sql .= " ORDER BY recorded_at DESC LIMIT 10000"; // 최대 10000개 레코드
+    $sql .= " ORDER BY recorded_at ASC LIMIT 20000"; // 오래된 것부터 정렬
 
     $data = $db->select($sql, $params);
 

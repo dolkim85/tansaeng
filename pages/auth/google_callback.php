@@ -68,6 +68,11 @@ try {
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['user_name'] = $user['name'] ?? $user['username'] ?? '구글 사용자';
         $_SESSION['user_role'] = $user['role'] ?? 'user';
+        $_SESSION['role'] = $user['role'] ?? 'user';
+        $_SESSION['user_level'] = $user['user_level'] ?? 1;
+        $_SESSION['plant_analysis_permission'] = $user['plant_analysis_permission'] ?? 0;
+        $_SESSION['last_activity'] = time();
+        $_SESSION['login_time'] = time();
 
         $_SESSION['auth_success'] = '구글 계정으로 로그인되었습니다.';
 

@@ -8,6 +8,8 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
 date_default_timezone_set('Asia/Seoul');
+set_time_limit(10);        // 최대 10초 실행
+ini_set('memory_limit', '64M');
 
 require_once __DIR__ . '/../../classes/Database.php';
 
@@ -89,18 +91,28 @@ try {
     }
 
     // ── 3. 24시간 온도/습도 차트 데이터 ──
-    // GROUP BY DATE()+HOUR()로 ONLY_FULL_GROUP_BY 오류 방지
-    $chartRows = $db->select(
-        "SELECT
-            DATE_FORMAT(MIN(recorded_at), '%m/%d %H시') AS hour_label,
-            ROUND(AVG(temperature), 1)                  AS avg_temp,
-            ROUND(AVG(humidity), 1)                     AS avg_humidity
-         FROM sensor_data
-         WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-         GROUP BY DATE(recorded_at), HOUR(recorded_at)
-         ORDER BY MIN(recorded_at) ASC
-         LIMIT 24"
-    );
+    $chartRows = [];
+    try {
+        // sensor_data 테이블 존재 여부 먼저 확인
+        $tableCheck = $db->select("SHOW TABLES LIKE 'sensor_data'");
+        if (!empty($tableCheck)) {
+            $chartRows = $db->select(
+                "SELECT
+                    DATE_FORMAT(MIN(recorded_at), '%m/%d %H시') AS hour_label,
+                    ROUND(AVG(temperature), 1)                  AS avg_temp,
+                    ROUND(AVG(humidity), 1)                     AS avg_humidity
+                 FROM sensor_data
+                 WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                   AND (temperature IS NOT NULL OR humidity IS NOT NULL)
+                 GROUP BY DATE(recorded_at), HOUR(recorded_at)
+                 ORDER BY MIN(recorded_at) ASC
+                 LIMIT 24"
+            );
+        }
+    } catch (Exception $e) {
+        // 차트 데이터 실패해도 나머지 응답은 정상 반환
+        $chartRows = [];
+    }
 
     echo json_encode([
         'success'     => true,

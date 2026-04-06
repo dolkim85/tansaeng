@@ -77,6 +77,10 @@ export default function Environment() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 30;
 
+  // 삭제 관련 상태
+  const [selectedRecords, setSelectedRecords] = useState<Set<string>>(new Set());
+  const [isDeletingHistory, setIsDeletingHistory] = useState(false);
+
   // 장치제어실 온습도 (ctlr-heat-001 MQTT)
   const [deviceRoomSensor, setDeviceRoomSensor] = useState<{
     temperature: number | null;
@@ -263,7 +267,8 @@ export default function Environment() {
       });
     });
 
-    return result.reverse();
+    // DB가 ASC 정렬이므로 result는 이미 오래된 순 (차트 x축: 왼쪽=과거, 오른쪽=현재)
+    return result;
   };
 
   // 시간 단위에 따른 데이터 로드 (period와 chartInterval에 따라)
@@ -308,23 +313,20 @@ export default function Environment() {
           startDate.setMonth(startDate.getMonth() - 1);
         }
 
-        const startStr = startDate.toISOString().split('T')[0];
-        const endStr = endDate.toISOString().split('T')[0];
+        // 로컬 타임존 기준 datetime 문자열 (KST 기준 DB와 일치)
+        const toLocalDT = (d: Date) => {
+          const pad = (n: number) => String(n).padStart(2, '0');
+          return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        };
 
         const response = await fetch(
-          `/api/smartfarm/get_sensor_data.php?start_date=${startStr}&end_date=${endStr}`
+          `/api/smartfarm/get_sensor_data.php?start_datetime=${encodeURIComponent(toLocalDT(startDate))}&end_datetime=${encodeURIComponent(toLocalDT(endDate))}`
         );
         const result = await response.json();
 
         if (result.success && result.data) {
-          // 시작 시간 이후의 데이터만 필터링 (더 정확한 범위)
-          const filteredData = result.data.filter((record: any) => {
-            const recordTime = new Date(record.recorded_at);
-            return recordTime >= startDate;
-          });
-
           // 시간 단위에 따라 데이터 집계
-          const aggregatedData = aggregateDataByInterval(filteredData, chartInterval);
+          const aggregatedData = aggregateDataByInterval(result.data, chartInterval);
           setChartData(aggregatedData);
         }
       } catch (error) {
@@ -401,8 +403,10 @@ export default function Environment() {
     setIsLoadingHistory(true);
     setCurrentPage(1); // 조회 시 첫 페이지로 이동
     try {
-      const startStr = selectedStartDate.toISOString().split('T')[0];
-      const endStr = selectedEndDate.toISOString().split('T')[0];
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const toLocalDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      const startStr = toLocalDate(selectedStartDate);
+      const endStr = toLocalDate(selectedEndDate);
 
       const response = await fetch(
         `/api/smartfarm/get_sensor_data.php?start_date=${startStr}&end_date=${endStr}`
@@ -418,6 +422,86 @@ export default function Environment() {
       console.error('Error loading historical data:', error);
     } finally {
       setIsLoadingHistory(false);
+    }
+  };
+
+  // 레코드 고유 키 생성
+  const recordKey = (r: any) => `${r.recorded_at}__${r.sensor_location}`;
+
+  // 선택 토글
+  const toggleRecord = (key: string) => {
+    setSelectedRecords(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  // 현재 페이지 전체 선택/해제
+  const togglePageAll = () => {
+    const keys = currentData.map(recordKey);
+    const allSelected = keys.every(k => selectedRecords.has(k));
+    setSelectedRecords(prev => {
+      const next = new Set(prev);
+      keys.forEach(k => allSelected ? next.delete(k) : next.add(k));
+      return next;
+    });
+  };
+
+  // 선택 삭제
+  const deleteSelected = async () => {
+    if (selectedRecords.size === 0) { alert('삭제할 항목을 선택해주세요.'); return; }
+    if (!confirm(`선택한 ${selectedRecords.size}개 데이터를 삭제할까요?`)) return;
+    setIsDeletingHistory(true);
+    try {
+      const records = historicalData
+        .filter(r => selectedRecords.has(recordKey(r)))
+        .map(r => ({ recorded_at: r.recorded_at, sensor_location: r.sensor_location }));
+      const res = await fetch('/api/smartfarm/delete_sensor_data.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'selected', records }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert(result.message);
+        setSelectedRecords(new Set());
+        await loadHistoricalData();
+      } else {
+        alert(`삭제 실패: ${result.error}`);
+      }
+    } catch (e) {
+      alert('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeletingHistory(false);
+    }
+  };
+
+  // 날짜 범위 삭제
+  const deleteDateRange = async () => {
+    if (!selectedStartDate || !selectedEndDate) { alert('날짜를 선택해주세요.'); return; }
+    const startStr = selectedStartDate.toISOString().split('T')[0];
+    const endStr = selectedEndDate.toISOString().split('T')[0];
+    if (!confirm(`${startStr} ~ ${endStr} 범위의 데이터를 모두 삭제할까요?`)) return;
+    setIsDeletingHistory(true);
+    try {
+      const res = await fetch('/api/smartfarm/delete_sensor_data.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'date_range', start_date: startStr, end_date: endStr }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert(result.message);
+        setSelectedRecords(new Set());
+        setHistoricalData([]);
+      } else {
+        alert(`삭제 실패: ${result.error}`);
+      }
+    } catch (e) {
+      alert('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeletingHistory(false);
     }
   };
 
@@ -735,20 +819,41 @@ export default function Environment() {
             {/* 히스토리 데이터 테이블 */}
             {historicalData.length > 0 && (
               <div className="mt-6">
-                {/* 상단 정보 및 엑셀 내보내기 버튼 */}
+                {/* 상단 정보 및 버튼 */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
                   <p className="text-sm text-gray-600">
                     전체 {historicalData.length}개 중 {startIndex + 1} - {Math.min(endIndex, historicalData.length)}개 표시
+                    {selectedRecords.size > 0 && (
+                      <span className="ml-2 text-red-600 font-semibold">{selectedRecords.size}개 선택됨</span>
+                    )}
                   </p>
-                  <button
-                    onClick={exportToExcel}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-2 text-sm"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                    엑셀 내보내기
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRecords.size > 0 && (
+                      <button
+                        onClick={deleteSelected}
+                        disabled={isDeletingHistory}
+                        className="px-3 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 flex items-center gap-1.5 text-sm disabled:opacity-50"
+                      >
+                        🗑 선택 삭제 ({selectedRecords.size})
+                      </button>
+                    )}
+                    <button
+                      onClick={deleteDateRange}
+                      disabled={isDeletingHistory}
+                      className="px-3 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 flex items-center gap-1.5 text-sm disabled:opacity-50"
+                    >
+                      🗑 날짜범위 삭제
+                    </button>
+                    <button
+                      onClick={exportToExcel}
+                      className="px-3 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1.5 text-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                      엑셀 내보내기
+                    </button>
+                  </div>
                 </div>
 
                 {/* 테이블 */}
@@ -756,6 +861,14 @@ export default function Environment() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-3 py-3 text-center text-xs font-medium text-gray-500">
+                          <input
+                            type="checkbox"
+                            checked={currentData.length > 0 && currentData.every(r => selectedRecords.has(recordKey(r)))}
+                            onChange={togglePageAll}
+                            className="w-4 h-4 accent-red-500"
+                          />
+                        </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">위치</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">온도 (°C)</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">습도 (%)</th>
@@ -763,8 +876,19 @@ export default function Environment() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {currentData.map((record, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
+                      {currentData.map((record, index) => {
+                        const key = recordKey(record);
+                        const isChecked = selectedRecords.has(key);
+                        return (
+                        <tr key={index} className={`hover:bg-gray-50 ${isChecked ? 'bg-red-50' : ''}`}>
+                          <td className="px-3 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleRecord(key)}
+                              className="w-4 h-4 accent-red-500"
+                            />
+                          </td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {record.sensor_location === 'front' ? '내부팬 앞' :
                              record.sensor_location === 'back' ? '내부팬 뒤' :
@@ -774,7 +898,8 @@ export default function Environment() {
                           <td className="px-4 py-3 text-sm text-gray-900">{record.humidity ?? '-'}</td>
                           <td className="px-4 py-3 text-sm text-gray-500">{new Date(record.recorded_at).toLocaleString('ko-KR')}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1020,7 +1145,7 @@ export default function Environment() {
                     <YAxis
                       tick={{ fontSize: 10 }}
                       domain={['dataMin - 2', 'dataMax + 2']}
-                      tickFormatter={(value) => `${value}°`}
+                      tickFormatter={(value) => `${Number(value).toFixed(1)}°`}
                       label={{ value: '온도(°C)', angle: -90, position: 'insideLeft', fontSize: 11 }}
                     />
                     <Tooltip
@@ -1178,7 +1303,7 @@ export default function Environment() {
                     <YAxis
                       tick={{ fontSize: 10 }}
                       domain={['dataMin - 5', 'dataMax + 5']}
-                      tickFormatter={(value) => `${value}%`}
+                      tickFormatter={(value) => `${Number(value).toFixed(1)}%`}
                       label={{ value: '습도(%)', angle: -90, position: 'insideLeft', fontSize: 11 }}
                     />
                     <Tooltip

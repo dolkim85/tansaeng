@@ -77,9 +77,9 @@ DallasTemperature ds18b20(&oneWire);
 
 // 상태
 enum Mode { AUTO_MODE, MANUAL_MODE };
-Mode mode = AUTO_MODE;
+Mode mode = MANUAL_MODE;  // 재부팅 후 AUTO 오작동 방지: 항상 MANUAL로 시작
 
-bool systemOn  = true;   // 시스템 전원 (UI 스위치와 동기화)
+bool systemOn  = false;   // 재부팅 후 자동 가동 방지: UI에서 명시적으로 ON 해야 동작
 
 bool pumpOn   = false;
 bool heaterOn = false;
@@ -270,6 +270,19 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
 
   Serial.printf("[MQTT IN] %s => %s\n", t.c_str(), msg.c_str());
 
+  // ── 재부팅 후 retain된 상태 복원 (state 토픽에서 읽어 초기화) ──
+  if (t == topicModeState) {
+    if (msg == "AUTO")   mode = AUTO_MODE;
+    else                 mode = MANUAL_MODE;
+    Serial.printf("[RESTORE] 모드 복원: %s\n", msg.c_str());
+    return;
+  }
+  if (t == topicSystemState) {
+    systemOn = (msg == "ON");
+    Serial.printf("[RESTORE] 시스템전원 복원: %s\n", msg.c_str());
+    return;
+  }
+
   // 시스템 전원 스위치 (모든 브라우저와 공유)
   if (t == topicSystemCmd) {
     if (msg == "ON") {
@@ -388,12 +401,24 @@ void connectMQTT() {
       Serial.println("connected");
       mqtt.publish(topicStatus.c_str(), "online", false);
 
+      // 재부팅 후 마지막 상태 복원: retain된 state 토픽 구독 (수신 즉시 상태에 반영)
+      // mqttCallback에서 topicModeState/topicSystemState 수신 시 mode/systemOn을 복원함
+      mqtt.subscribe(topicModeState.c_str(),   1);  // 마지막 모드 복원
+      mqtt.subscribe(topicSystemState.c_str(), 1);  // 마지막 시스템 전원 복원
+
       // 명령 토픽 구독
       mqtt.subscribe(topicSystemCmd.c_str(), 1);  // 시스템 전원
       mqtt.subscribe(topicModeCmd.c_str(),   1);  // 모드
       mqtt.subscribe(topicPumpCmd.c_str(),   1);
       mqtt.subscribe(topicHeaterCmd.c_str(), 1);
       mqtt.subscribe(topicFanCmd.c_str(),    1);
+
+      // retain 메시지 수신 대기 후 상태 발행 (200ms 대기)
+      unsigned long waitStart = millis();
+      while (millis() - waitStart < 200) {
+        mqtt.loop();
+        delay(10);
+      }
 
       // 현재 상태 전체 발행 (UI가 접속하면 즉시 동기화)
       publishStates();

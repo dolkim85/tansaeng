@@ -119,8 +119,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [currentPosition, setCurrentPosition] = useState<Record<string, number>>({});
 
   // 히트펌프 시스템 상태
-  const [hpMode, setHpMode] = useState<"AUTO" | "MANUAL">("AUTO");
-  const hpModeRef = useRef<"AUTO" | "MANUAL">("AUTO"); // AUTO 로직에서 stale closure 방지
+  const [hpMode, setHpMode] = useState<"AUTO" | "MANUAL">("MANUAL");
+  const hpModeRef = useRef<"AUTO" | "MANUAL">("MANUAL"); // AUTO 로직에서 stale closure 방지
   const [hpSensors, setHpSensors] = useState<{
     airTemp: number | null;
     airHumidity: number | null;
@@ -135,16 +135,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   }>({ front: null, back: null, top: null, frontHum: null, backHum: null, topHum: null });
   const hpAutoDemandRef = useRef<boolean>(false);
 
-  // 장치별 절대온도 범위 (-30~+30°C 내 실제 온도값)
-  const [hpDeviceRanges, setHpDeviceRanges] = useState<Record<string, { low: number; high: number }>>({
-    hp_pump:   { low: 15, high: 22 },
-    hp_heater: { low: 15, high: 22 },
-    hp_fan:    { low: 15, high: 22 },
-  });
-  // AUTO 작동 활성화 여부 (작동시작/작동멈춤 버튼으로 제어)
+  // 장치별 온도 범위 — DB에서 로드 (빈 상태로 시작, ?? fallback으로 기본값 표시)
+  const [hpDeviceRanges, setHpDeviceRanges] = useState<Record<string, { low: number; high: number }>>({});
   const [hpAutoActive, setHpAutoActive] = useState(false);
-  // 마지막 전송 명령 추적 (중복 전송 방지)
   const hpDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({ hp_pump: null, hp_heater: null, hp_fan: null });
+  const hpDeviceRangesFromMqttRef = useRef(false);
 
   // 팬 AUTO 제어 상태
   const [fanMode, setFanMode] = useState<"AUTO" | "MANUAL">("MANUAL");
@@ -152,8 +147,52 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [fanDeviceRanges, setFanDeviceRanges] = useState<Record<string, { low: number; high: number }>>({});
   const [fanAutoActive, setFanAutoActive] = useState(false);
   const fanDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({});
-  // ranges 변경이 MQTT 복원에서 온 경우 재발행 방지
   const fanRangesFromMqttRef = useRef(false);
+
+  // 게이지별 마지막 저장 시각 (DB)
+  const [rangesSavedAt, setRangesSavedAt] = useState<Record<string, string>>({});
+
+  // 천창 AUTO 제어 상태
+  const [skyMode, setSkyMode] = useState<"AUTO" | "MANUAL">("MANUAL");
+  const skyModeRef = useRef<"AUTO" | "MANUAL">("MANUAL");
+  const [skyAutoActive, setSkyAutoActive] = useState(false);
+  const [skyTempPoints, setSkyTempPoints] = useState<Array<{ temp: number; rate: number }>>([
+    { temp: 20, rate: 10 },
+    { temp: 23, rate: 30 },
+    { temp: 28, rate: 100 },
+  ]);
+  const skyTempPointsFromMqttRef = useRef(false);
+  const skyTempPointsFirstRunRef = useRef(true);
+  const skyLastTargetRef = useRef<Record<string, number | null>>({});
+  const [skyAutoType, setSkyAutoType] = useState<"temp" | "time" | "combined">("temp");
+  const skyAutoTypeRef = useRef<"temp" | "time" | "combined">("temp");
+  const skyAutoTypeFromMqttRef = useRef(false);
+  const skyAutoTypeFirstRunRef = useRef(true); // 첫 렌더 시 기본값 publish 방지
+  const [skyTimePoints, setSkyTimePoints] = useState<Array<{ time: string; rate: number }>>([
+    { time: "08:00", rate: 30 },
+    { time: "12:00", rate: 80 },
+    { time: "18:00", rate: 0 },
+  ]);
+  const skyTimePointsFromMqttRef = useRef(false);
+  const skyTimePointsFirstRunRef = useRef(true); // 첫 렌더 시 기본값 publish 방지
+  const [currentMinute, setCurrentMinute] = useState(() => {
+    const now = new Date(); return now.getHours() * 60 + now.getMinutes();
+  });
+
+  // 측창 AUTO 제어 상태
+  const [sideMode, setSideMode] = useState<"AUTO" | "MANUAL">("MANUAL");
+  const sideModeRef = useRef<"AUTO" | "MANUAL">("MANUAL");
+  const [sideAutoActive, setSideAutoActive] = useState(false);
+  // 온도-개도율 매핑 포인트 (온도 오름차순 유지)
+  const [sideTempPoints, setSideTempPoints] = useState<Array<{ temp: number; rate: number }>>([
+    { temp: 20, rate: 10 },
+    { temp: 23, rate: 30 },
+    { temp: 28, rate: 100 },
+  ]);
+  const sideTempPointsFromMqttRef = useRef(false);
+  const sideTempPointsFirstRunRef = useRef(true);
+  // 마지막 전송 개도율 추적 (중복/히스테리시스 방지)
+  const sideLastTargetRef = useRef<Record<string, number | null>>({});
 
   // 히트펌프 전용 장치는 일반 섹션에서 제외
   const fans = getDevicesByType("fan").filter(d => d.esp32Id !== "ctlr-heat-001");
@@ -167,6 +206,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const heatPumpHeaters = heatPumpDevices.filter(d => d.type === "heater");
   const heatPumpPumps   = heatPumpDevices.filter(d => d.type === "pump");
   const heatPumpFans    = heatPumpDevices.filter(d => d.type === "fan");
+
+  // 1분마다 currentMinute 갱신 (시간 기반 AUTO 제어 트리거용)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      setCurrentMinute(now.getHours() * 60 + now.getMinutes());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // HiveMQ 연결 상태 모니터링
   useEffect(() => {
@@ -185,12 +233,96 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     };
   }, []);
 
+  // ── DB에서 장치 온도 범위 로드 (마운트 시 1회) ─────────────────────────────
+  useEffect(() => {
+    fetch("/api/smartfarm/get_device_ranges.php")
+      .then(r => r.json())
+      .then(d => {
+        if (!d.success) return;
+        const dbRanges = d.ranges as Record<string, { low: number; high: number; updated_at: string }>;
+
+        // HP 범위 복원
+        const hpKeys = ["hp_pump", "hp_heater", "hp_fan"];
+        const hpLoaded: Record<string, { low: number; high: number }> = {};
+        hpKeys.forEach(k => {
+          if (dbRanges[k]) hpLoaded[k] = { low: dbRanges[k].low, high: dbRanges[k].high };
+        });
+        if (Object.keys(hpLoaded).length > 0) {
+          hpDeviceRangesFromMqttRef.current = true; // MQTT publish 방지
+          setHpDeviceRanges(hpLoaded);
+          getMqttClient().publish("tansaeng/hp-control/ranges", JSON.stringify(hpLoaded), { qos: 1, retain: true });
+        }
+
+        // 팬 범위 복원
+        const fanLoaded: Record<string, { low: number; high: number }> = {};
+        Object.entries(dbRanges).forEach(([k, v]) => {
+          if (!hpKeys.includes(k)) fanLoaded[k] = { low: v.low, high: v.high };
+        });
+        if (Object.keys(fanLoaded).length > 0) {
+          fanRangesFromMqttRef.current = true;
+          setFanDeviceRanges(fanLoaded);
+          getMqttClient().publish("tansaeng/fan-control/ranges", JSON.stringify(fanLoaded), { qos: 1, retain: true });
+        }
+
+        // 저장 시각 복원
+        const savedAt: Record<string, string> = {};
+        Object.entries(dbRanges).forEach(([k, v]) => { savedAt[k] = v.updated_at; });
+        setRangesSavedAt(savedAt);
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── 게이지 범위 저장 함수 (DB + MQTT retain) ──────────────────────────────
+  const saveDeviceRange = async (
+    deviceKey: string,
+    deviceName: string,
+    low: number,
+    high: number,
+    onSuccess?: (updatedAt: string) => void
+  ) => {
+    try {
+      const res = await fetch("/api/smartfarm/save_device_range.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device_key: deviceKey, device_name: deviceName, range_low: low, range_high: high }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setRangesSavedAt(prev => ({ ...prev, [deviceKey]: d.updated_at }));
+        onSuccess?.(d.updated_at);
+      } else {
+        alert(`저장 실패: ${d.message}`);
+      }
+    } catch {
+      alert("네트워크 오류");
+    }
+  };
+
   // 히트펌프 MQTT 센서 & 상태 구독
   useEffect(() => {
     const HP = "ctlr-heat-001";
     const unsubs = [
       // mode/state는 구독하되 UI 모드에 반영 안 함 — ESP32는 항상 MANUAL, UI 모드는 버튼으로만 제어
       subscribeToTopic(`tansaeng/${HP}/mode/state`, (_v) => { /* display only */ }),
+      // UI 모드 retain 복원 (재접속 시 이전 설정 유지)
+      subscribeToTopic("tansaeng/hp-control/mode", (v) => {
+        if (v === "AUTO" || v === "MANUAL") {
+          hpModeRef.current = v;
+          setHpMode(v);
+        }
+      }),
+      subscribeToTopic("tansaeng/hp-control/autoActive", (v) => {
+        setHpAutoActive(v === "true");
+      }),
+      subscribeToTopic("tansaeng/hp-control/ranges", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed && typeof parsed === "object") {
+            hpDeviceRangesFromMqttRef.current = true;
+            setHpDeviceRanges(parsed);
+          }
+        } catch {}
+      }),
       // 장치제어실 센서
       subscribeToTopic(`tansaeng/${HP}/air/temperature`, (v) => {
         const n = parseFloat(v);
@@ -268,6 +400,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
   // AUTO 모드 제어 로직 — 평균온도가 설정 범위 안에 있으면 ON, 벗어나면 OFF
   useEffect(() => {
+    // state + ref 이중 체크 (MANUAL 모드에서 절대 실행 안 되도록)
+    if (hpMode !== "AUTO") return;
     if (hpModeRef.current !== "AUTO") return;
     if (!hpAutoActive) return; // 작동시작 버튼을 눌러야 활성화
 
@@ -291,14 +425,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       if (hpDeviceLastCmd.current[key] !== newCmd) {
         hpDeviceLastCmd.current[key] = newCmd;
         setHpDeviceStates(prev => ({ ...prev, [key]: newCmd }));
-        const deviceName = { hp_pump: "히트펌프 순환펌프", hp_heater: "전기온열기", hp_fan: "열교환기 팬" }[key];
+        const deviceName = { hp_pump: "히트펌프 순환펌프", hp_heater: "전기온열기", hp_fan: "장치실 팬" }[key];
         sendDeviceCommand(HP, mqttId, newCmd).then(result => {
           if (result.success) console.log(`[API SUCCESS] ${deviceName} - ${newCmd}`);
           else console.error(`[API ERROR] ${deviceName} - ${newCmd}: ${result.message}`);
         });
       }
     });
-  }, [farmSensors, hpDeviceRanges, hpAutoActive]);
+  }, [farmSensors, hpDeviceRanges, hpAutoActive, hpMode]);
 
   // 팬 AUTO 모드 제어 로직 — avgTemp가 설정 범위 안에 있으면 ON, 벗어나면 OFF
   useEffect(() => {
@@ -329,6 +463,307 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     if (Object.keys(fanDeviceRanges).length === 0) return;
     getMqttClient().publish("tansaeng/fan-control/ranges", JSON.stringify(fanDeviceRanges), { qos: 1, retain: true });
   }, [fanDeviceRanges]);
+
+  // HP 온도 범위 변경 시 MQTT retain 발행 (팬 제어와 동일 패턴)
+  useEffect(() => {
+    if (hpDeviceRangesFromMqttRef.current) { hpDeviceRangesFromMqttRef.current = false; return; }
+    if (Object.keys(hpDeviceRanges).length === 0) return; // 빈 초기값 → skip
+    getMqttClient().publish("tansaeng/hp-control/ranges", JSON.stringify(hpDeviceRanges), { qos: 1, retain: true });
+  }, [hpDeviceRanges]);
+
+  // 천창 MQTT 상태 구독 (retain으로 다른 브라우저 동기화)
+  useEffect(() => {
+    const unsubs = [
+      subscribeToTopic("tansaeng/sky-control/mode", (v) => {
+        if (v === "AUTO" || v === "MANUAL") {
+          skyModeRef.current = v;
+          setSkyMode(v);
+        }
+      }),
+      subscribeToTopic("tansaeng/sky-control/autoActive", (v) => {
+        setSkyAutoActive(v === "true");
+      }),
+      subscribeToTopic("tansaeng/sky-control/tempPoints", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            skyTempPointsFromMqttRef.current = true;
+            setSkyTempPoints(parsed);
+          }
+        } catch {}
+      }),
+      subscribeToTopic("tansaeng/sky-control/windowL/currentPos", (v) => {
+        const n = Number(v);
+        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, skylight_left: n }));
+      }),
+      subscribeToTopic("tansaeng/sky-control/windowR/currentPos", (v) => {
+        const n = Number(v);
+        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, skylight_right: n }));
+      }),
+      subscribeToTopic("tansaeng/sky-control/autoType", (v) => {
+        if (v === "temp" || v === "time" || v === "combined") {
+          skyAutoTypeFromMqttRef.current = true;
+          skyAutoTypeRef.current = v;
+          setSkyAutoType(v);
+        }
+      }),
+      subscribeToTopic("tansaeng/sky-control/timePoints", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            skyTimePointsFromMqttRef.current = true;
+            setSkyTimePoints(parsed);
+          }
+        } catch {}
+      }),
+    ];
+    return () => unsubs.forEach(u => u());
+  }, []);
+
+  // 천창 온도 포인트 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
+  useEffect(() => {
+    if (skyTempPointsFirstRunRef.current) { skyTempPointsFirstRunRef.current = false; return; }
+    if (skyTempPointsFromMqttRef.current) { skyTempPointsFromMqttRef.current = false; return; }
+    getMqttClient().publish("tansaeng/sky-control/tempPoints", JSON.stringify(skyTempPoints), { qos: 1, retain: true });
+  }, [skyTempPoints]);
+
+  // 천창 autoType 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
+  useEffect(() => {
+    if (skyAutoTypeFirstRunRef.current) { skyAutoTypeFirstRunRef.current = false; return; }
+    if (skyAutoTypeFromMqttRef.current) { skyAutoTypeFromMqttRef.current = false; return; }
+    getMqttClient().publish("tansaeng/sky-control/autoType", skyAutoType, { qos: 1, retain: true });
+  }, [skyAutoType]);
+
+  // 천창 시간 포인트 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
+  useEffect(() => {
+    if (skyTimePointsFirstRunRef.current) { skyTimePointsFirstRunRef.current = false; return; }
+    if (skyTimePointsFromMqttRef.current) { skyTimePointsFromMqttRef.current = false; return; }
+    getMqttClient().publish("tansaeng/sky-control/timePoints", JSON.stringify(skyTimePoints), { qos: 1, retain: true });
+  }, [skyTimePoints]);
+
+  // 천창 AUTO 제어 로직 — 평균온도→개도율 계산 후 자동 이동
+  useEffect(() => {
+    if (skyModeRef.current !== "AUTO") return;
+    if (!skyAutoActive) return;
+
+    let targetRate = 0;
+
+    if (skyAutoType === "time" || skyAutoTypeRef.current === "time") {
+      // 시간 기반 제어: 현재 시각→개도율 선형 보간
+      const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      const nowMin = currentMinute;
+      const sorted = [...skyTimePoints].sort((a, b) => toMin(a.time) - toMin(b.time));
+      if (sorted.length === 0) return;
+      if (nowMin < toMin(sorted[0].time)) {
+        targetRate = sorted[0].rate;
+      } else if (nowMin >= toMin(sorted[sorted.length - 1].time)) {
+        targetRate = sorted[sorted.length - 1].rate;
+      } else {
+        for (let i = 0; i < sorted.length - 1; i++) {
+          const s = toMin(sorted[i].time), e = toMin(sorted[i + 1].time);
+          if (nowMin >= s && nowMin < e) {
+            const ratio = (nowMin - s) / (e - s);
+            targetRate = Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
+            break;
+          }
+        }
+      }
+    } else if (skyAutoType === "combined" || skyAutoTypeRef.current === "combined") {
+      // combined: min(시간허용치, 온도기준) — 햇빛 확보 + 환기 균형
+      const toMin2 = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      const nowMin2 = currentMinute;
+      const timeSorted2 = [...skyTimePoints].sort((a, b) => toMin2(a.time) - toMin2(b.time));
+      let timeRate = 0;
+      if (timeSorted2.length > 0) {
+        if (nowMin2 < toMin2(timeSorted2[0].time)) timeRate = timeSorted2[0].rate;
+        else if (nowMin2 >= toMin2(timeSorted2[timeSorted2.length - 1].time)) timeRate = timeSorted2[timeSorted2.length - 1].rate;
+        else {
+          for (let i = 0; i < timeSorted2.length - 1; i++) {
+            const s2 = toMin2(timeSorted2[i].time), e2 = toMin2(timeSorted2[i + 1].time);
+            if (nowMin2 >= s2 && nowMin2 < e2) {
+              const ratio2 = (nowMin2 - s2) / (e2 - s2);
+              timeRate = Math.round(timeSorted2[i].rate + ratio2 * (timeSorted2[i + 1].rate - timeSorted2[i].rate));
+              break;
+            }
+          }
+        }
+      }
+      const temps2 = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+      if (temps2.length === 0) return;
+      const avgTemp2 = temps2.reduce((a, b) => a + b, 0) / temps2.length;
+      const tempSorted2 = [...skyTempPoints].sort((a, b) => a.temp - b.temp);
+      let tempRate = 0;
+      if (avgTemp2 >= tempSorted2[tempSorted2.length - 1].temp) {
+        tempRate = 100;
+      } else if (avgTemp2 >= tempSorted2[0].temp) {
+        for (let i = 0; i < tempSorted2.length - 1; i++) {
+          if (avgTemp2 >= tempSorted2[i].temp && avgTemp2 < tempSorted2[i + 1].temp) {
+            const ratio2 = (avgTemp2 - tempSorted2[i].temp) / (tempSorted2[i + 1].temp - tempSorted2[i].temp);
+            tempRate = Math.round(tempSorted2[i].rate + ratio2 * (tempSorted2[i + 1].rate - tempSorted2[i].rate));
+            break;
+          }
+        }
+      }
+      targetRate = Math.min(timeRate, tempRate);
+    } else {
+      // 온도 기반 제어 (기존)
+      const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+      if (temps.length === 0) return;
+      const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+      const sorted = [...skyTempPoints].sort((a, b) => a.temp - b.temp);
+      if (avgTemp < sorted[0].temp) {
+        targetRate = 0;
+      } else if (avgTemp >= sorted[sorted.length - 1].temp) {
+        targetRate = 100;
+      } else {
+        for (let i = 0; i < sorted.length - 1; i++) {
+          if (avgTemp >= sorted[i].temp && avgTemp < sorted[i + 1].temp) {
+            const ratio = (avgTemp - sorted[i].temp) / (sorted[i + 1].temp - sorted[i].temp);
+            targetRate = Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
+            break;
+          }
+        }
+      }
+    }
+
+    skylights.forEach((skylight) => {
+      const lastTarget = skyLastTargetRef.current[skylight.id] ?? null;
+      if (lastTarget !== null && Math.abs(targetRate - lastTarget) < 2) return;
+
+      const currentPos = currentPosition[skylight.id] ?? 0;
+      const difference = targetRate - currentPos;
+      if (Math.abs(difference) < 1) return;
+
+      skyLastTargetRef.current[skylight.id] = targetRate;
+
+      if (percentageTimers.current[skylight.id]) {
+        clearTimeout(percentageTimers.current[skylight.id]);
+        delete percentageTimers.current[skylight.id];
+      }
+
+      setOperationStatus(prev => ({ ...prev, [skylight.id]: 'running' }));
+
+      const fullTimeSeconds = 300;
+      const targetTimeSeconds = (Math.abs(difference) / 100) * fullTimeSeconds;
+      const command = difference > 0 ? "OPEN" : "CLOSE";
+      const mqttDeviceId = skylight.commandTopic.split('/')[2];
+
+      console.log(`[SKY AUTO] ${skylight.name} (${skyAutoTypeRef.current}) →${targetRate}% (현재:${currentPos}%, ${targetTimeSeconds.toFixed(1)}초 ${command})`);
+
+      sendDeviceCommand(skylight.esp32Id, mqttDeviceId, command).then(() => {
+        percentageTimers.current[skylight.id] = setTimeout(async () => {
+          await sendDeviceCommand(skylight.esp32Id, mqttDeviceId, "STOP");
+          delete percentageTimers.current[skylight.id];
+          setCurrentPosition(prev => ({ ...prev, [skylight.id]: targetRate }));
+          setOperationStatus(prev => ({ ...prev, [skylight.id]: 'completed' }));
+          console.log(`[SKY AUTO] ${skylight.name} → ${targetRate}% 완료`);
+        }, targetTimeSeconds * 1000);
+      });
+    });
+  }, [farmSensors, skyTempPoints, skyAutoActive, skyTimePoints, currentMinute, skyAutoType]);
+
+  // 측창 MQTT 상태 구독 (retain으로 다른 브라우저 동기화)
+  useEffect(() => {
+    const unsubs = [
+      subscribeToTopic("tansaeng/side-control/mode", (v) => {
+        if (v === "AUTO" || v === "MANUAL") {
+          sideModeRef.current = v;
+          setSideMode(v);
+        }
+      }),
+      subscribeToTopic("tansaeng/side-control/autoActive", (v) => {
+        setSideAutoActive(v === "true");
+      }),
+      subscribeToTopic("tansaeng/side-control/tempPoints", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            sideTempPointsFromMqttRef.current = true;
+            setSideTempPoints(parsed);
+          }
+        } catch {}
+      }),
+      subscribeToTopic("tansaeng/side-control/sideL/currentPos", (v) => {
+        const n = Number(v);
+        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, sidescreen_left: n }));
+      }),
+      subscribeToTopic("tansaeng/side-control/sideR/currentPos", (v) => {
+        const n = Number(v);
+        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, sidescreen_right: n }));
+      }),
+    ];
+    return () => unsubs.forEach(u => u());
+  }, []);
+
+  // 측창 온도 포인트 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
+  useEffect(() => {
+    if (sideTempPointsFirstRunRef.current) { sideTempPointsFirstRunRef.current = false; return; }
+    if (sideTempPointsFromMqttRef.current) { sideTempPointsFromMqttRef.current = false; return; }
+    getMqttClient().publish("tansaeng/side-control/tempPoints", JSON.stringify(sideTempPoints), { qos: 1, retain: true });
+  }, [sideTempPoints]);
+
+  // 측창 AUTO 제어 로직 — 평균온도→개도율 계산 후 자동 이동
+  useEffect(() => {
+    if (sideModeRef.current !== "AUTO") return;
+    if (!sideAutoActive) return;
+    const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+    if (temps.length === 0) return;
+    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+
+    // 온도→개도율 선형 보간
+    const sorted = [...sideTempPoints].sort((a, b) => a.temp - b.temp);
+    let targetRate = 0;
+    if (avgTemp < sorted[0].temp) {
+      targetRate = 0;
+    } else if (avgTemp >= sorted[sorted.length - 1].temp) {
+      targetRate = 100;
+    } else {
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (avgTemp >= sorted[i].temp && avgTemp < sorted[i + 1].temp) {
+          const ratio = (avgTemp - sorted[i].temp) / (sorted[i + 1].temp - sorted[i].temp);
+          targetRate = Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
+          break;
+        }
+      }
+    }
+
+    sidescreens.forEach((sidescreen) => {
+      const lastTarget = sideLastTargetRef.current[sidescreen.id] ?? null;
+      // 히스테리시스: 마지막 목표와 2% 미만 차이면 무시
+      if (lastTarget !== null && Math.abs(targetRate - lastTarget) < 2) return;
+
+      const currentPos = currentPosition[sidescreen.id] ?? 0;
+      const difference = targetRate - currentPos;
+      if (Math.abs(difference) < 1) return;
+
+      sideLastTargetRef.current[sidescreen.id] = targetRate;
+
+      // 기존 타이머 취소
+      if (percentageTimers.current[sidescreen.id]) {
+        clearTimeout(percentageTimers.current[sidescreen.id]);
+        delete percentageTimers.current[sidescreen.id];
+      }
+
+      setOperationStatus(prev => ({ ...prev, [sidescreen.id]: 'running' }));
+
+      const fullTimeSeconds = 120; // ctlr-0021: 2분
+      const targetTimeSeconds = (Math.abs(difference) / 100) * fullTimeSeconds;
+      const command = difference > 0 ? "OPEN" : "CLOSE";
+      const mqttDeviceId = sidescreen.commandTopic.split('/')[2];
+
+      console.log(`[SIDE AUTO] ${sidescreen.name} 온도${avgTemp.toFixed(1)}°→${targetRate}% (현재:${currentPos}%, ${targetTimeSeconds.toFixed(1)}초 ${command})`);
+
+      sendDeviceCommand(sidescreen.esp32Id, mqttDeviceId, command).then(() => {
+        percentageTimers.current[sidescreen.id] = setTimeout(async () => {
+          await sendDeviceCommand(sidescreen.esp32Id, mqttDeviceId, "STOP");
+          delete percentageTimers.current[sidescreen.id];
+          setCurrentPosition(prev => ({ ...prev, [sidescreen.id]: targetRate }));
+          setOperationStatus(prev => ({ ...prev, [sidescreen.id]: 'completed' }));
+          console.log(`[SIDE AUTO] ${sidescreen.name} → ${targetRate}% 완료`);
+        }, targetTimeSeconds * 1000);
+      });
+    });
+  }, [farmSensors, sideTempPoints, sideAutoActive]);
 
   // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
@@ -640,7 +1075,510 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             </h2>
             <span className="text-[10px] sm:text-xs text-gray-800">{skylights.length}개</span>
           </header>
-          <div className="bg-white shadow-sm rounded-b-lg p-2 sm:p-3">
+          <div className="bg-white shadow-sm rounded-b-lg p-2 sm:p-4">
+
+            {/* 제어 모드 버튼 */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3 mb-3">
+              <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">제어 모드</p>
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={() => {
+                    skyModeRef.current = "AUTO";
+                    setSkyMode("AUTO");
+                    setSkyAutoActive(false);
+                    skyLastTargetRef.current = {};
+                    getMqttClient().publish("tansaeng/sky-control/mode", "AUTO", { qos: 1, retain: true });
+                    getMqttClient().publish("tansaeng/sky-control/autoActive", "false", { qos: 1, retain: true });
+                  }}
+                  className={`flex-1 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                    skyMode === "AUTO"
+                      ? "bg-gray-900 text-white shadow"
+                      : "bg-white border border-amber-300 text-amber-600 hover:bg-amber-50"
+                  }`}
+                >
+                  자동 (AUTO)
+                </button>
+                <button
+                  onClick={() => {
+                    skyModeRef.current = "MANUAL";
+                    setSkyMode("MANUAL");
+                    setSkyAutoActive(false);
+                    getMqttClient().publish("tansaeng/sky-control/mode", "MANUAL", { qos: 1, retain: true });
+                    getMqttClient().publish("tansaeng/sky-control/autoActive", "false", { qos: 1, retain: true });
+                  }}
+                  className={`flex-1 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                    skyMode === "MANUAL"
+                      ? "bg-gray-700 text-yellow-300 shadow"
+                      : "bg-white border border-gray-300 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  수동 (MANUAL)
+                </button>
+              </div>
+              {skyMode === "AUTO" && (
+                <>
+                  {/* 제어 기준 선택 */}
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      onClick={() => {
+                        skyAutoTypeRef.current = "temp";
+                        skyAutoTypeFromMqttRef.current = false;
+                        setSkyAutoType("temp");
+                        skyLastTargetRef.current = {};
+                        getMqttClient().publish("tansaeng/sky-control/autoType", "temp", { qos: 1, retain: true });
+                      }}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                        skyAutoType === "temp"
+                          ? "bg-orange-500 text-white shadow"
+                          : "bg-white border border-orange-300 text-orange-600 hover:bg-orange-50"
+                      }`}
+                    >
+                      온도 기준
+                    </button>
+                    <button
+                      onClick={() => {
+                        skyAutoTypeRef.current = "time";
+                        skyAutoTypeFromMqttRef.current = false;
+                        setSkyAutoType("time");
+                        skyLastTargetRef.current = {};
+                        getMqttClient().publish("tansaeng/sky-control/autoType", "time", { qos: 1, retain: true });
+                      }}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                        skyAutoType === "time"
+                          ? "bg-blue-500 text-white shadow"
+                          : "bg-white border border-blue-300 text-blue-600 hover:bg-blue-50"
+                      }`}
+                    >
+                      시간 기준
+                    </button>
+                    <button
+                      onClick={() => {
+                        skyAutoTypeRef.current = "combined";
+                        skyAutoTypeFromMqttRef.current = false;
+                        setSkyAutoType("combined");
+                        skyLastTargetRef.current = {};
+                        getMqttClient().publish("tansaeng/sky-control/autoType", "combined", { qos: 1, retain: true });
+                      }}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                        skyAutoType === "combined"
+                          ? "bg-green-600 text-white shadow"
+                          : "bg-white border border-green-500 text-green-700 hover:bg-green-50"
+                      }`}
+                    >
+                      복합
+                    </button>
+                  </div>
+                  {/* 작동 시작/멈춤 */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setSkyAutoActive(true);
+                        skyLastTargetRef.current = {};
+                        // autoType을 먼저 재발행해서 데몬이 정확한 모드로 실행되도록 보장
+                        getMqttClient().publish("tansaeng/sky-control/autoType", skyAutoTypeRef.current, { qos: 1, retain: true });
+                        getMqttClient().publish("tansaeng/sky-control/autoActive", "true", { qos: 1, retain: true });
+                      }}
+                      disabled={skyAutoActive}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                        skyAutoActive
+                          ? "bg-amber-500 text-white shadow"
+                          : "bg-white border border-amber-400 text-amber-600 hover:bg-amber-50"
+                      }`}
+                    >
+                      ▶ 작동시작
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSkyAutoActive(false);
+                        getMqttClient().publish("tansaeng/sky-control/autoActive", "false", { qos: 1, retain: true });
+                        // 진행 중인 모터 타이머 취소 + STOP 명령 즉시 전송
+                        skylights.forEach((skylight) => {
+                          if (percentageTimers.current[skylight.id]) {
+                            clearTimeout(percentageTimers.current[skylight.id]);
+                            delete percentageTimers.current[skylight.id];
+                          }
+                          const mqttDeviceId = skylight.commandTopic.split('/')[2];
+                          sendDeviceCommand(skylight.esp32Id, mqttDeviceId, "STOP");
+                          setOperationStatus(prev => ({ ...prev, [skylight.id]: 'idle' }));
+                        });
+                      }}
+                      disabled={!skyAutoActive}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                        skyAutoActive
+                          ? "bg-red-500 text-white shadow"
+                          : "bg-white border border-red-400 text-red-600 hover:bg-red-50"
+                      }`}
+                    >
+                      ■ 작동멈춤
+                    </button>
+                    <span className="text-[10px] font-semibold text-amber-600">
+                      {skyAutoActive ? "🌤 AUTO 작동 중" : "⏸ 대기"}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* 팜 상태 + 목표개도율 표시 */}
+            {(() => {
+              const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+              const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+
+              // 온도 기준 목표개도율
+              let tempTargetRate = 0;
+              if (avgTemp !== null) {
+                const sorted = [...skyTempPoints].sort((a, b) => a.temp - b.temp);
+                if (avgTemp >= sorted[sorted.length - 1].temp) tempTargetRate = 100;
+                else if (avgTemp >= sorted[0].temp) {
+                  for (let i = 0; i < sorted.length - 1; i++) {
+                    if (avgTemp >= sorted[i].temp && avgTemp < sorted[i + 1].temp) {
+                      const ratio = (avgTemp - sorted[i].temp) / (sorted[i + 1].temp - sorted[i].temp);
+                      tempTargetRate = Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
+                      break;
+                    }
+                  }
+                }
+              }
+
+              // 시간 기준 목표개도율
+              const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+              const nowMin = currentMinute;
+              let timeTargetRate = 0;
+              const timeSorted = [...skyTimePoints].sort((a, b) => toMin(a.time) - toMin(b.time));
+              if (timeSorted.length > 0) {
+                if (nowMin < toMin(timeSorted[0].time)) timeTargetRate = timeSorted[0].rate;
+                else if (nowMin >= toMin(timeSorted[timeSorted.length - 1].time)) timeTargetRate = timeSorted[timeSorted.length - 1].rate;
+                else {
+                  for (let i = 0; i < timeSorted.length - 1; i++) {
+                    const s = toMin(timeSorted[i].time), e = toMin(timeSorted[i + 1].time);
+                    if (nowMin >= s && nowMin < e) {
+                      const ratio = (nowMin - s) / (e - s);
+                      timeTargetRate = Math.round(timeSorted[i].rate + ratio * (timeSorted[i + 1].rate - timeSorted[i].rate));
+                      break;
+                    }
+                  }
+                }
+              }
+              const nowHH = String(Math.floor(nowMin / 60)).padStart(2, '0');
+              const nowMM = String(nowMin % 60).padStart(2, '0');
+
+              return (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3 mb-3">
+                  <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1.5">
+                    팜 내부 평균온도
+                    {skyMode === "AUTO" && <span className="ml-1 text-amber-600">(AUTO 기준)</span>}
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    <div className="bg-red-50 border border-red-100 rounded p-1.5 text-center">
+                      <div className="text-lg sm:text-2xl font-bold text-red-500">
+                        {avgTemp !== null ? `${avgTemp.toFixed(1)}°` : "—"}
+                      </div>
+                      <div className="text-[9px] text-gray-400">평균온도</div>
+                    </div>
+                    {skyMode === "AUTO" && skyAutoType === "temp" && (
+                      <div className="bg-orange-50 border border-orange-100 rounded p-1.5 text-center">
+                        <div className="text-lg sm:text-2xl font-bold text-orange-500">
+                          {avgTemp !== null ? `${tempTargetRate}%` : "—"}
+                        </div>
+                        <div className="text-[9px] text-gray-400">목표개도율</div>
+                      </div>
+                    )}
+                    {skyMode === "AUTO" && skyAutoType === "time" && (
+                      <>
+                        <div className="bg-blue-50 border border-blue-100 rounded p-1.5 text-center">
+                          <div className="text-lg sm:text-2xl font-bold text-blue-500">
+                            {nowHH}:{nowMM}
+                          </div>
+                          <div className="text-[9px] text-gray-400">현재 시각</div>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-100 rounded p-1.5 text-center">
+                          <div className="text-lg sm:text-2xl font-bold text-blue-600">
+                            {timeTargetRate}%
+                          </div>
+                          <div className="text-[9px] text-gray-400">목표개도율</div>
+                        </div>
+                      </>
+                    )}
+                    {skyMode === "AUTO" && skyAutoType === "combined" && (
+                      <>
+                        <div className="bg-green-50 border border-green-100 rounded p-1.5 text-center">
+                          <div className="text-lg sm:text-2xl font-bold text-blue-500">
+                            {timeTargetRate}%
+                          </div>
+                          <div className="text-[9px] text-gray-400">시간 허용</div>
+                        </div>
+                        <div className="bg-green-50 border border-green-100 rounded p-1.5 text-center">
+                          <div className="text-lg sm:text-2xl font-bold text-orange-500">
+                            {avgTemp !== null ? `${tempTargetRate}%` : "—"}
+                          </div>
+                          <div className="text-[9px] text-gray-400">온도 기준</div>
+                        </div>
+                        <div className="bg-green-100 border border-green-300 rounded p-1.5 text-center">
+                          <div className="text-lg sm:text-2xl font-bold text-green-700">
+                            {avgTemp !== null ? `${Math.min(timeTargetRate, tempTargetRate)}%` : "—"}
+                          </div>
+                          <div className="text-[9px] text-gray-400">최종 개도율</div>
+                        </div>
+                      </>
+                    )}
+                    {[
+                      { label: "앞", t: farmSensors.front },
+                      { label: "뒤", t: farmSensors.back },
+                      { label: "천장", t: farmSensors.top },
+                    ].map(({ label, t }) => (
+                      <div key={label} className="bg-white rounded p-1 text-center">
+                        <div className="text-[10px] font-semibold text-red-500">{t !== null ? `${t.toFixed(1)}°` : "—"}</div>
+                        <div className="text-[9px] text-gray-400">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* AUTO 모드: 온도 기준 설정 테이블 */}
+            {skyMode === "AUTO" && skyAutoType === "temp" && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 sm:p-3 mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] sm:text-xs font-semibold text-gray-700">온도-개도율 설정</p>
+                  <button
+                    onClick={() => setSkyTempPoints(prev => {
+                      const sorted = [...prev].sort((a, b) => a.temp - b.temp);
+                      const lastTemp = sorted[sorted.length - 1]?.temp ?? 20;
+                      return [...sorted, { temp: lastTemp + 3, rate: 100 }];
+                    })}
+                    className="text-[10px] px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600"
+                  >
+                    + 포인트 추가
+                  </button>
+                </div>
+                <div className="text-[9px] text-gray-500 mb-2">
+                  최저 온도 미만 → 0% 닫힘 / 최고 온도 이상 → 100% 완전 개방 (선형 보간)
+                </div>
+                <div className="space-y-1.5">
+                  {[...skyTempPoints]
+                    .sort((a, b) => a.temp - b.temp)
+                    .map((point, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-white rounded p-1.5">
+                      <span className="text-[10px] text-gray-500 w-4">{idx + 1}</span>
+                      <div className="flex items-center gap-1 flex-1">
+                        <span className="text-[10px] text-gray-600">온도</span>
+                        <input
+                          type="number"
+                          value={point.temp}
+                          onChange={(e) => {
+                            const newPoints = [...skyTempPoints];
+                            const realIdx = skyTempPoints.indexOf(point);
+                            newPoints[realIdx] = { ...point, temp: Number(e.target.value) };
+                            setSkyTempPoints(newPoints);
+                          }}
+                          className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                        <span className="text-[10px] text-gray-600">°C →</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={point.rate}
+                          onChange={(e) => {
+                            const newPoints = [...skyTempPoints];
+                            const realIdx = skyTempPoints.indexOf(point);
+                            newPoints[realIdx] = { ...point, rate: Math.min(100, Math.max(0, Number(e.target.value))) };
+                            setSkyTempPoints(newPoints);
+                          }}
+                          className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                        <span className="text-[10px] text-gray-600">% 개방</span>
+                      </div>
+                      {skyTempPoints.length > 2 && (
+                        <button
+                          onClick={() => setSkyTempPoints(prev => prev.filter((_, i) => i !== skyTempPoints.indexOf(point)))}
+                          className="text-[10px] text-red-500 hover:text-red-700 px-1"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* AUTO 모드: 시간 기준 설정 테이블 */}
+            {skyMode === "AUTO" && skyAutoType === "time" && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] sm:text-xs font-semibold text-gray-700">시간-개도율 설정</p>
+                  <button
+                    onClick={() => setSkyTimePoints(prev => {
+                      const sorted = [...prev].sort((a, b) => a.time.localeCompare(b.time));
+                      const lastTime = sorted[sorted.length - 1]?.time ?? "08:00";
+                      const [h, m] = lastTime.split(':').map(Number);
+                      const newH = Math.min(23, h + 2);
+                      return [...sorted, { time: `${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`, rate: 0 }];
+                    })}
+                    className="text-[10px] px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  >
+                    + 포인트 추가
+                  </button>
+                </div>
+                <div className="text-[9px] text-gray-500 mb-2">
+                  설정 시각 사이를 선형 보간하여 개도율을 결정합니다 (데몬 60초 주기 실행)
+                </div>
+                <div className="space-y-1.5">
+                  {[...skyTimePoints]
+                    .sort((a, b) => a.time.localeCompare(b.time))
+                    .map((point, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-white rounded p-1.5">
+                      <span className="text-[10px] text-gray-500 w-4">{idx + 1}</span>
+                      <div className="flex items-center gap-1 flex-1">
+                        <span className="text-[10px] text-gray-600">시각</span>
+                        <input
+                          type="time"
+                          value={point.time}
+                          onChange={(e) => {
+                            const newPoints = [...skyTimePoints];
+                            const realIdx = skyTimePoints.indexOf(point);
+                            newPoints[realIdx] = { ...point, time: e.target.value };
+                            setSkyTimePoints(newPoints);
+                          }}
+                          className="w-20 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                        <span className="text-[10px] text-gray-600">→</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={point.rate}
+                          onChange={(e) => {
+                            const newPoints = [...skyTimePoints];
+                            const realIdx = skyTimePoints.indexOf(point);
+                            newPoints[realIdx] = { ...point, rate: Math.min(100, Math.max(0, Number(e.target.value))) };
+                            setSkyTimePoints(newPoints);
+                          }}
+                          className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                        <span className="text-[10px] text-gray-600">% 개방</span>
+                      </div>
+                      {skyTimePoints.length > 2 && (
+                        <button
+                          onClick={() => setSkyTimePoints(prev => prev.filter((_, i) => i !== skyTimePoints.indexOf(point)))}
+                          className="text-[10px] text-red-500 hover:text-red-700 px-1"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* AUTO 모드: 복합 기준 설정 (시간 허용치 + 온도 기준 둘 다 표시) */}
+            {skyMode === "AUTO" && skyAutoType === "combined" && (
+              <div className="space-y-3 mb-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] sm:text-xs font-semibold text-blue-700">⏱ 시간별 최대 허용 개폐율 (상한선)</p>
+                    <button
+                      onClick={() => setSkyTimePoints(prev => {
+                        const sorted = [...prev].sort((a, b) => a.time.localeCompare(b.time));
+                        const lastTime = sorted[sorted.length - 1]?.time ?? "08:00";
+                        const [h, m] = lastTime.split(':').map(Number);
+                        const newH = Math.min(23, h + 2);
+                        return [...sorted, { time: `${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`, rate: 0 }];
+                      })}
+                      className="text-[10px] px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    >
+                      + 추가
+                    </button>
+                  </div>
+                  <div className="text-[9px] text-gray-500 mb-2">이 시간대에 열 수 있는 최대치 — 햇빛 확보를 위해 아침엔 낮게 설정</div>
+                  <div className="space-y-1.5">
+                    {[...skyTimePoints].sort((a, b) => a.time.localeCompare(b.time)).map((point, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-white rounded p-1.5">
+                        <span className="text-[10px] text-gray-500 w-4">{idx + 1}</span>
+                        <div className="flex items-center gap-1 flex-1">
+                          <span className="text-[10px] text-gray-600">시각</span>
+                          <input type="time" value={point.time}
+                            onChange={(e) => {
+                              const newPoints = [...skyTimePoints];
+                              const realIdx = skyTimePoints.indexOf(point);
+                              newPoints[realIdx] = { ...point, time: e.target.value };
+                              setSkyTimePoints(newPoints);
+                            }}
+                            className="w-20 px-1.5 py-1 text-xs border border-gray-300 rounded text-center" />
+                          <span className="text-[10px] text-gray-600">→ 최대</span>
+                          <input type="number" min="0" max="100" value={point.rate}
+                            onChange={(e) => {
+                              const newPoints = [...skyTimePoints];
+                              const realIdx = skyTimePoints.indexOf(point);
+                              newPoints[realIdx] = { ...point, rate: Math.min(100, Math.max(0, Number(e.target.value))) };
+                              setSkyTimePoints(newPoints);
+                            }}
+                            className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center" />
+                          <span className="text-[10px] text-gray-600">%</span>
+                        </div>
+                        {skyTimePoints.length > 2 && (
+                          <button onClick={() => setSkyTimePoints(prev => prev.filter((_, i) => i !== skyTimePoints.indexOf(point)))}
+                            className="text-[10px] text-red-500 hover:text-red-700 px-1">✕</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 sm:p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] sm:text-xs font-semibold text-orange-700">🌡 온도별 개폐율 (실제 기준)</p>
+                    <button
+                      onClick={() => setSkyTempPoints(prev => {
+                        const sorted = [...prev].sort((a, b) => a.temp - b.temp);
+                        const lastTemp = sorted[sorted.length - 1]?.temp ?? 20;
+                        return [...sorted, { temp: lastTemp + 3, rate: 100 }];
+                      })}
+                      className="text-[10px] px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600"
+                    >
+                      + 추가
+                    </button>
+                  </div>
+                  <div className="text-[9px] text-gray-500 mb-2">온도가 높을수록 더 열어 환기 — 시간 허용치를 초과할 수 없음</div>
+                  <div className="space-y-1.5">
+                    {[...skyTempPoints].sort((a, b) => a.temp - b.temp).map((point, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-white rounded p-1.5">
+                        <span className="text-[10px] text-gray-500 w-4">{idx + 1}</span>
+                        <div className="flex items-center gap-1 flex-1">
+                          <span className="text-[10px] text-gray-600">온도</span>
+                          <input type="number" value={point.temp}
+                            onChange={(e) => {
+                              const newPoints = [...skyTempPoints];
+                              const realIdx = skyTempPoints.indexOf(point);
+                              newPoints[realIdx] = { ...point, temp: Number(e.target.value) };
+                              setSkyTempPoints(newPoints);
+                            }}
+                            className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center" />
+                          <span className="text-[10px] text-gray-600">°C →</span>
+                          <input type="number" min="0" max="100" value={point.rate}
+                            onChange={(e) => {
+                              const newPoints = [...skyTempPoints];
+                              const realIdx = skyTempPoints.indexOf(point);
+                              newPoints[realIdx] = { ...point, rate: Math.min(100, Math.max(0, Number(e.target.value))) };
+                              setSkyTempPoints(newPoints);
+                            }}
+                            className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center" />
+                          <span className="text-[10px] text-gray-600">% 개방</span>
+                        </div>
+                        {skyTempPoints.length > 2 && (
+                          <button onClick={() => setSkyTempPoints(prev => prev.filter((_, i) => i !== skyTempPoints.indexOf(point)))}
+                            className="text-[10px] text-red-500 hover:text-red-700 px-1">✕</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 장치 카드 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3">
               {skylights.map((skylight) => (
                 <div
@@ -651,95 +1589,107 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     <h3 className="text-xs sm:text-sm font-semibold text-gray-900">
                       {skylight.name}
                     </h3>
-                    <span className="text-[10px] sm:text-xs text-gray-500 bg-gray-100 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
-                      {skylight.esp32Id}
-                    </span>
-                  </div>
-
-                  {/* 버튼 제어 */}
-                  <div className="mb-2 sm:mb-4">
-                    <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-1.5 sm:mb-2">버튼 제어</p>
-                    <div className="flex gap-1.5 sm:gap-2">
-                      <button
-                        onClick={() => handleSkylightCommand(skylight.id, "OPEN")}
-                        className="flex-1 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-semibold py-2 sm:py-3 px-2 sm:px-4 rounded-md transition-colors text-xs sm:text-sm"
-                      >
-                        열기
-                      </button>
-                      <button
-                        onClick={() => handleSkylightCommand(skylight.id, "STOP")}
-                        className="flex-1 bg-yellow-500 hover:bg-yellow-600 active:bg-yellow-700 text-white font-semibold py-2 sm:py-3 px-2 sm:px-4 rounded-md transition-colors text-xs sm:text-sm"
-                      >
-                        정지
-                      </button>
-                      <button
-                        onClick={() => handleSkylightCommand(skylight.id, "CLOSE")}
-                        className="flex-1 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-semibold py-2 sm:py-3 px-2 sm:px-4 rounded-md transition-colors text-xs sm:text-sm"
-                      >
-                        닫기
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 퍼센트 입력 제어 */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-                      <p className="text-[10px] sm:text-xs text-gray-600 font-medium">개폐 퍼센트 설정</p>
-                      {/* 작동 상태 표시 */}
+                    <div className="flex items-center gap-1.5">
                       {operationStatus[skylight.id] === 'running' && (
-                        <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-[10px] sm:text-xs font-semibold rounded-full">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-semibold rounded-full">
                           <span className="animate-pulse">●</span> 작동중
                         </span>
                       )}
                       {operationStatus[skylight.id] === 'completed' && (
-                        <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-green-100 text-green-700 text-[10px] sm:text-xs font-semibold rounded-full">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] font-semibold rounded-full">
                           완료
                         </span>
                       )}
-                    </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={percentageInputs[skylight.id] ?? (deviceState[skylight.id]?.targetPercentage ?? 0)}
-                        onChange={(e) => setPercentageInputs({
-                          ...percentageInputs,
-                          [skylight.id]: e.target.value
-                        })}
-                        className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
-                        placeholder="0-100"
-                      />
-                      <span className="text-xs sm:text-sm font-semibold text-gray-900">%</span>
-                      <button
-                        onClick={() => handleSavePercentage(skylight.id)}
-                        className="px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-xs sm:text-sm font-medium rounded-md transition-colors"
-                      >
-                        저장
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      <div className="flex-1 text-[10px] sm:text-xs text-gray-600 space-y-0.5 sm:space-y-1">
-                        <div>
-                          현재: <span className="font-semibold text-gray-800">
-                            {currentPosition[skylight.id] ?? 0}%
-                          </span>
-                        </div>
-                        <div>
-                          저장: <span className="font-semibold text-amber-600">
-                            {deviceState[skylight.id]?.targetPercentage ?? 0}%
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleExecutePercentage(skylight.id)}
-                        className="px-2 sm:px-4 py-1.5 sm:py-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs sm:text-sm font-semibold rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                        disabled={operationStatus[skylight.id] === 'running'}
-                      >
-                        작동
-                      </button>
+                      <span className="text-[10px] sm:text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                        {skylight.esp32Id}
+                      </span>
                     </div>
                   </div>
+
+                  {/* 현재 위치 게이지 */}
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between text-[10px] sm:text-xs text-gray-600 mb-1">
+                      <span>현재 위치</span>
+                      <span className="font-bold text-amber-600 text-sm">{currentPosition[skylight.id] ?? 0}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-amber-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${currentPosition[skylight.id] ?? 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* MANUAL 모드에서만 수동 제어 표시 */}
+                  {skyMode === "MANUAL" && (
+                    <>
+                      <div className="mb-2 sm:mb-3">
+                        <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-1.5">버튼 제어</p>
+                        <div className="flex gap-1.5 sm:gap-2">
+                          <button
+                            onClick={() => handleSkylightCommand(skylight.id, "OPEN")}
+                            className="flex-1 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-semibold py-2 px-2 rounded-md transition-colors text-xs sm:text-sm"
+                          >
+                            열기
+                          </button>
+                          <button
+                            onClick={() => handleSkylightCommand(skylight.id, "STOP")}
+                            className="flex-1 bg-yellow-500 hover:bg-yellow-600 active:bg-yellow-700 text-white font-semibold py-2 px-2 rounded-md transition-colors text-xs sm:text-sm"
+                          >
+                            정지
+                          </button>
+                          <button
+                            onClick={() => handleSkylightCommand(skylight.id, "CLOSE")}
+                            className="flex-1 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-semibold py-2 px-2 rounded-md transition-colors text-xs sm:text-sm"
+                          >
+                            닫기
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-1.5">개폐 퍼센트 설정</p>
+                        <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={percentageInputs[skylight.id] ?? (deviceState[skylight.id]?.targetPercentage ?? 0)}
+                            onChange={(e) => setPercentageInputs({
+                              ...percentageInputs,
+                              [skylight.id]: e.target.value
+                            })}
+                            className="flex-1 px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            placeholder="0-100"
+                          />
+                          <span className="text-xs font-semibold text-gray-900">%</span>
+                          <button
+                            onClick={() => handleSavePercentage(skylight.id)}
+                            className="px-2 sm:px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-md transition-colors"
+                          >
+                            저장
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-gray-500">
+                            저장: <span className="font-semibold text-amber-600">{deviceState[skylight.id]?.targetPercentage ?? 0}%</span>
+                          </span>
+                          <button
+                            onClick={() => handleExecutePercentage(skylight.id)}
+                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            disabled={operationStatus[skylight.id] === 'running'}
+                          >
+                            작동
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {skyMode === "AUTO" && (
+                    <div className="text-center text-[10px] text-amber-600 bg-amber-50 rounded p-1.5">
+                      {skyAutoActive ? "🌤 온도 기반 자동 개폐 중" : "AUTO 모드 — 작동시작 버튼을 누르세요"}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -754,7 +1704,219 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             </h2>
             <span className="text-[10px] sm:text-xs text-gray-800">{sidescreens.length}개</span>
           </header>
-          <div className="bg-white shadow-sm rounded-b-lg p-2 sm:p-3">
+          <div className="bg-white shadow-sm rounded-b-lg p-2 sm:p-4">
+
+            {/* 제어 모드 버튼 (항상 최상단에 표시) */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3 mb-3">
+              <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-2">제어 모드</p>
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={() => {
+                    sideModeRef.current = "AUTO";
+                    setSideMode("AUTO");
+                    setSideAutoActive(false);
+                    sideLastTargetRef.current = {};
+                    getMqttClient().publish("tansaeng/side-control/mode", "AUTO", { qos: 1, retain: true });
+                    getMqttClient().publish("tansaeng/side-control/autoActive", "false", { qos: 1, retain: true });
+                  }}
+                  className={`flex-1 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                    sideMode === "AUTO"
+                      ? "bg-gray-900 text-white shadow"
+                      : "bg-white border border-blue-300 text-blue-600 hover:bg-blue-50"
+                  }`}
+                >
+                  자동 (AUTO)
+                </button>
+                <button
+                  onClick={() => {
+                    sideModeRef.current = "MANUAL";
+                    setSideMode("MANUAL");
+                    setSideAutoActive(false);
+                    getMqttClient().publish("tansaeng/side-control/mode", "MANUAL", { qos: 1, retain: true });
+                    getMqttClient().publish("tansaeng/side-control/autoActive", "false", { qos: 1, retain: true });
+                  }}
+                  className={`flex-1 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
+                    sideMode === "MANUAL"
+                      ? "bg-gray-700 text-yellow-300 shadow"
+                      : "bg-white border border-gray-300 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  수동 (MANUAL)
+                </button>
+              </div>
+              {/* AUTO 모드: 작동시작/멈춤 + 상태 */}
+              {sideMode === "AUTO" && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setSideAutoActive(true);
+                      sideLastTargetRef.current = {};
+                      getMqttClient().publish("tansaeng/side-control/autoActive", "true", { qos: 1, retain: true });
+                    }}
+                    disabled={sideAutoActive}
+                    className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                      sideAutoActive
+                        ? "bg-blue-500 text-white shadow"
+                        : "bg-white border border-blue-400 text-blue-600 hover:bg-blue-50"
+                    }`}
+                  >
+                    ▶ 작동시작
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSideAutoActive(false);
+                      getMqttClient().publish("tansaeng/side-control/autoActive", "false", { qos: 1, retain: true });
+                      // 진행 중인 모터 타이머 취소 + STOP 명령 즉시 전송
+                      sidescreens.forEach((sidescreen) => {
+                        if (percentageTimers.current[sidescreen.id]) {
+                          clearTimeout(percentageTimers.current[sidescreen.id]);
+                          delete percentageTimers.current[sidescreen.id];
+                        }
+                        const mqttDeviceId = sidescreen.commandTopic.split('/')[2];
+                        sendDeviceCommand(sidescreen.esp32Id, mqttDeviceId, "STOP");
+                        setOperationStatus(prev => ({ ...prev, [sidescreen.id]: 'idle' }));
+                      });
+                    }}
+                    disabled={!sideAutoActive}
+                    className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                      sideAutoActive
+                        ? "bg-red-500 text-white shadow"
+                        : "bg-white border border-red-400 text-red-600 hover:bg-red-50"
+                    }`}
+                  >
+                    ■ 작동멈춤
+                  </button>
+                  <span className="text-[10px] font-semibold text-blue-600">
+                    {sideAutoActive ? "🪟 AUTO 작동 중" : "⏸ 대기"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 팜 평균온도 + 목표개도율 */}
+            {(() => {
+              const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+              const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+              let autoTargetRate = 0;
+              if (avgTemp !== null) {
+                const sorted = [...sideTempPoints].sort((a, b) => a.temp - b.temp);
+                if (avgTemp >= sorted[sorted.length - 1].temp) {
+                  autoTargetRate = 100;
+                } else if (avgTemp >= sorted[0].temp) {
+                  for (let i = 0; i < sorted.length - 1; i++) {
+                    if (avgTemp >= sorted[i].temp && avgTemp < sorted[i + 1].temp) {
+                      const ratio = (avgTemp - sorted[i].temp) / (sorted[i + 1].temp - sorted[i].temp);
+                      autoTargetRate = Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
+                      break;
+                    }
+                  }
+                }
+              }
+              return (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3 mb-3">
+                  <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1.5">
+                    팜 내부 평균온도
+                    {sideMode === "AUTO" && <span className="ml-1 text-blue-600">(AUTO 기준)</span>}
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    <div className="bg-red-50 border border-red-100 rounded p-1.5 text-center">
+                      <div className="text-lg sm:text-2xl font-bold text-red-500">
+                        {avgTemp !== null ? `${avgTemp.toFixed(1)}°` : "—"}
+                      </div>
+                      <div className="text-[9px] text-gray-400">평균온도</div>
+                    </div>
+                    {sideMode === "AUTO" && (
+                      <div className="bg-blue-50 border border-blue-100 rounded p-1.5 text-center">
+                        <div className="text-lg sm:text-2xl font-bold text-blue-500">
+                          {avgTemp !== null ? `${autoTargetRate}%` : "—"}
+                        </div>
+                        <div className="text-[9px] text-gray-400">목표개도율</div>
+                      </div>
+                    )}
+                    {[
+                      { label: "앞", t: farmSensors.front },
+                      { label: "뒤", t: farmSensors.back },
+                      { label: "천장", t: farmSensors.top },
+                    ].map(({ label, t }) => (
+                      <div key={label} className="bg-white rounded p-1 text-center">
+                        <div className="text-[10px] font-semibold text-red-500">{t !== null ? `${t.toFixed(1)}°` : "—"}</div>
+                        <div className="text-[9px] text-gray-400">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* AUTO 모드: 온도-개도율 설정 테이블 */}
+            {sideMode === "AUTO" && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] sm:text-xs font-semibold text-gray-700">온도-개도율 설정</p>
+                  <button
+                    onClick={() => setSideTempPoints(prev => {
+                      const sorted = [...prev].sort((a, b) => a.temp - b.temp);
+                      const lastTemp = sorted[sorted.length - 1]?.temp ?? 20;
+                      return [...sorted, { temp: lastTemp + 3, rate: 100 }];
+                    })}
+                    className="text-[10px] px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  >
+                    + 포인트 추가
+                  </button>
+                </div>
+                <div className="text-[9px] text-gray-500 mb-2">
+                  설정 온도 미만 → 0% 닫힘 / 최고 온도 이상 → 100% 완전 개방
+                </div>
+                <div className="space-y-1.5">
+                  {[...sideTempPoints]
+                    .sort((a, b) => a.temp - b.temp)
+                    .map((point, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-white rounded p-1.5">
+                      <span className="text-[10px] text-gray-500 w-4">{idx + 1}</span>
+                      <div className="flex items-center gap-1 flex-1">
+                        <span className="text-[10px] text-gray-600">온도</span>
+                        <input
+                          type="number"
+                          value={point.temp}
+                          onChange={(e) => {
+                            const newPoints = [...sideTempPoints];
+                            const realIdx = sideTempPoints.indexOf(point);
+                            newPoints[realIdx] = { ...point, temp: Number(e.target.value) };
+                            setSideTempPoints(newPoints);
+                          }}
+                          className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                        <span className="text-[10px] text-gray-600">°C →</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={point.rate}
+                          onChange={(e) => {
+                            const newPoints = [...sideTempPoints];
+                            const realIdx = sideTempPoints.indexOf(point);
+                            newPoints[realIdx] = { ...point, rate: Math.min(100, Math.max(0, Number(e.target.value))) };
+                            setSideTempPoints(newPoints);
+                          }}
+                          className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                        <span className="text-[10px] text-gray-600">% 개방</span>
+                      </div>
+                      {sideTempPoints.length > 2 && (
+                        <button
+                          onClick={() => setSideTempPoints(prev => prev.filter((_, i) => i !== sideTempPoints.indexOf(point)))}
+                          className="text-[10px] text-red-500 hover:text-red-700 px-1"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 장치 카드: MANUAL 모드에서만 개별 제어 표시, AUTO에서는 현재 위치만 표시 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3">
               {sidescreens.map((sidescreen) => (
                 <div
@@ -765,95 +1927,111 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     <h3 className="text-xs sm:text-sm font-semibold text-gray-900">
                       {sidescreen.name}
                     </h3>
-                    <span className="text-[10px] sm:text-xs text-gray-500 bg-gray-100 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
-                      {sidescreen.esp32Id}
-                    </span>
-                  </div>
-
-                  {/* 버튼 제어 */}
-                  <div className="mb-2 sm:mb-4">
-                    <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-1.5 sm:mb-2">버튼 제어</p>
-                    <div className="flex gap-1.5 sm:gap-2">
-                      <button
-                        onClick={() => handleSkylightCommand(sidescreen.id, "OPEN")}
-                        className="flex-1 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-semibold py-2 sm:py-3 px-2 sm:px-4 rounded-md transition-colors text-xs sm:text-sm"
-                      >
-                        열기
-                      </button>
-                      <button
-                        onClick={() => handleSkylightCommand(sidescreen.id, "STOP")}
-                        className="flex-1 bg-yellow-500 hover:bg-yellow-600 active:bg-yellow-700 text-white font-semibold py-2 sm:py-3 px-2 sm:px-4 rounded-md transition-colors text-xs sm:text-sm"
-                      >
-                        정지
-                      </button>
-                      <button
-                        onClick={() => handleSkylightCommand(sidescreen.id, "CLOSE")}
-                        className="flex-1 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-semibold py-2 sm:py-3 px-2 sm:px-4 rounded-md transition-colors text-xs sm:text-sm"
-                      >
-                        닫기
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 퍼센트 입력 제어 */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-                      <p className="text-[10px] sm:text-xs text-gray-600 font-medium">개폐 퍼센트 설정</p>
-                      {/* 작동 상태 표시 */}
+                    <div className="flex items-center gap-1.5">
                       {operationStatus[sidescreen.id] === 'running' && (
-                        <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-[10px] sm:text-xs font-semibold rounded-full">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-semibold rounded-full">
                           <span className="animate-pulse">●</span> 작동중
                         </span>
                       )}
                       {operationStatus[sidescreen.id] === 'completed' && (
-                        <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-green-100 text-green-700 text-[10px] sm:text-xs font-semibold rounded-full">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] font-semibold rounded-full">
                           완료
                         </span>
                       )}
-                    </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={percentageInputs[sidescreen.id] ?? (deviceState[sidescreen.id]?.targetPercentage ?? 0)}
-                        onChange={(e) => setPercentageInputs({
-                          ...percentageInputs,
-                          [sidescreen.id]: e.target.value
-                        })}
-                        className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="0-100"
-                      />
-                      <span className="text-xs sm:text-sm font-semibold text-gray-900">%</span>
-                      <button
-                        onClick={() => handleSavePercentage(sidescreen.id)}
-                        className="px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-xs sm:text-sm font-medium rounded-md transition-colors"
-                      >
-                        저장
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      <div className="flex-1 text-[10px] sm:text-xs text-gray-600 space-y-0.5 sm:space-y-1">
-                        <div>
-                          현재: <span className="font-semibold text-gray-800">
-                            {currentPosition[sidescreen.id] ?? 0}%
-                          </span>
-                        </div>
-                        <div>
-                          저장: <span className="font-semibold text-blue-600">
-                            {deviceState[sidescreen.id]?.targetPercentage ?? 0}%
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleExecutePercentage(sidescreen.id)}
-                        className="px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                        disabled={operationStatus[sidescreen.id] === 'running'}
-                      >
-                        작동
-                      </button>
+                      <span className="text-[10px] sm:text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                        {sidescreen.esp32Id}
+                      </span>
                     </div>
                   </div>
+
+                  {/* 현재 위치 표시 (AUTO/MANUAL 공통) */}
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between text-[10px] sm:text-xs text-gray-600 mb-1">
+                      <span>현재 위치</span>
+                      <span className="font-bold text-blue-600 text-sm">{currentPosition[sidescreen.id] ?? 0}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${currentPosition[sidescreen.id] ?? 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* MANUAL 모드에서만 수동 제어 표시 */}
+                  {sideMode === "MANUAL" && (
+                    <>
+                      {/* 버튼 제어 */}
+                      <div className="mb-2 sm:mb-3">
+                        <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-1.5">버튼 제어</p>
+                        <div className="flex gap-1.5 sm:gap-2">
+                          <button
+                            onClick={() => handleSkylightCommand(sidescreen.id, "OPEN")}
+                            className="flex-1 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-semibold py-2 px-2 rounded-md transition-colors text-xs sm:text-sm"
+                          >
+                            열기
+                          </button>
+                          <button
+                            onClick={() => handleSkylightCommand(sidescreen.id, "STOP")}
+                            className="flex-1 bg-yellow-500 hover:bg-yellow-600 active:bg-yellow-700 text-white font-semibold py-2 px-2 rounded-md transition-colors text-xs sm:text-sm"
+                          >
+                            정지
+                          </button>
+                          <button
+                            onClick={() => handleSkylightCommand(sidescreen.id, "CLOSE")}
+                            className="flex-1 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-semibold py-2 px-2 rounded-md transition-colors text-xs sm:text-sm"
+                          >
+                            닫기
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 퍼센트 직접 이동 */}
+                      <div>
+                        <p className="text-[10px] sm:text-xs text-gray-600 font-medium mb-1.5">개폐 퍼센트 설정</p>
+                        <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={percentageInputs[sidescreen.id] ?? (deviceState[sidescreen.id]?.targetPercentage ?? 0)}
+                            onChange={(e) => setPercentageInputs({
+                              ...percentageInputs,
+                              [sidescreen.id]: e.target.value
+                            })}
+                            className="flex-1 px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="0-100"
+                          />
+                          <span className="text-xs font-semibold text-gray-900">%</span>
+                          <button
+                            onClick={() => handleSavePercentage(sidescreen.id)}
+                            className="px-2 sm:px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-md transition-colors"
+                          >
+                            저장
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-gray-500">
+                            저장: <span className="font-semibold text-blue-600">{deviceState[sidescreen.id]?.targetPercentage ?? 0}%</span>
+                          </span>
+                          <button
+                            onClick={() => handleExecutePercentage(sidescreen.id)}
+                            className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            disabled={operationStatus[sidescreen.id] === 'running'}
+                          >
+                            작동
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* AUTO 모드에서는 자동 제어 안내 표시 */}
+                  {sideMode === "AUTO" && (
+                    <div className="text-center text-[10px] text-blue-600 bg-blue-50 rounded p-1.5">
+                      {sideAutoActive ? "🪟 온도 기반 자동 개폐 중" : "AUTO 모드 — 작동시작 버튼을 누르세요"}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1071,6 +2249,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         <div className="flex justify-between text-[10px] text-gray-400 mx-3 mt-0.5">
                           <span>-10°C</span><span>+20°C</span><span>+50°C</span>
                         </div>
+                        {/* 저장 버튼 + 마지막 저장 시각 */}
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-green-100">
+                          <span className="text-[10px] text-gray-400">
+                            {rangesSavedAt[fan.id] ? `저장: ${rangesSavedAt[fan.id]}` : "미저장"}
+                          </span>
+                          <button
+                            onClick={() => saveDeviceRange(fan.id, fan.name, range.low, range.high)}
+                            className="px-3 py-1 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+                          >
+                            💾 저장
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -1179,10 +2369,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       hpModeRef.current = "AUTO";
                       setHpMode("AUTO");
                       hpAutoDemandRef.current = false;
-                      setHpAutoActive(false); // 모드 전환 시 작동 초기화
+                      setHpAutoActive(false);
                       hpDeviceLastCmd.current = { hp_pump: null, hp_heater: null, hp_fan: null };
-                      // ESP32는 항상 MANUAL 유지 — 브라우저 명령(pump/heater/fan cmd)을 수신할 수 있어야 함
                       getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/hp-control/mode", "AUTO", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
                     }}
                     className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
                       hpMode === "AUTO"
@@ -1196,8 +2387,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     onClick={() => {
                       hpModeRef.current = "MANUAL";
                       setHpMode("MANUAL");
+                      setHpAutoActive(false);
                       hpAutoDemandRef.current = false;
+                      hpDeviceLastCmd.current = { hp_pump: null, hp_heater: null, hp_fan: null };
                       getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/hp-control/mode", "MANUAL", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
                     }}
                     className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
                       hpMode === "MANUAL"
@@ -1253,7 +2448,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
               const gaugeItems = [
                 { key: "hp_pump",   label: "순환펌프",   icon: "💧" },
                 { key: "hp_heater", label: "전기온열기", icon: "🔥" },
-                { key: "hp_fan",    label: "팬",         icon: "🌀" },
+                { key: "hp_fan",    label: "장치실 팬",   icon: "🌀" },
               ];
 
               return (
@@ -1272,6 +2467,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         onClick={() => {
                           hpDeviceLastCmd.current = { hp_pump: null, hp_heater: null, hp_fan: null };
                           setHpAutoActive(true);
+                          getMqttClient().publish("tansaeng/hp-control/autoActive", "true", { qos: 1, retain: true });
                         }}
                         className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
                           hpAutoActive
@@ -1284,6 +2480,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       <button
                         onClick={() => {
                           setHpAutoActive(false);
+                          getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
                           // 모든 HP 장치 정지
                           const HP = "ctlr-heat-001";
                           ["hp_pump", "hp_heater", "hp_fan"].forEach((k, i) => {
@@ -1349,6 +2546,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         {/* 눈금 */}
                         <div className="flex justify-between text-[10px] text-gray-400 mx-3 mt-0.5">
                           <span>-30°C</span><span>0°C</span><span>+30°C</span>
+                        </div>
+                        {/* 저장 버튼 + 마지막 저장 시각 */}
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-orange-100">
+                          <span className="text-[10px] text-gray-400">
+                            {rangesSavedAt[key] ? `저장: ${rangesSavedAt[key]}` : "미저장"}
+                          </span>
+                          <button
+                            onClick={() => saveDeviceRange(key, label, range.low, range.high)}
+                            className="px-3 py-1 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-md transition-colors"
+                          >
+                            💾 저장
+                          </button>
                         </div>
                       </div>
                     );

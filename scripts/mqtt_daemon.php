@@ -580,7 +580,8 @@ try {
         }
 
         // ========== 분무수경 밸브 자동 제어 ==========
-        if (isset($cachedSettings['mist_zones'])) {
+        // Node.js smartfarm_mist_daemon.cjs 가 전담 — PHP 데몬은 개입하지 않음
+        if (false && isset($cachedSettings['mist_zones'])) {
             foreach ($cachedSettings['mist_zones'] as $zoneId => $zoneConfig) {
                 $mode = $zoneConfig['mode'] ?? 'OFF';
                 $controllerId = $zoneConfig['controllerId'] ?? null;
