@@ -3,8 +3,25 @@ import { getDevicesByType } from "../config/devices";
 import { ESP32_CONTROLLERS } from "../config/esp32Controllers";
 import type { DeviceDesiredState } from "../types";
 import DeviceCard from "../components/DeviceCard";
-import { getMqttClient, onConnectionChange } from "../mqtt/mqttClient";
+import { getMqttClient, onConnectionChange, subscribeToTopic } from "../mqtt/mqttClient";
 import { sendDeviceCommand, saveDeviceSettings, getDeviceSettings } from "../api/deviceControl";
+
+// ─── 팬 자동 제어 타입 ─────────────────────────────────────────────────────────
+type SensorType = 'temp' | 'humi';
+interface FanRange { low: number; high: number; }
+interface TempPoint { temp: number; rate: number; }
+interface HumiPoint { humi: number; rate: number; }
+
+const FAN_IDS = [
+  { id: 'fan_front', name: '내부팬 앞' },
+  { id: 'fan_back',  name: '내부팬 뒤' },
+  { id: 'fan_top',   name: '천장팬'   },
+];
+
+function publishRetain(topic: string, payload: string) {
+  const client = getMqttClient();
+  client.publish(topic, payload, { qos: 1, retain: true });
+}
 
 interface DevicesControlProps {
   deviceState: DeviceDesiredState;
@@ -33,6 +50,28 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 퍼센트 작동 시작 시각 추적 (STOP 시 현재 위치 계산용)
   const operationStartInfo = useRef<Record<string, { startTime: number; startPos: number; targetPos: number; fullTimeSeconds: number }>>({});
 
+  // ─── 팬 자동 제어 상태 ──────────────────────────────────────────────────────
+  const [fanMode, setFanMode] = useState<'MANUAL' | 'AUTO'>('MANUAL');
+  const [fanAutoActive, setFanAutoActive] = useState(false);
+  const [fanAutoSensor, setFanAutoSensor] = useState<SensorType>('temp');
+  const [fanRanges, setFanRanges] = useState<Record<string, FanRange>>({
+    fan_front: { low: 22, high: 28 }, fan_back: { low: 22, high: 28 }, fan_top: { low: 22, high: 28 },
+  });
+  const [fanHumRanges, setFanHumRanges] = useState<Record<string, FanRange>>({
+    fan_front: { low: 60, high: 80 }, fan_back: { low: 60, high: 80 }, fan_top: { low: 60, high: 80 },
+  });
+
+  // ─── 측창 자동 제어 상태 ─────────────────────────────────────────────────────
+  const [sideMode, setSideMode] = useState<'MANUAL' | 'AUTO'>('MANUAL');
+  const [sideAutoActive, setSideAutoActive] = useState(false);
+  const [sideAutoSensor, setSideAutoSensor] = useState<SensorType>('temp');
+  const [sideTempPoints, setSideTempPoints] = useState<TempPoint[]>([
+    { temp: 20, rate: 10 }, { temp: 23, rate: 30 }, { temp: 28, rate: 100 },
+  ]);
+  const [sideHumPoints, setSideHumPoints] = useState<HumiPoint[]>([
+    { humi: 60, rate: 10 }, { humi: 70, rate: 30 }, { humi: 80, rate: 100 },
+  ]);
+
   const fans = getDevicesByType("fan");
   const vents = getDevicesByType("vent");
   const pumps = getDevicesByType("pump");
@@ -46,6 +85,33 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         setCurrentPosition(result.data.screen_positions as Record<string, number>);
       }
     });
+  }, []);
+
+  // ─── 자동 제어 retain 토픽 구독 (재접속 후 상태 복원) ──────────────────────
+  useEffect(() => {
+    const unsubs: Array<() => void> = [];
+
+    unsubs.push(subscribeToTopic('tansaeng/fan-control/mode', p => setFanMode(p === 'AUTO' ? 'AUTO' : 'MANUAL')));
+    unsubs.push(subscribeToTopic('tansaeng/fan-control/autoActive', p => setFanAutoActive(p === 'true')));
+    unsubs.push(subscribeToTopic('tansaeng/fan-control/autoSensor', p => { if (p === 'temp' || p === 'humi') setFanAutoSensor(p); }));
+    unsubs.push(subscribeToTopic('tansaeng/fan-control/ranges', p => {
+      try { const v = JSON.parse(p); if (v && typeof v === 'object') setFanRanges(prev => ({ ...prev, ...v })); } catch (_) {}
+    }));
+    unsubs.push(subscribeToTopic('tansaeng/fan-control/humRanges', p => {
+      try { const v = JSON.parse(p); if (v && typeof v === 'object') setFanHumRanges(prev => ({ ...prev, ...v })); } catch (_) {}
+    }));
+
+    unsubs.push(subscribeToTopic('tansaeng/side-control/mode', p => setSideMode(p === 'AUTO' ? 'AUTO' : 'MANUAL')));
+    unsubs.push(subscribeToTopic('tansaeng/side-control/autoActive', p => setSideAutoActive(p === 'true')));
+    unsubs.push(subscribeToTopic('tansaeng/side-control/autoSensor', p => { if (p === 'temp' || p === 'humi') setSideAutoSensor(p); }));
+    unsubs.push(subscribeToTopic('tansaeng/side-control/tempPoints', p => {
+      try { const v = JSON.parse(p); if (Array.isArray(v)) setSideTempPoints(v); } catch (_) {}
+    }));
+    unsubs.push(subscribeToTopic('tansaeng/side-control/humPoints', p => {
+      try { const v = JSON.parse(p); if (Array.isArray(v)) setSideHumPoints(v); } catch (_) {}
+    }));
+
+    return () => unsubs.forEach(fn => fn());
   }, []);
 
   // 현재 위치 업데이트 + 서버 저장
@@ -408,6 +474,129 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           </div>
         </section>
 
+        {/* 팬 자동 제어 패널 */}
+        <section className="mb-2 sm:mb-3">
+          <header className="bg-farm-600 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
+            <h2 className="text-sm sm:text-base font-semibold flex items-center gap-1.5 text-gray-900">
+              팬 자동 제어
+            </h2>
+            <div className="flex items-center gap-2">
+              {/* AUTO/MANUAL 토글 */}
+              <button
+                onClick={() => {
+                  const next = fanMode === 'AUTO' ? 'MANUAL' : 'AUTO';
+                  setFanMode(next);
+                  publishRetain('tansaeng/fan-control/mode', next);
+                  if (next === 'MANUAL') { setFanAutoActive(false); publishRetain('tansaeng/fan-control/autoActive', 'false'); }
+                }}
+                className={`px-2 sm:px-3 py-1 rounded text-xs font-bold transition-colors ${fanMode === 'AUTO' ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-700'}`}
+              >
+                {fanMode === 'AUTO' ? 'AUTO' : 'MANUAL'}
+              </button>
+            </div>
+          </header>
+          <div className="bg-white shadow-sm rounded-b-lg p-3 sm:p-4 space-y-4">
+            {fanMode === 'AUTO' && (
+              <>
+                {/* 센서 선택 */}
+                <div className="flex items-center gap-3">
+                  <span className="text-xs sm:text-sm font-medium text-gray-700 w-20">제어 센서</span>
+                  <div className="flex rounded-md overflow-hidden border border-gray-300">
+                    {(['temp', 'humi'] as SensorType[]).map(s => (
+                      <button
+                        key={s}
+                        onClick={() => {
+                          setFanAutoSensor(s);
+                          publishRetain('tansaeng/fan-control/autoSensor', s);
+                        }}
+                        className={`px-3 py-1.5 text-xs font-medium transition-colors ${fanAutoSensor === s ? 'bg-farm-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                      >
+                        {s === 'temp' ? '온도' : '습도'}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-500">{fanAutoSensor === 'temp' ? '°C 기준' : '%RH 기준'}</span>
+                </div>
+
+                {/* 자동 제어 활성화 */}
+                <div className="flex items-center gap-3">
+                  <span className="text-xs sm:text-sm font-medium text-gray-700 w-20">자동 실행</span>
+                  <button
+                    onClick={() => {
+                      const next = !fanAutoActive;
+                      setFanAutoActive(next);
+                      publishRetain('tansaeng/fan-control/autoActive', String(next));
+                    }}
+                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${fanAutoActive ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+                  >
+                    {fanAutoActive ? '활성' : '비활성'}
+                  </button>
+                </div>
+
+                {/* 팬별 범위 설정 */}
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-2">
+                    팬별 {fanAutoSensor === 'temp' ? '온도' : '습도'} 범위 (ON 구간)
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {FAN_IDS.map(({ id, name }) => {
+                      const ranges = fanAutoSensor === 'temp' ? fanRanges : fanHumRanges;
+                      const range = ranges[id] ?? { low: 0, high: 100 };
+                      const unit = fanAutoSensor === 'temp' ? '°C' : '%';
+                      return (
+                        <div key={id} className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3">
+                          <p className="text-xs font-semibold text-gray-700 mb-2">{name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              value={range.low}
+                              onChange={e => {
+                                const v = Number(e.target.value);
+                                const upd = fanAutoSensor === 'temp'
+                                  ? { ...fanRanges, [id]: { ...range, low: v } }
+                                  : { ...fanHumRanges, [id]: { ...range, low: v } };
+                                fanAutoSensor === 'temp' ? setFanRanges(upd) : setFanHumRanges(upd);
+                              }}
+                              className="w-16 px-1.5 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-farm-500"
+                            />
+                            <span className="text-xs text-gray-500">{unit} ~</span>
+                            <input
+                              type="number"
+                              value={range.high}
+                              onChange={e => {
+                                const v = Number(e.target.value);
+                                const upd = fanAutoSensor === 'temp'
+                                  ? { ...fanRanges, [id]: { ...range, high: v } }
+                                  : { ...fanHumRanges, [id]: { ...range, high: v } };
+                                fanAutoSensor === 'temp' ? setFanRanges(upd) : setFanHumRanges(upd);
+                              }}
+                              className="w-16 px-1.5 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-farm-500"
+                            />
+                            <span className="text-xs text-gray-500">{unit}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const topic = fanAutoSensor === 'temp' ? 'tansaeng/fan-control/ranges' : 'tansaeng/fan-control/humRanges';
+                      const data = fanAutoSensor === 'temp' ? fanRanges : fanHumRanges;
+                      publishRetain(topic, JSON.stringify(data));
+                    }}
+                    className="mt-2 px-4 py-1.5 bg-farm-500 hover:bg-farm-600 text-white text-xs font-medium rounded-md transition-colors"
+                  >
+                    범위 저장
+                  </button>
+                </div>
+              </>
+            )}
+            {fanMode === 'MANUAL' && (
+              <p className="text-xs text-gray-500 text-center py-2">MANUAL 모드 — AUTO로 전환하면 자동 제어 설정이 활성화됩니다.</p>
+            )}
+          </div>
+        </section>
+
         {/* 천창 스크린 제어 섹션 */}
         <section className="mb-2 sm:mb-3">
           <header className="bg-amber-400 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
@@ -633,6 +822,155 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* 측창 자동 제어 패널 */}
+        <section className="mb-2 sm:mb-3">
+          <header className="bg-blue-600 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
+            <h2 className="text-sm sm:text-base font-semibold flex items-center gap-1.5 text-gray-900">
+              측창 자동 제어
+            </h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const next = sideMode === 'AUTO' ? 'MANUAL' : 'AUTO';
+                  setSideMode(next);
+                  publishRetain('tansaeng/side-control/mode', next);
+                  if (next === 'MANUAL') { setSideAutoActive(false); publishRetain('tansaeng/side-control/autoActive', 'false'); }
+                }}
+                className={`px-2 sm:px-3 py-1 rounded text-xs font-bold transition-colors ${sideMode === 'AUTO' ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-700'}`}
+              >
+                {sideMode === 'AUTO' ? 'AUTO' : 'MANUAL'}
+              </button>
+            </div>
+          </header>
+          <div className="bg-white shadow-sm rounded-b-lg p-3 sm:p-4 space-y-4">
+            {sideMode === 'AUTO' && (
+              <>
+                {/* 센서 선택 */}
+                <div className="flex items-center gap-3">
+                  <span className="text-xs sm:text-sm font-medium text-gray-700 w-20">제어 센서</span>
+                  <div className="flex rounded-md overflow-hidden border border-gray-300">
+                    {(['temp', 'humi'] as SensorType[]).map(s => (
+                      <button
+                        key={s}
+                        onClick={() => {
+                          setSideAutoSensor(s);
+                          publishRetain('tansaeng/side-control/autoSensor', s);
+                        }}
+                        className={`px-3 py-1.5 text-xs font-medium transition-colors ${sideAutoSensor === s ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                      >
+                        {s === 'temp' ? '온도' : '습도'}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-500">{sideAutoSensor === 'temp' ? '°C 기준' : '%RH 기준'}</span>
+                </div>
+
+                {/* 자동 제어 활성화 */}
+                <div className="flex items-center gap-3">
+                  <span className="text-xs sm:text-sm font-medium text-gray-700 w-20">자동 실행</span>
+                  <button
+                    onClick={() => {
+                      const next = !sideAutoActive;
+                      setSideAutoActive(next);
+                      publishRetain('tansaeng/side-control/autoActive', String(next));
+                    }}
+                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${sideAutoActive ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+                  >
+                    {sideAutoActive ? '활성' : '비활성'}
+                  </button>
+                </div>
+
+                {/* 구간 포인트 설정 */}
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-2">
+                    {sideAutoSensor === 'temp' ? '온도(°C) → 개도율(%) 구간 설정' : '습도(%RH) → 개도율(%) 구간 설정'}
+                  </p>
+                  {sideAutoSensor === 'temp' ? (
+                    <div className="space-y-2">
+                      {sideTempPoints.map((pt, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500 w-4">{i + 1}</span>
+                          <span className="text-xs text-gray-600">온도</span>
+                          <input
+                            type="number"
+                            value={pt.temp}
+                            onChange={e => {
+                              const pts = sideTempPoints.map((p, j) => j === i ? { ...p, temp: Number(e.target.value) } : p);
+                              setSideTempPoints(pts);
+                            }}
+                            className="w-16 px-1.5 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <span className="text-xs text-gray-600">°C → 개도율</span>
+                          <input
+                            type="number"
+                            value={pt.rate}
+                            min="0" max="100"
+                            onChange={e => {
+                              const pts = sideTempPoints.map((p, j) => j === i ? { ...p, rate: Number(e.target.value) } : p);
+                              setSideTempPoints(pts);
+                            }}
+                            className="w-16 px-1.5 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <span className="text-xs text-gray-600">%</span>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          publishRetain('tansaeng/side-control/tempPoints', JSON.stringify(sideTempPoints));
+                        }}
+                        className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-md transition-colors"
+                      >
+                        온도 구간 저장
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {sideHumPoints.map((pt, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500 w-4">{i + 1}</span>
+                          <span className="text-xs text-gray-600">습도</span>
+                          <input
+                            type="number"
+                            value={pt.humi}
+                            onChange={e => {
+                              const pts = sideHumPoints.map((p, j) => j === i ? { ...p, humi: Number(e.target.value) } : p);
+                              setSideHumPoints(pts);
+                            }}
+                            className="w-16 px-1.5 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <span className="text-xs text-gray-600">%RH → 개도율</span>
+                          <input
+                            type="number"
+                            value={pt.rate}
+                            min="0" max="100"
+                            onChange={e => {
+                              const pts = sideHumPoints.map((p, j) => j === i ? { ...p, rate: Number(e.target.value) } : p);
+                              setSideHumPoints(pts);
+                            }}
+                            className="w-16 px-1.5 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <span className="text-xs text-gray-600">%</span>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          publishRetain('tansaeng/side-control/humPoints', JSON.stringify(sideHumPoints));
+                        }}
+                        className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-md transition-colors"
+                      >
+                        습도 구간 저장
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            {sideMode === 'MANUAL' && (
+              <p className="text-xs text-gray-500 text-center py-2">MANUAL 모드 — AUTO로 전환하면 자동 제어 설정이 활성화됩니다.</p>
+            )}
           </div>
         </section>
 
