@@ -156,6 +156,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 게이지별 마지막 저장 시각 (DB)
   const [rangesSavedAt, setRangesSavedAt] = useState<Record<string, string>>({});
 
+  // 스크린 개폐 기준시간 (초)
+  const [skyFullTime, setSkyFullTime] = useState(300);
+  const [sideFullTime, setSideFullTime] = useState(120);
+  const [editSkyFullTime, setEditSkyFullTime] = useState(300);
+  const [editSideFullTime, setEditSideFullTime] = useState(120);
+  const [screenTimeSaving, setScreenTimeSaving] = useState(false);
+  const [screenTimeSavedMsg, setScreenTimeSavedMsg] = useState("");
+
   // 천창 AUTO 제어 상태
   const [skyMode, setSkyMode] = useState<"AUTO" | "MANUAL">("MANUAL");
   const skyModeRef = useRef<"AUTO" | "MANUAL">("MANUAL");
@@ -220,6 +228,23 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const heatPumpHeaters = heatPumpDevices.filter(d => d.type === "heater");
   const heatPumpPumps   = heatPumpDevices.filter(d => d.type === "pump");
   const heatPumpFans    = heatPumpDevices.filter(d => d.type === "fan");
+
+  // 스크린 개폐 기준시간 DB 로드
+  useEffect(() => {
+    fetch('/api/smartfarm/screen_settings.php')
+      .then(r => r.json())
+      .then(json => {
+        if (json.success && json.data) {
+          const skyS = json.data.sky?.full_time_seconds ?? 300;
+          const sideS = json.data.side?.full_time_seconds ?? 120;
+          setSkyFullTime(skyS);
+          setSideFullTime(sideS);
+          setEditSkyFullTime(skyS);
+          setEditSideFullTime(sideS);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // 1분마다 currentMinute 갱신 (시간 기반 AUTO 제어 트리거용)
   useEffect(() => {
@@ -702,7 +727,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
       setOperationStatus(prev => ({ ...prev, [skylight.id]: 'running' }));
 
-      const fullTimeSeconds = 300;
+      const fullTimeSeconds = skyFullTime;
       const targetTimeSeconds = (Math.abs(difference) / 100) * fullTimeSeconds;
       const command = difference > 0 ? "OPEN" : "CLOSE";
       const mqttDeviceId = skylight.commandTopic.split('/')[2];
@@ -832,7 +857,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
       setOperationStatus(prev => ({ ...prev, [sidescreen.id]: 'running' }));
 
-      const fullTimeSeconds = 120;
+      const fullTimeSeconds = sideFullTime;
       const targetTimeSeconds = (Math.abs(difference) / 100) * fullTimeSeconds;
       const command = difference > 0 ? "OPEN" : "CLOSE";
       const mqttDeviceId = sidescreen.commandTopic.split('/')[2];
@@ -1019,10 +1044,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       [deviceId]: 'running'
     });
 
-    // 전체 시간 설정 (0% → 100%)
-    // ctlr-0012: 천창 스크린 = 5분 = 300초
-    // ctlr-0021: 측창 스크린 = 2분 = 120초
-    const fullTimeSeconds = device.esp32Id === "ctlr-0012" ? 300 : 120;
+    // 전체 시간 설정 (0% → 100%) — DB에서 로드한 값 사용
+    const fullTimeSeconds = device.esp32Id === "ctlr-0012" ? skyFullTime : sideFullTime;
 
     // 이동 거리(절대값)에 따른 시간 계산 (초)
     const movementPercentage = Math.abs(difference);
@@ -1162,6 +1185,106 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </section>
+
+        {/* 스크린 개폐 기준시간 설정 */}
+        <section className="mb-2 sm:mb-3">
+          <header className="bg-gray-600 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
+            <h2 className="text-sm sm:text-base font-semibold flex items-center gap-1.5 text-white">
+              스크린 개폐 기준시간 설정
+            </h2>
+          </header>
+          <div className="bg-white border border-gray-200 rounded-b-lg p-3 sm:p-4">
+            <p className="text-xs text-gray-500 mb-3">0% → 100% 완전 개폐에 걸리는 총 시간입니다. 모터 실제 속도에 맞게 조정하세요.</p>
+            <table className="w-full text-sm border-collapse mb-3">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="border border-gray-200 px-3 py-2 text-left text-xs font-semibold text-gray-600">구분</th>
+                  <th className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-600">현재 설정</th>
+                  <th className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-600">변경 값 (초)</th>
+                  <th className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-600">환산</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="border border-gray-200 px-3 py-2 font-medium text-amber-700">천창</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{skyFullTime}초 ({Math.floor(skyFullTime/60)}분 {skyFullTime%60 > 0 ? `${skyFullTime%60}초` : ""})</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center">
+                    <input
+                      type="number"
+                      min={10} max={3600} step={10}
+                      value={editSkyFullTime}
+                      onChange={e => setEditSkyFullTime(Number(e.target.value))}
+                      className="w-20 px-2 py-1 text-xs border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-xs text-gray-500">
+                    {Math.floor(editSkyFullTime/60)}분 {editSkyFullTime%60 > 0 ? `${editSkyFullTime%60}초` : ""}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-200 px-3 py-2 font-medium text-blue-700">측창</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{sideFullTime}초 ({Math.floor(sideFullTime/60)}분 {sideFullTime%60 > 0 ? `${sideFullTime%60}초` : ""})</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center">
+                    <input
+                      type="number"
+                      min={10} max={3600} step={10}
+                      value={editSideFullTime}
+                      onChange={e => setEditSideFullTime(Number(e.target.value))}
+                      className="w-20 px-2 py-1 text-xs border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-xs text-gray-500">
+                    {Math.floor(editSideFullTime/60)}분 {editSideFullTime%60 > 0 ? `${editSideFullTime%60}초` : ""}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="flex items-center gap-3">
+              <button
+                disabled={screenTimeSaving}
+                onClick={async () => {
+                  if (editSkyFullTime < 10 || editSkyFullTime > 3600 || editSideFullTime < 10 || editSideFullTime > 3600) {
+                    setScreenTimeSavedMsg("10~3600초 범위로 입력하세요.");
+                    return;
+                  }
+                  setScreenTimeSaving(true);
+                  setScreenTimeSavedMsg("");
+                  try {
+                    const res = await fetch('/api/smartfarm/screen_settings.php', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ sky: editSkyFullTime, side: editSideFullTime }),
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                      setSkyFullTime(editSkyFullTime);
+                      setSideFullTime(editSideFullTime);
+                      // MQTT retain 발행 — 데몬도 즉시 반영
+                      getMqttClient().publish("tansaeng/sky-control/fullTimeSeconds", String(editSkyFullTime), { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/side-control/fullTimeSeconds", String(editSideFullTime), { qos: 1, retain: true });
+                      setScreenTimeSavedMsg("저장 완료!");
+                    } else {
+                      setScreenTimeSavedMsg(json.message ?? "저장 실패");
+                    }
+                  } catch {
+                    setScreenTimeSavedMsg("서버 오류");
+                  } finally {
+                    setScreenTimeSaving(false);
+                    setTimeout(() => setScreenTimeSavedMsg(""), 3000);
+                  }
+                }}
+                className="px-4 py-1.5 text-sm bg-gray-700 text-white rounded hover:bg-gray-800 disabled:opacity-50"
+              >
+                {screenTimeSaving ? "저장 중..." : "저장"}
+              </button>
+              {screenTimeSavedMsg && (
+                <span className={`text-xs font-medium ${screenTimeSavedMsg.includes("완료") ? "text-green-600" : "text-red-500"}`}>
+                  {screenTimeSavedMsg}
+                </span>
+              )}
             </div>
           </div>
         </section>

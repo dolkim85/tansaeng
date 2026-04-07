@@ -318,9 +318,11 @@ function main() {
       'tansaeng/sky-control/tempPoints',
       'tansaeng/sky-control/autoType',
       'tansaeng/sky-control/timePoints',
+      'tansaeng/sky-control/fullTimeSeconds',
       'tansaeng/side-control/mode',
       'tansaeng/side-control/autoActive',
       'tansaeng/side-control/tempPoints',
+      'tansaeng/side-control/fullTimeSeconds',
       // 팬 제어
       'tansaeng/fan-control/mode',
       'tansaeng/fan-control/autoActive',
@@ -475,6 +477,21 @@ function main() {
             log(`[HP] 열교환기 팬: ${cmd} (실내온도 ${roomTemp.toFixed(1)}°C, 범위 ${low}~${high}°C)`);
           }
         }
+      }
+
+    // ── 개폐 기준시간 설정 ───────────────────────────────────────────────────
+    } else if (topic === 'tansaeng/sky-control/fullTimeSeconds') {
+      const s = parseInt(payload, 10);
+      if (!isNaN(s) && s >= 10 && s <= 3600) {
+        ctrl.sky.fullTimeS = s;
+        log(`[설정] 천창 개폐 기준시간: ${s}초`);
+      }
+
+    } else if (topic === 'tansaeng/side-control/fullTimeSeconds') {
+      const s = parseInt(payload, 10);
+      if (!isNaN(s) && s >= 10 && s <= 3600) {
+        ctrl.side.fullTimeS = s;
+        log(`[설정] 측창 개폐 기준시간: ${s}초`);
       }
 
     // ── 스크린 위치 복원 (retain) ─────────────────────────────────────────────
