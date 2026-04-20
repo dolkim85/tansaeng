@@ -1,8 +1,8 @@
 <?php
 /**
  * 스크린 개폐 시간 설정 API
- * GET: 천창/측창 전체 개폐 기준 시간(초) 조회
- * POST: 저장 및 MQTT retain 발행
+ * GET: 천창(좌/우)/측창 전체 개폐 기준 시간(초) 조회
+ * POST: 저장
  */
 
 header('Content-Type: application/json');
@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true);
 
-    $allowed = ['sky', 'side'];
+    $allowed = ['sky_left', 'sky_right', 'side'];
     $updated = [];
 
     foreach ($allowed as $type) {

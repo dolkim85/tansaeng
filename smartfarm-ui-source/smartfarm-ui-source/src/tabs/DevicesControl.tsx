@@ -117,6 +117,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
   // 천창/측창 현재 위치 추적 (0~100%)
   const [currentPosition, setCurrentPosition] = useState<Record<string, number>>({});
+  // 천창/측창 위치 초기화 상태
+  const [resetStatus, setResetStatus] = useState<Record<string, 'idle' | 'resetting'>>({});
 
   // 히트펌프 시스템 상태
   const [hpMode, setHpMode] = useState<"AUTO" | "MANUAL">("MANUAL");
@@ -157,9 +159,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [rangesSavedAt, setRangesSavedAt] = useState<Record<string, string>>({});
 
   // 스크린 개폐 기준시간 (초)
-  const [skyFullTime, setSkyFullTime] = useState(300);
+  const [skyLeftFullTime, setSkyLeftFullTime] = useState(300);
+  const [skyRightFullTime, setSkyRightFullTime] = useState(300);
   const [sideFullTime, setSideFullTime] = useState(120);
-  const [editSkyFullTime, setEditSkyFullTime] = useState(300);
+  const [editSkyLeftFullTime, setEditSkyLeftFullTime] = useState(300);
+  const [editSkyRightFullTime, setEditSkyRightFullTime] = useState(300);
   const [editSideFullTime, setEditSideFullTime] = useState(120);
   const [screenTimeSaving, setScreenTimeSaving] = useState(false);
   const [screenTimeSavedMsg, setScreenTimeSavedMsg] = useState("");
@@ -235,11 +239,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       .then(r => r.json())
       .then(json => {
         if (json.success && json.data) {
-          const skyS = json.data.sky?.full_time_seconds ?? 300;
+          const skyLeftS = json.data.sky_left?.full_time_seconds ?? json.data.sky?.full_time_seconds ?? 300;
+          const skyRightS = json.data.sky_right?.full_time_seconds ?? json.data.sky?.full_time_seconds ?? 300;
           const sideS = json.data.side?.full_time_seconds ?? 120;
-          setSkyFullTime(skyS);
+          setSkyLeftFullTime(skyLeftS);
+          setSkyRightFullTime(skyRightS);
           setSideFullTime(sideS);
-          setEditSkyFullTime(skyS);
+          setEditSkyLeftFullTime(skyLeftS);
+          setEditSkyRightFullTime(skyRightS);
           setEditSideFullTime(sideS);
         }
       })
@@ -633,44 +640,36 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     let targetRate = 0;
 
     if (skyAutoType === "time" || skyAutoTypeRef.current === "time") {
-      // 시간 기반 제어: 현재 시각→개도율 선형 보간
+      // 시간 기반 제어: 해당 시각이 되면 즉시 그 개도율로 이동 (step function)
       const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
       const nowMin = currentMinute;
       const sorted = [...skyTimePoints].sort((a, b) => toMin(a.time) - toMin(b.time));
       if (sorted.length === 0) return;
-      if (nowMin < toMin(sorted[0].time)) {
-        targetRate = sorted[0].rate;
-      } else if (nowMin >= toMin(sorted[sorted.length - 1].time)) {
-        targetRate = sorted[sorted.length - 1].rate;
-      } else {
-        for (let i = 0; i < sorted.length - 1; i++) {
-          const s = toMin(sorted[i].time), e = toMin(sorted[i + 1].time);
-          if (nowMin >= s && nowMin < e) {
-            const ratio = (nowMin - s) / (e - s);
-            targetRate = Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
-            break;
-          }
+      // 현재 시각 이전의 가장 최근 포인트를 찾아 그 값 적용
+      let activePoint = sorted[sorted.length - 1]; // 기본값: 마지막 포인트 (자정 이전 마지막 설정)
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        if (nowMin >= toMin(sorted[i].time)) {
+          activePoint = sorted[i];
+          break;
         }
       }
+      targetRate = activePoint.rate;
     } else if (skyAutoType === "combined" || skyAutoTypeRef.current === "combined") {
-      // combined: min(시간허용치, 온도기준) — 햇빛 확보 + 환기 균형
+      // combined: min(시간 step값, 온도기준) — 햇빛 확보 + 환기 균형
       const toMin2 = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
       const nowMin2 = currentMinute;
       const timeSorted2 = [...skyTimePoints].sort((a, b) => toMin2(a.time) - toMin2(b.time));
       let timeRate = 0;
       if (timeSorted2.length > 0) {
-        if (nowMin2 < toMin2(timeSorted2[0].time)) timeRate = timeSorted2[0].rate;
-        else if (nowMin2 >= toMin2(timeSorted2[timeSorted2.length - 1].time)) timeRate = timeSorted2[timeSorted2.length - 1].rate;
-        else {
-          for (let i = 0; i < timeSorted2.length - 1; i++) {
-            const s2 = toMin2(timeSorted2[i].time), e2 = toMin2(timeSorted2[i + 1].time);
-            if (nowMin2 >= s2 && nowMin2 < e2) {
-              const ratio2 = (nowMin2 - s2) / (e2 - s2);
-              timeRate = Math.round(timeSorted2[i].rate + ratio2 * (timeSorted2[i + 1].rate - timeSorted2[i].rate));
-              break;
-            }
+        // 시간 기준도 step function으로 적용
+        let activePoint2 = timeSorted2[timeSorted2.length - 1];
+        for (let i = timeSorted2.length - 1; i >= 0; i--) {
+          if (nowMin2 >= toMin2(timeSorted2[i].time)) {
+            activePoint2 = timeSorted2[i];
+            break;
           }
         }
+        timeRate = activePoint2.rate;
       }
       const temps2 = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
       if (temps2.length === 0) return;
@@ -711,12 +710,13 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     }
 
     skylights.forEach((skylight) => {
-      const lastTarget = skyLastTargetRef.current[skylight.id] ?? null;
-      if (lastTarget !== null && Math.abs(targetRate - lastTarget) < 2) return;
-
       const currentPos = currentPosition[skylight.id] ?? 0;
       const difference = targetRate - currentPos;
-      if (Math.abs(difference) < 1) return;
+      if (Math.abs(difference) < 1) return; // 이미 목표 위치에 있음
+
+      // 타이머가 실행 중인 경우에만 중복 명령 방지 (위치가 달라졌으면 재명령)
+      const lastTarget = skyLastTargetRef.current[skylight.id] ?? null;
+      if (lastTarget !== null && Math.abs(targetRate - lastTarget) < 2 && percentageTimers.current[skylight.id]) return;
 
       skyLastTargetRef.current[skylight.id] = targetRate;
 
@@ -727,7 +727,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
       setOperationStatus(prev => ({ ...prev, [skylight.id]: 'running' }));
 
-      const fullTimeSeconds = skyFullTime;
+      const fullTimeSeconds = skylight.id === "skylight_left" ? skyLeftFullTime : skyRightFullTime;
       const targetTimeSeconds = (Math.abs(difference) / 100) * fullTimeSeconds;
       const command = difference > 0 ? "OPEN" : "CLOSE";
       const mqttDeviceId = skylight.commandTopic.split('/')[2];
@@ -744,7 +744,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         }, targetTimeSeconds * 1000);
       });
     });
-  }, [farmSensors, skyTempPoints, skyAutoActive, skyTimePoints, currentMinute, skyAutoType]);
+  }, [farmSensors, skyTempPoints, skyAutoActive, skyTimePoints, currentMinute, skyAutoType, skyLeftFullTime, skyRightFullTime]);
 
   // 측창 MQTT 상태 구독 (retain으로 다른 브라우저 동기화)
   useEffect(() => {
@@ -841,12 +841,13 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     }
 
     sidescreens.forEach((sidescreen) => {
-      const lastTarget = sideLastTargetRef.current[sidescreen.id] ?? null;
-      if (lastTarget !== null && Math.abs(targetRate - lastTarget) < 2) return;
-
       const currentPos = currentPosition[sidescreen.id] ?? 0;
       const difference = targetRate - currentPos;
-      if (Math.abs(difference) < 1) return;
+      if (Math.abs(difference) < 1) return; // 이미 목표 위치에 있음
+
+      // 타이머가 실행 중인 경우에만 중복 명령 방지 (위치가 달라졌으면 재명령)
+      const lastTarget = sideLastTargetRef.current[sidescreen.id] ?? null;
+      if (lastTarget !== null && Math.abs(targetRate - lastTarget) < 2 && percentageTimers.current[sidescreen.id]) return;
 
       sideLastTargetRef.current[sidescreen.id] = targetRate;
 
@@ -1045,7 +1046,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     });
 
     // 전체 시간 설정 (0% → 100%) — DB에서 로드한 값 사용
-    const fullTimeSeconds = device.esp32Id === "ctlr-0012" ? skyFullTime : sideFullTime;
+    const fullTimeSeconds = deviceId === "skylight_left" ? skyLeftFullTime : deviceId === "skylight_right" ? skyRightFullTime : sideFullTime;
 
     // 이동 거리(절대값)에 따른 시간 계산 (초)
     const movementPercentage = Math.abs(difference);
@@ -1092,6 +1093,47 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         ...operationStatus,
         [deviceId]: 'idle'
       });
+    }
+  };
+
+  // 천창/측창 위치 초기화 핸들러 (완전 닫기 후 0% 리셋)
+  const handleResetPosition = async (deviceId: string) => {
+    if (!window.confirm("스크린을 완전히 닫고 위치를 0%로 초기화합니다.\n계속하시겠습니까?")) return;
+
+    const device = [...skylights, ...sidescreens].find(d => d.id === deviceId);
+    if (!device) return;
+
+    // 진행 중인 타이머 취소
+    if (percentageTimers.current[deviceId]) {
+      clearTimeout(percentageTimers.current[deviceId]);
+      delete percentageTimers.current[deviceId];
+    }
+
+    const mqttDeviceId = device.commandTopic.split('/')[2];
+    const isSky = skylights.some(d => d.id === deviceId);
+    const fullTimeSeconds = deviceId === "skylight_left" ? skyLeftFullTime : deviceId === "skylight_right" ? skyRightFullTime : sideFullTime;
+    const groupPrefix = isSky ? "sky-control" : "side-control";
+
+    setResetStatus(prev => ({ ...prev, [deviceId]: 'resetting' }));
+    setOperationStatus(prev => ({ ...prev, [deviceId]: 'running' }));
+
+    try {
+      await sendDeviceCommand(device.esp32Id, mqttDeviceId, "CLOSE");
+      percentageTimers.current[deviceId] = setTimeout(async () => {
+        await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
+        delete percentageTimers.current[deviceId];
+        setCurrentPosition(prev => ({ ...prev, [deviceId]: 0 }));
+        getMqttClient().publish(
+          `tansaeng/${groupPrefix}/${mqttDeviceId}/currentPos`,
+          "0",
+          { qos: 1, retain: true }
+        );
+        setResetStatus(prev => ({ ...prev, [deviceId]: 'idle' }));
+        setOperationStatus(prev => ({ ...prev, [deviceId]: 'completed' }));
+      }, fullTimeSeconds * 1000);
+    } catch {
+      setResetStatus(prev => ({ ...prev, [deviceId]: 'idle' }));
+      setOperationStatus(prev => ({ ...prev, [deviceId]: 'idle' }));
     }
   };
 
@@ -1209,19 +1251,35 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
               </thead>
               <tbody>
                 <tr>
-                  <td className="border border-gray-200 px-3 py-2 font-medium text-amber-700">천창</td>
-                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{skyFullTime}초 ({Math.floor(skyFullTime/60)}분 {skyFullTime%60 > 0 ? `${skyFullTime%60}초` : ""})</td>
+                  <td className="border border-gray-200 px-3 py-2 font-medium text-amber-700">천창 좌측</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{skyLeftFullTime}초 ({Math.floor(skyLeftFullTime/60)}분 {skyLeftFullTime%60 > 0 ? `${skyLeftFullTime%60}초` : ""})</td>
                   <td className="border border-gray-200 px-3 py-2 text-center">
                     <input
                       type="number"
                       min={10} max={3600} step={10}
-                      value={editSkyFullTime}
-                      onChange={e => setEditSkyFullTime(Number(e.target.value))}
+                      value={editSkyLeftFullTime}
+                      onChange={e => setEditSkyLeftFullTime(Number(e.target.value))}
                       className="w-20 px-2 py-1 text-xs border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-amber-400"
                     />
                   </td>
                   <td className="border border-gray-200 px-3 py-2 text-center text-xs text-gray-500">
-                    {Math.floor(editSkyFullTime/60)}분 {editSkyFullTime%60 > 0 ? `${editSkyFullTime%60}초` : ""}
+                    {Math.floor(editSkyLeftFullTime/60)}분 {editSkyLeftFullTime%60 > 0 ? `${editSkyLeftFullTime%60}초` : ""}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-200 px-3 py-2 font-medium text-amber-600">천창 우측</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{skyRightFullTime}초 ({Math.floor(skyRightFullTime/60)}분 {skyRightFullTime%60 > 0 ? `${skyRightFullTime%60}초` : ""})</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center">
+                    <input
+                      type="number"
+                      min={10} max={3600} step={10}
+                      value={editSkyRightFullTime}
+                      onChange={e => setEditSkyRightFullTime(Number(e.target.value))}
+                      className="w-20 px-2 py-1 text-xs border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-xs text-gray-500">
+                    {Math.floor(editSkyRightFullTime/60)}분 {editSkyRightFullTime%60 > 0 ? `${editSkyRightFullTime%60}초` : ""}
                   </td>
                 </tr>
                 <tr>
@@ -1246,7 +1304,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
               <button
                 disabled={screenTimeSaving}
                 onClick={async () => {
-                  if (editSkyFullTime < 10 || editSkyFullTime > 3600 || editSideFullTime < 10 || editSideFullTime > 3600) {
+                  if (editSkyLeftFullTime < 10 || editSkyLeftFullTime > 3600 ||
+                      editSkyRightFullTime < 10 || editSkyRightFullTime > 3600 ||
+                      editSideFullTime < 10 || editSideFullTime > 3600) {
                     setScreenTimeSavedMsg("10~3600초 범위로 입력하세요.");
                     return;
                   }
@@ -1256,14 +1316,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     const res = await fetch('/api/smartfarm/screen_settings.php', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ sky: editSkyFullTime, side: editSideFullTime }),
+                      body: JSON.stringify({ sky_left: editSkyLeftFullTime, sky_right: editSkyRightFullTime, side: editSideFullTime }),
                     });
                     const json = await res.json();
                     if (json.success) {
-                      setSkyFullTime(editSkyFullTime);
+                      setSkyLeftFullTime(editSkyLeftFullTime);
+                      setSkyRightFullTime(editSkyRightFullTime);
                       setSideFullTime(editSideFullTime);
-                      // MQTT retain 발행 — 데몬도 즉시 반영
-                      getMqttClient().publish("tansaeng/sky-control/fullTimeSeconds", String(editSkyFullTime), { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/sky-control/fullTimeSeconds/left", String(editSkyLeftFullTime), { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/sky-control/fullTimeSeconds/right", String(editSkyRightFullTime), { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/side-control/fullTimeSeconds", String(editSideFullTime), { qos: 1, retain: true });
                       setScreenTimeSavedMsg("저장 완료!");
                     } else {
@@ -1348,6 +1409,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         setSkyAutoType("temp");
                         skyLastTargetRef.current = {};
                         getMqttClient().publish("tansaeng/sky-control/autoType", "temp", { qos: 1, retain: true });
+                        if (skyAutoActive) {
+                          getMqttClient().publish("tansaeng/sky-control/autoActive", "true", { qos: 1, retain: true });
+                        }
                       }}
                       className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                         skyAutoType === "temp"
@@ -1364,6 +1428,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         setSkyAutoType("time");
                         skyLastTargetRef.current = {};
                         getMqttClient().publish("tansaeng/sky-control/autoType", "time", { qos: 1, retain: true });
+                        if (skyAutoActive) {
+                          getMqttClient().publish("tansaeng/sky-control/autoActive", "true", { qos: 1, retain: true });
+                        }
                       }}
                       className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                         skyAutoType === "time"
@@ -1380,6 +1447,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         setSkyAutoType("combined");
                         skyLastTargetRef.current = {};
                         getMqttClient().publish("tansaeng/sky-control/autoType", "combined", { qos: 1, retain: true });
+                        if (skyAutoActive) {
+                          getMqttClient().publish("tansaeng/sky-control/autoActive", "true", { qos: 1, retain: true });
+                        }
                       }}
                       className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                         skyAutoType === "combined"
@@ -1390,13 +1460,17 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       복합
                     </button>
                   </div>
+                  {skyAutoActive && (
+                    <p className="text-[10px] text-blue-600 text-center mb-1">
+                      ✔ 작동 중 기준 변경 즉시 적용됩니다
+                    </p>
+                  )}
                   {/* 작동 시작/멈춤 */}
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
                         setSkyAutoActive(true);
                         skyLastTargetRef.current = {};
-                        // autoType을 먼저 재발행해서 데몬이 정확한 모드로 실행되도록 보장
                         getMqttClient().publish("tansaeng/sky-control/autoType", skyAutoTypeRef.current, { qos: 1, retain: true });
                         getMqttClient().publish("tansaeng/sky-control/autoActive", "true", { qos: 1, retain: true });
                       }}
@@ -1413,7 +1487,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       onClick={() => {
                         setSkyAutoActive(false);
                         getMqttClient().publish("tansaeng/sky-control/autoActive", "false", { qos: 1, retain: true });
-                        // 진행 중인 모터 타이머 취소 + STOP 명령 즉시 전송
                         skylights.forEach((skylight) => {
                           if (percentageTimers.current[skylight.id]) {
                             clearTimeout(percentageTimers.current[skylight.id]);
@@ -1433,8 +1506,16 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     >
                       ■ 작동멈춤
                     </button>
-                    <span className="text-[10px] font-semibold text-amber-600">
-                      {skyAutoActive ? "🌤 AUTO 작동 중" : "⏸ 대기"}
+                    <span className={`text-[10px] font-semibold ${
+                      skyAutoActive
+                        ? skyAutoType === "time" ? "text-blue-600" : skyAutoType === "combined" ? "text-green-700" : "text-amber-600"
+                        : "text-gray-400"
+                    }`}>
+                      {skyAutoActive
+                        ? skyAutoType === "time" ? "🕐 시간기준 작동 중"
+                          : skyAutoType === "combined" ? "🌱 복합기준 작동 중"
+                          : "🌡 온도기준 작동 중"
+                        : "⏸ 대기"}
                     </span>
                   </div>
                 </>
@@ -1832,7 +1913,20 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   <div className="mb-2">
                     <div className="flex items-center justify-between text-[10px] sm:text-xs text-gray-600 mb-1">
                       <span>현재 위치</span>
-                      <span className="font-bold text-amber-600 text-sm">{currentPosition[skylight.id] ?? 0}%</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-amber-600 text-sm">{currentPosition[skylight.id] ?? 0}%</span>
+                        <button
+                          onClick={() => handleResetPosition(skylight.id)}
+                          disabled={resetStatus[skylight.id] === 'resetting' || operationStatus[skylight.id] === 'running'}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${
+                            resetStatus[skylight.id] === 'resetting'
+                              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                              : "bg-gray-200 hover:bg-red-100 text-gray-600 hover:text-red-600 border border-gray-300 hover:border-red-300"
+                          }`}
+                        >
+                          {resetStatus[skylight.id] === 'resetting' ? "초기화중..." : "↺ 초기화"}
+                        </button>
+                      </div>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
@@ -1908,8 +2002,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   )}
 
                   {skyMode === "AUTO" && (
-                    <div className="text-center text-[10px] text-amber-600 bg-amber-50 rounded p-1.5">
-                      {skyAutoActive ? "🌤 온도 기반 자동 개폐 중" : "AUTO 모드 — 작동시작 버튼을 누르세요"}
+                    <div className={`text-center text-[10px] rounded p-1.5 ${
+                      skyAutoActive
+                        ? skyAutoType === "time" ? "text-blue-600 bg-blue-50"
+                          : skyAutoType === "combined" ? "text-green-700 bg-green-50"
+                          : "text-amber-600 bg-amber-50"
+                        : "text-gray-500 bg-gray-50"
+                    }`}>
+                      {skyAutoActive
+                        ? skyAutoType === "time" ? "🕐 시간 기반 자동 개폐 중"
+                          : skyAutoType === "combined" ? "🌱 복합 기준 자동 개폐 중"
+                          : "🌡 온도 기반 자동 개폐 중"
+                        : "AUTO 모드 — 작동시작 버튼을 누르세요"}
                     </div>
                   )}
                 </div>
@@ -2253,7 +2357,20 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   <div className="mb-2">
                     <div className="flex items-center justify-between text-[10px] sm:text-xs text-gray-600 mb-1">
                       <span>현재 위치</span>
-                      <span className="font-bold text-blue-600 text-sm">{currentPosition[sidescreen.id] ?? 0}%</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-blue-600 text-sm">{currentPosition[sidescreen.id] ?? 0}%</span>
+                        <button
+                          onClick={() => handleResetPosition(sidescreen.id)}
+                          disabled={resetStatus[sidescreen.id] === 'resetting' || operationStatus[sidescreen.id] === 'running'}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${
+                            resetStatus[sidescreen.id] === 'resetting'
+                              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                              : "bg-gray-200 hover:bg-red-100 text-gray-600 hover:text-red-600 border border-gray-300 hover:border-red-300"
+                          }`}
+                        >
+                          {resetStatus[sidescreen.id] === 'resetting' ? "초기화중..." : "↺ 초기화"}
+                        </button>
+                      </div>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
