@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true);
 
-    $allowed = ['sky_left', 'sky_right', 'side'];
+    $allowed = ['sky_left', 'sky_right', 'side_left', 'side_right'];
     $updated = [];
 
     foreach ($allowed as $type) {

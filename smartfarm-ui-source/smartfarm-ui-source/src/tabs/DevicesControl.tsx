@@ -161,10 +161,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 스크린 개폐 기준시간 (초)
   const [skyLeftFullTime, setSkyLeftFullTime] = useState(300);
   const [skyRightFullTime, setSkyRightFullTime] = useState(300);
-  const [sideFullTime, setSideFullTime] = useState(120);
+  const [sideLeftFullTime, setSideLeftFullTime] = useState(120);
+  const [sideRightFullTime, setSideRightFullTime] = useState(120);
   const [editSkyLeftFullTime, setEditSkyLeftFullTime] = useState(300);
   const [editSkyRightFullTime, setEditSkyRightFullTime] = useState(300);
-  const [editSideFullTime, setEditSideFullTime] = useState(120);
+  const [editSideLeftFullTime, setEditSideLeftFullTime] = useState(120);
+  const [editSideRightFullTime, setEditSideRightFullTime] = useState(120);
   const [screenTimeSaving, setScreenTimeSaving] = useState(false);
   const [screenTimeSavedMsg, setScreenTimeSavedMsg] = useState("");
 
@@ -241,13 +243,16 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         if (json.success && json.data) {
           const skyLeftS = json.data.sky_left?.full_time_seconds ?? json.data.sky?.full_time_seconds ?? 300;
           const skyRightS = json.data.sky_right?.full_time_seconds ?? json.data.sky?.full_time_seconds ?? 300;
-          const sideS = json.data.side?.full_time_seconds ?? 120;
+          const sideLeftS = json.data.side_left?.full_time_seconds ?? json.data.side?.full_time_seconds ?? 120;
+          const sideRightS = json.data.side_right?.full_time_seconds ?? json.data.side?.full_time_seconds ?? 120;
           setSkyLeftFullTime(skyLeftS);
           setSkyRightFullTime(skyRightS);
-          setSideFullTime(sideS);
+          setSideLeftFullTime(sideLeftS);
+          setSideRightFullTime(sideRightS);
           setEditSkyLeftFullTime(skyLeftS);
           setEditSkyRightFullTime(skyRightS);
-          setEditSideFullTime(sideS);
+          setEditSideLeftFullTime(sideLeftS);
+          setEditSideRightFullTime(sideRightS);
         }
       })
       .catch(() => {});
@@ -858,7 +863,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
       setOperationStatus(prev => ({ ...prev, [sidescreen.id]: 'running' }));
 
-      const fullTimeSeconds = sideFullTime;
+      const fullTimeSeconds = sidescreen.id === "sidescreen_left" ? sideLeftFullTime : sideRightFullTime;
       const targetTimeSeconds = (Math.abs(difference) / 100) * fullTimeSeconds;
       const command = difference > 0 ? "OPEN" : "CLOSE";
       const mqttDeviceId = sidescreen.commandTopic.split('/')[2];
@@ -875,7 +880,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         }, targetTimeSeconds * 1000);
       });
     });
-  }, [farmSensors, sideTempPoints, sideHumPoints, sideAutoActive, sideAutoSensor]);
+  }, [farmSensors, sideTempPoints, sideHumPoints, sideAutoActive, sideAutoSensor, sideLeftFullTime, sideRightFullTime]);
 
   // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
@@ -1046,7 +1051,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     });
 
     // 전체 시간 설정 (0% → 100%) — DB에서 로드한 값 사용
-    const fullTimeSeconds = deviceId === "skylight_left" ? skyLeftFullTime : deviceId === "skylight_right" ? skyRightFullTime : sideFullTime;
+    const fullTimeSeconds = deviceId === "skylight_left" ? skyLeftFullTime : deviceId === "skylight_right" ? skyRightFullTime : deviceId === "sidescreen_left" ? sideLeftFullTime : sideRightFullTime;
 
     // 이동 거리(절대값)에 따른 시간 계산 (초)
     const movementPercentage = Math.abs(difference);
@@ -1111,7 +1116,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     const mqttDeviceId = device.commandTopic.split('/')[2];
     const isSky = skylights.some(d => d.id === deviceId);
-    const fullTimeSeconds = deviceId === "skylight_left" ? skyLeftFullTime : deviceId === "skylight_right" ? skyRightFullTime : sideFullTime;
+    const fullTimeSeconds = deviceId === "skylight_left" ? skyLeftFullTime : deviceId === "skylight_right" ? skyRightFullTime : deviceId === "sidescreen_left" ? sideLeftFullTime : sideRightFullTime;
     const groupPrefix = isSky ? "sky-control" : "side-control";
 
     setResetStatus(prev => ({ ...prev, [deviceId]: 'resetting' }));
@@ -1283,19 +1288,35 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </td>
                 </tr>
                 <tr>
-                  <td className="border border-gray-200 px-3 py-2 font-medium text-blue-700">측창</td>
-                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{sideFullTime}초 ({Math.floor(sideFullTime/60)}분 {sideFullTime%60 > 0 ? `${sideFullTime%60}초` : ""})</td>
+                  <td className="border border-gray-200 px-3 py-2 font-medium text-blue-700">측창 좌측</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{sideLeftFullTime}초 ({Math.floor(sideLeftFullTime/60)}분 {sideLeftFullTime%60 > 0 ? `${sideLeftFullTime%60}초` : ""})</td>
                   <td className="border border-gray-200 px-3 py-2 text-center">
                     <input
                       type="number"
                       min={10} max={3600} step={10}
-                      value={editSideFullTime}
-                      onChange={e => setEditSideFullTime(Number(e.target.value))}
+                      value={editSideLeftFullTime}
+                      onChange={e => setEditSideLeftFullTime(Number(e.target.value))}
                       className="w-20 px-2 py-1 text-xs border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-400"
                     />
                   </td>
                   <td className="border border-gray-200 px-3 py-2 text-center text-xs text-gray-500">
-                    {Math.floor(editSideFullTime/60)}분 {editSideFullTime%60 > 0 ? `${editSideFullTime%60}초` : ""}
+                    {Math.floor(editSideLeftFullTime/60)}분 {editSideLeftFullTime%60 > 0 ? `${editSideLeftFullTime%60}초` : ""}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-200 px-3 py-2 font-medium text-blue-600">측창 우측</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{sideRightFullTime}초 ({Math.floor(sideRightFullTime/60)}분 {sideRightFullTime%60 > 0 ? `${sideRightFullTime%60}초` : ""})</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center">
+                    <input
+                      type="number"
+                      min={10} max={3600} step={10}
+                      value={editSideRightFullTime}
+                      onChange={e => setEditSideRightFullTime(Number(e.target.value))}
+                      className="w-20 px-2 py-1 text-xs border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-xs text-gray-500">
+                    {Math.floor(editSideRightFullTime/60)}분 {editSideRightFullTime%60 > 0 ? `${editSideRightFullTime%60}초` : ""}
                   </td>
                 </tr>
               </tbody>
@@ -1306,7 +1327,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 onClick={async () => {
                   if (editSkyLeftFullTime < 10 || editSkyLeftFullTime > 3600 ||
                       editSkyRightFullTime < 10 || editSkyRightFullTime > 3600 ||
-                      editSideFullTime < 10 || editSideFullTime > 3600) {
+                      editSideLeftFullTime < 10 || editSideLeftFullTime > 3600 ||
+                      editSideRightFullTime < 10 || editSideRightFullTime > 3600) {
                     setScreenTimeSavedMsg("10~3600초 범위로 입력하세요.");
                     return;
                   }
@@ -1316,16 +1338,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     const res = await fetch('/api/smartfarm/screen_settings.php', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ sky_left: editSkyLeftFullTime, sky_right: editSkyRightFullTime, side: editSideFullTime }),
+                      body: JSON.stringify({ sky_left: editSkyLeftFullTime, sky_right: editSkyRightFullTime, side_left: editSideLeftFullTime, side_right: editSideRightFullTime }),
                     });
                     const json = await res.json();
                     if (json.success) {
                       setSkyLeftFullTime(editSkyLeftFullTime);
                       setSkyRightFullTime(editSkyRightFullTime);
-                      setSideFullTime(editSideFullTime);
+                      setSideLeftFullTime(editSideLeftFullTime);
+                      setSideRightFullTime(editSideRightFullTime);
                       getMqttClient().publish("tansaeng/sky-control/fullTimeSeconds/left", String(editSkyLeftFullTime), { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/sky-control/fullTimeSeconds/right", String(editSkyRightFullTime), { qos: 1, retain: true });
-                      getMqttClient().publish("tansaeng/side-control/fullTimeSeconds", String(editSideFullTime), { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/side-control/fullTimeSeconds/left", String(editSideLeftFullTime), { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/side-control/fullTimeSeconds/right", String(editSideRightFullTime), { qos: 1, retain: true });
                       setScreenTimeSavedMsg("저장 완료!");
                     } else {
                       setScreenTimeSavedMsg(json.message ?? "저장 실패");
