@@ -26,10 +26,11 @@ const LOG_FILE      = path.join(__dirname, '../logs/auto_control_daemon.log');
 // 제어 주기 (ms) — 60초마다 온도 체크
 const CHECK_INTERVAL_MS = 60000;
 
-// 천창: 0%→100% 전체 이동 시간 (초)
-const SKY_FULL_TIME_S  = 300;
-// 측창: 0%→100% 전체 이동 시간 (초)
-const SIDE_FULL_TIME_S = 120;
+// 천창/측창 좌우 각각 전체 이동 시간 기본값 (초) — MQTT retain으로 덮어씀
+const SKY_LEFT_FULL_TIME_S   = 300;
+const SKY_RIGHT_FULL_TIME_S  = 300;
+const SIDE_LEFT_FULL_TIME_S  = 120;
+const SIDE_RIGHT_FULL_TIME_S = 120;
 
 // 히스테리시스: 마지막 목표와 이 값(%) 미만 차이면 재명령 안 함
 const HYSTERESIS_PCT = 2;
@@ -87,7 +88,7 @@ const ctrl = {
     currentPos: {},   // { deviceId: number }
     lastTarget: {},   // { deviceId: number | null }
     timers:     {},   // { deviceId: Timeout }
-    fullTimeS:  SKY_FULL_TIME_S,
+    fullTimeSMap: { skylight_left: SKY_LEFT_FULL_TIME_S, skylight_right: SKY_RIGHT_FULL_TIME_S },
     label:      '천창',
   },
   side: {
@@ -97,7 +98,7 @@ const ctrl = {
     currentPos: {},
     lastTarget: {},
     timers:     {},
-    fullTimeS:  SIDE_FULL_TIME_S,
+    fullTimeSMap: { sidescreen_left: SIDE_LEFT_FULL_TIME_S, sidescreen_right: SIDE_RIGHT_FULL_TIME_S },
     label:      '측창',
   },
 };
@@ -124,23 +125,22 @@ function calcTargetRate(avgTemp, tempPoints) {
   return 0;
 }
 
-// ─── 시각→개도율 선형 보간 ────────────────────────────────────────────────────
+// ─── 시각→개도율 스텝 함수 (해당 시간이 되면 즉시 그 개도율로 이동) ──────────
 function calcTargetRateByTime(timePoints) {
   const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const sorted = [...timePoints].sort((a, b) => toMin(a.time) - toMin(b.time));
   if (sorted.length === 0) return 0;
-  if (nowMin < toMin(sorted[0].time)) return sorted[0].rate;
-  if (nowMin >= toMin(sorted[sorted.length - 1].time)) return sorted[sorted.length - 1].rate;
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const s = toMin(sorted[i].time), e = toMin(sorted[i + 1].time);
-    if (nowMin >= s && nowMin < e) {
-      const ratio = (nowMin - s) / (e - s);
-      return Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
+  // 현재 시각 이전의 마지막 포인트를 찾아 해당 개도율 반환 (스텝 함수)
+  let activePoint = sorted[sorted.length - 1]; // 기본값: 마지막 포인트
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    if (nowMin >= toMin(sorted[i].time)) {
+      activePoint = sorted[i];
+      break;
     }
   }
-  return 0;
+  return activePoint.rate;
 }
 
 // ─── 장치 이동 명령 ──────────────────────────────────────────────────────────
@@ -160,7 +160,8 @@ function moveDevice(mqttClient, ctrlState, device, targetRate) {
     delete ctrlState.timers[id];
   }
 
-  const moveSeconds = (Math.abs(difference) / 100) * ctrlState.fullTimeS;
+  const fullTimeS = (ctrlState.fullTimeSMap && ctrlState.fullTimeSMap[id]) ? ctrlState.fullTimeSMap[id] : 300;
+  const moveSeconds = (Math.abs(difference) / 100) * fullTimeS;
   const command = difference > 0 ? 'OPEN' : 'CLOSE';
   const cmdTopic = `tansaeng/${esp32Id}/${mqttId}/cmd`;
 
@@ -318,11 +319,13 @@ function main() {
       'tansaeng/sky-control/tempPoints',
       'tansaeng/sky-control/autoType',
       'tansaeng/sky-control/timePoints',
-      'tansaeng/sky-control/fullTimeSeconds',
+      'tansaeng/sky-control/fullTimeSeconds/left',
+      'tansaeng/sky-control/fullTimeSeconds/right',
       'tansaeng/side-control/mode',
       'tansaeng/side-control/autoActive',
       'tansaeng/side-control/tempPoints',
-      'tansaeng/side-control/fullTimeSeconds',
+      'tansaeng/side-control/fullTimeSeconds/left',
+      'tansaeng/side-control/fullTimeSeconds/right',
       // 팬 제어
       'tansaeng/fan-control/mode',
       'tansaeng/fan-control/autoActive',
@@ -480,18 +483,32 @@ function main() {
       }
 
     // ── 개폐 기준시간 설정 ───────────────────────────────────────────────────
-    } else if (topic === 'tansaeng/sky-control/fullTimeSeconds') {
+    } else if (topic === 'tansaeng/sky-control/fullTimeSeconds/left') {
       const s = parseInt(payload, 10);
       if (!isNaN(s) && s >= 10 && s <= 3600) {
-        ctrl.sky.fullTimeS = s;
-        log(`[설정] 천창 개폐 기준시간: ${s}초`);
+        ctrl.sky.fullTimeSMap['skylight_left'] = s;
+        log(`[설정] 천창 좌측 개폐 기준시간: ${s}초`);
       }
 
-    } else if (topic === 'tansaeng/side-control/fullTimeSeconds') {
+    } else if (topic === 'tansaeng/sky-control/fullTimeSeconds/right') {
       const s = parseInt(payload, 10);
       if (!isNaN(s) && s >= 10 && s <= 3600) {
-        ctrl.side.fullTimeS = s;
-        log(`[설정] 측창 개폐 기준시간: ${s}초`);
+        ctrl.sky.fullTimeSMap['skylight_right'] = s;
+        log(`[설정] 천창 우측 개폐 기준시간: ${s}초`);
+      }
+
+    } else if (topic === 'tansaeng/side-control/fullTimeSeconds/left') {
+      const s = parseInt(payload, 10);
+      if (!isNaN(s) && s >= 10 && s <= 3600) {
+        ctrl.side.fullTimeSMap['sidescreen_left'] = s;
+        log(`[설정] 측창 좌측 개폐 기준시간: ${s}초`);
+      }
+
+    } else if (topic === 'tansaeng/side-control/fullTimeSeconds/right') {
+      const s = parseInt(payload, 10);
+      if (!isNaN(s) && s >= 10 && s <= 3600) {
+        ctrl.side.fullTimeSMap['sidescreen_right'] = s;
+        log(`[설정] 측창 우측 개폐 기준시간: ${s}초`);
       }
 
     // ── 스크린 위치 복원 (retain) ─────────────────────────────────────────────
