@@ -94,7 +94,11 @@ const ctrl = {
   side: {
     mode:       'MANUAL',
     autoActive: false,
+    autoType:   'temp',   // 'temp' | 'time'
+    autoSensor: 'temp',   // 'temp' | 'humi' (autoType=temp 일 때)
     tempPoints: [{ temp: 20, rate: 10 }, { temp: 23, rate: 30 }, { temp: 28, rate: 100 }],
+    humPoints:  [{ humi: 60, rate: 10 }, { humi: 70, rate: 30 }, { humi: 80, rate: 100 }],
+    timePoints: [{ time: '08:00', rate: 0 }, { time: '14:00', rate: 100 }, { time: '20:00', rate: 0 }],
     currentPos: {},
     lastTarget: {},
     timers:     {},
@@ -269,8 +273,36 @@ function runAutoControl(mqttClient) {
       targetRate = Math.min(timeLimit, tempRate);
       const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
       log(`[${ctrlState.label}] COMBINED 목표개도율: ${targetRate}% (시간허용:${timeLimit}%, 온도기준:${tempRate}%, ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}, ${avgTemp.toFixed(1)}°C)`);
+    } else if (key === 'side' && ctrlState.autoType === 'time') {
+      // 측창 시간 기준 제어
+      targetRate = calcTargetRateByTime(ctrlState.timePoints);
+      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+      log(`[${ctrlState.label}] TIME AUTO 목표개도율: ${targetRate}% (현재 ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')})`);
+    } else if (key === 'side' && ctrlState.autoSensor === 'humi') {
+      // 측창 습도 기준 제어
+      const humis = [sensorData.front?.humidity, sensorData.back?.humidity, sensorData.top?.humidity]
+        .filter(h => typeof h === 'number' && !isNaN(h));
+      if (humis.length === 0) {
+        log(`[WARN] 습도 데이터 없음 — ${ctrlState.label} HUMI AUTO 건너뜀`);
+        continue;
+      }
+      const avgHumi = humis.reduce((a, b) => a + b, 0) / humis.length;
+      const humSorted = [...ctrlState.humPoints].sort((a, b) => a.humi - b.humi);
+      if (avgHumi < humSorted[0].humi) targetRate = 0;
+      else if (avgHumi >= humSorted[humSorted.length - 1].humi) targetRate = 100;
+      else {
+        targetRate = 0;
+        for (let i = 0; i < humSorted.length - 1; i++) {
+          if (avgHumi >= humSorted[i].humi && avgHumi < humSorted[i + 1].humi) {
+            const ratio = (avgHumi - humSorted[i].humi) / (humSorted[i + 1].humi - humSorted[i].humi);
+            targetRate = Math.round(humSorted[i].rate + ratio * (humSorted[i + 1].rate - humSorted[i].rate));
+            break;
+          }
+        }
+      }
+      log(`[${ctrlState.label}] HUMI AUTO 목표개도율: ${targetRate}% (평균습도 ${avgHumi.toFixed(0)}%RH)`);
     } else {
-      // 온도 기준 제어
+      // 온도 기준 제어 (측창 기본 + 천창 temp)
       if (avgTemp === null) {
         log(`[WARN] 온도 데이터 없음 — ${ctrlState.label} AUTO 건너뜀`);
         continue;
@@ -323,7 +355,11 @@ function main() {
       'tansaeng/sky-control/fullTimeSeconds/right',
       'tansaeng/side-control/mode',
       'tansaeng/side-control/autoActive',
+      'tansaeng/side-control/autoType',
+      'tansaeng/side-control/autoSensor',
       'tansaeng/side-control/tempPoints',
+      'tansaeng/side-control/humPoints',
+      'tansaeng/side-control/timePoints',
       'tansaeng/side-control/fullTimeSeconds/left',
       'tansaeng/side-control/fullTimeSeconds/right',
       // 팬 제어
@@ -415,6 +451,38 @@ function main() {
         if (Array.isArray(parsed) && parsed.length >= 2) {
           ctrl.side.tempPoints = parsed;
           log(`[설정] 측창 tempPoints: ${JSON.stringify(ctrl.side.tempPoints)}`);
+        }
+      } catch (_) {}
+
+    } else if (topic === 'tansaeng/side-control/autoType') {
+      if (payload === 'temp' || payload === 'time') {
+        ctrl.side.autoType = payload;
+        ctrl.side.lastTarget = {};
+        log(`[설정] 측창 autoType: ${ctrl.side.autoType}`);
+      }
+
+    } else if (topic === 'tansaeng/side-control/autoSensor') {
+      if (payload === 'temp' || payload === 'humi') {
+        ctrl.side.autoSensor = payload;
+        ctrl.side.lastTarget = {};
+        log(`[설정] 측창 autoSensor: ${ctrl.side.autoSensor}`);
+      }
+
+    } else if (topic === 'tansaeng/side-control/humPoints') {
+      try {
+        const parsed = JSON.parse(payload);
+        if (Array.isArray(parsed) && parsed.length >= 2) {
+          ctrl.side.humPoints = parsed;
+          log(`[설정] 측창 humPoints: ${JSON.stringify(ctrl.side.humPoints)}`);
+        }
+      } catch (_) {}
+
+    } else if (topic === 'tansaeng/side-control/timePoints') {
+      try {
+        const parsed = JSON.parse(payload);
+        if (Array.isArray(parsed) && parsed.length >= 2) {
+          ctrl.side.timePoints = parsed;
+          log(`[설정] 측창 timePoints: ${JSON.stringify(ctrl.side.timePoints)}`);
         }
       } catch (_) {}
 

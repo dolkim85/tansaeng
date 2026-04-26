@@ -201,6 +201,17 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [sideMode, setSideMode] = useState<"AUTO" | "MANUAL">("MANUAL");
   const sideModeRef = useRef<"AUTO" | "MANUAL">("MANUAL");
   const [sideAutoActive, setSideAutoActive] = useState(false);
+  const [sideAutoType, setSideAutoType] = useState<"temp" | "time">("temp");
+  const sideAutoTypeRef = useRef<"temp" | "time">("temp");
+  const sideAutoTypeFromMqttRef = useRef(false);
+  const sideAutoTypeFirstRunRef = useRef(true);
+  const [sideTimePoints, setSideTimePoints] = useState<Array<{ time: string; rate: number }>>([
+    { time: "08:00", rate: 0 },
+    { time: "14:00", rate: 100 },
+    { time: "20:00", rate: 0 },
+  ]);
+  const sideTimePointsFromMqttRef = useRef(false);
+  const sideTimePointsFirstRunRef = useRef(true);
   const [sideAutoSensor, setSideAutoSensor] = useState<"temp" | "humi">("temp");
   const sideAutoSensorRef = useRef<"temp" | "humi">("temp");
   // 온도-개도율 매핑 포인트 (온도 오름차순 유지)
@@ -789,6 +800,22 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           if (Array.isArray(parsed) && parsed.length > 0) { sideHumPointsFromMqttRef.current = true; setSideHumPoints(parsed); }
         } catch {}
       }),
+      subscribeToTopic("tansaeng/side-control/autoType", (v) => {
+        if (v === "temp" || v === "time") {
+          sideAutoTypeFromMqttRef.current = true;
+          sideAutoTypeRef.current = v;
+          setSideAutoType(v);
+        }
+      }),
+      subscribeToTopic("tansaeng/side-control/timePoints", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            sideTimePointsFromMqttRef.current = true;
+            setSideTimePoints(parsed);
+          }
+        } catch {}
+      }),
     ];
     return () => unsubs.forEach(u => u());
   }, []);
@@ -800,16 +827,42 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     getMqttClient().publish("tansaeng/side-control/tempPoints", JSON.stringify(sideTempPoints), { qos: 1, retain: true });
   }, [sideTempPoints]);
 
-  // 측창 AUTO 제어 로직 — 선택된 센서(온도/습도)→개도율 계산 후 자동 이동
+  // 측창 autoType 변경 시 MQTT retain 발행
+  useEffect(() => {
+    if (sideAutoTypeFirstRunRef.current) { sideAutoTypeFirstRunRef.current = false; return; }
+    if (sideAutoTypeFromMqttRef.current) { sideAutoTypeFromMqttRef.current = false; return; }
+    getMqttClient().publish("tansaeng/side-control/autoType", sideAutoType, { qos: 1, retain: true });
+  }, [sideAutoType]);
+
+  // 측창 시간 포인트 변경 시 MQTT retain 발행
+  useEffect(() => {
+    if (sideTimePointsFirstRunRef.current) { sideTimePointsFirstRunRef.current = false; return; }
+    if (sideTimePointsFromMqttRef.current) { sideTimePointsFromMqttRef.current = false; return; }
+    getMqttClient().publish("tansaeng/side-control/timePoints", JSON.stringify(sideTimePoints), { qos: 1, retain: true });
+  }, [sideTimePoints]);
+
+  // 측창 AUTO 제어 로직 — 시간/온도/습도 기준 개도율 계산 후 자동 이동
   useEffect(() => {
     if (sideModeRef.current !== "AUTO") return;
     if (!sideAutoActive) return;
-    const useHumi = sideAutoSensorRef.current === "humi";
 
     let targetRate = 0;
     let sensorLabel = "";
 
-    if (useHumi) {
+    if (sideAutoTypeRef.current === "time") {
+      // 시간 기준 제어 (스텝 함수 — 데몬과 동일 알고리즘)
+      const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      const nowMin = currentMinute;
+      const sorted = [...sideTimePoints].sort((a, b) => toMin(a.time) - toMin(b.time));
+      if (sorted.length === 0) return;
+      let activePoint = sorted[sorted.length - 1]; // 기본값: 마지막 포인트
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        if (nowMin >= toMin(sorted[i].time)) { activePoint = sorted[i]; break; }
+      }
+      targetRate = activePoint.rate;
+      sensorLabel = `시간기준`;
+    } else if (sideAutoSensorRef.current === "humi") {
+      // 습도 기준 제어
       const humis = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
       if (humis.length === 0) return;
       const avgHumi = humis.reduce((a, b) => a + b, 0) / humis.length;
@@ -827,6 +880,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         }
       }
     } else {
+      // 온도 기준 제어
       const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
       if (temps.length === 0) return;
       const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
@@ -848,9 +902,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     sidescreens.forEach((sidescreen) => {
       const currentPos = currentPosition[sidescreen.id] ?? 0;
       const difference = targetRate - currentPos;
-      if (Math.abs(difference) < 1) return; // 이미 목표 위치에 있음
+      if (Math.abs(difference) < 1) return;
 
-      // 타이머가 실행 중인 경우에만 중복 명령 방지 (위치가 달라졌으면 재명령)
       const lastTarget = sideLastTargetRef.current[sidescreen.id] ?? null;
       if (lastTarget !== null && Math.abs(targetRate - lastTarget) < 2 && percentageTimers.current[sidescreen.id]) return;
 
@@ -880,7 +933,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         }, targetTimeSeconds * 1000);
       });
     });
-  }, [farmSensors, sideTempPoints, sideHumPoints, sideAutoActive, sideAutoSensor, sideLeftFullTime, sideRightFullTime]);
+  }, [farmSensors, sideTempPoints, sideHumPoints, sideTimePoints, sideAutoActive, sideAutoSensor, sideAutoType, currentMinute, sideLeftFullTime, sideRightFullTime]);
 
   // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
@@ -1567,24 +1620,17 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 }
               }
 
-              // 시간 기준 목표개도율
+              // 시간 기준 목표개도율 (데몬과 동일한 스텝 함수 알고리즘)
               const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
               const nowMin = currentMinute;
               let timeTargetRate = 0;
               const timeSorted = [...skyTimePoints].sort((a, b) => toMin(a.time) - toMin(b.time));
               if (timeSorted.length > 0) {
-                if (nowMin < toMin(timeSorted[0].time)) timeTargetRate = timeSorted[0].rate;
-                else if (nowMin >= toMin(timeSorted[timeSorted.length - 1].time)) timeTargetRate = timeSorted[timeSorted.length - 1].rate;
-                else {
-                  for (let i = 0; i < timeSorted.length - 1; i++) {
-                    const s = toMin(timeSorted[i].time), e = toMin(timeSorted[i + 1].time);
-                    if (nowMin >= s && nowMin < e) {
-                      const ratio = (nowMin - s) / (e - s);
-                      timeTargetRate = Math.round(timeSorted[i].rate + ratio * (timeSorted[i + 1].rate - timeSorted[i].rate));
-                      break;
-                    }
-                  }
+                let activePoint = timeSorted[timeSorted.length - 1]; // 기본값: 마지막 포인트
+                for (let i = timeSorted.length - 1; i >= 0; i--) {
+                  if (nowMin >= toMin(timeSorted[i].time)) { activePoint = timeSorted[i]; break; }
                 }
+                timeTargetRate = activePoint.rate;
               }
               const nowHH = String(Math.floor(nowMin / 60)).padStart(2, '0');
               const nowMM = String(nowMin % 60).padStart(2, '0');
@@ -2198,12 +2244,104 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
               );
             })()}
 
-            {/* AUTO 모드: 센서 선택 + 포인트 설정 */}
+            {/* AUTO 모드: 제어 방식 + 포인트 설정 */}
             {sideMode === "AUTO" && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mb-3 space-y-3">
-                {/* 센서 선택 */}
+                {/* 제어 방식 선택: 시간 / 온도·습도 */}
+                <div>
+                  <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1.5">제어 방식</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        sideAutoTypeRef.current = "temp";
+                        sideAutoTypeFromMqttRef.current = false;
+                        setSideAutoType("temp");
+                        sideLastTargetRef.current = {};
+                        getMqttClient().publish("tansaeng/side-control/autoType", "temp", { qos: 1, retain: true });
+                      }}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${sideAutoType === "temp" ? "bg-blue-500 text-white shadow" : "bg-white border border-blue-300 text-blue-600 hover:bg-blue-50"}`}
+                    >
+                      🌡 온도·습도 기준
+                    </button>
+                    <button
+                      onClick={() => {
+                        sideAutoTypeRef.current = "time";
+                        sideAutoTypeFromMqttRef.current = false;
+                        setSideAutoType("time");
+                        sideLastTargetRef.current = {};
+                        getMqttClient().publish("tansaeng/side-control/autoType", "time", { qos: 1, retain: true });
+                      }}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${sideAutoType === "time" ? "bg-blue-500 text-white shadow" : "bg-white border border-blue-300 text-blue-600 hover:bg-blue-50"}`}
+                    >
+                      🕐 시간 기준
+                    </button>
+                  </div>
+                </div>
+
+                {/* 시간 기준: 포인트 설정 */}
+                {sideAutoType === "time" && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] sm:text-xs font-semibold text-gray-700">시간-개도율 설정</p>
+                      <button
+                        onClick={() => setSideTimePoints(prev => {
+                          const sorted = [...prev].sort((a, b) => a.time.localeCompare(b.time));
+                          const lastTime = sorted[sorted.length - 1]?.time ?? "20:00";
+                          const [h] = lastTime.split(':').map(Number);
+                          const nextH = Math.min(h + 2, 23);
+                          return [...prev, { time: `${String(nextH).padStart(2,'0')}:00`, rate: 0 }];
+                        })}
+                        className="text-[10px] px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                      >+ 포인트 추가</button>
+                    </div>
+                    <div className="text-[9px] text-gray-500">해당 시각이 되면 설정한 개도율로 즉시 이동 (스텝 방식)</div>
+                    <div className="space-y-1.5">
+                      {[...sideTimePoints].sort((a, b) => a.time.localeCompare(b.time)).map((point, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-white rounded p-1.5">
+                          <span className="text-[10px] text-gray-500 w-4">{idx + 1}</span>
+                          <div className="flex items-center gap-1 flex-1">
+                            <span className="text-[10px] text-gray-600">시각</span>
+                            <input
+                              type="time"
+                              value={point.time}
+                              onChange={(e) => {
+                                const newPoints = [...sideTimePoints];
+                                const realIdx = sideTimePoints.indexOf(point);
+                                newPoints[realIdx] = { ...point, time: e.target.value };
+                                setSideTimePoints(newPoints);
+                              }}
+                              className="px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                            />
+                            <span className="text-[10px] text-gray-600">→</span>
+                            <input
+                              type="number" min="0" max="100"
+                              value={point.rate}
+                              onChange={(e) => {
+                                const newPoints = [...sideTimePoints];
+                                const realIdx = sideTimePoints.indexOf(point);
+                                newPoints[realIdx] = { ...point, rate: Math.min(100, Math.max(0, Number(e.target.value))) };
+                                setSideTimePoints(newPoints);
+                              }}
+                              className="w-14 px-1.5 py-1 text-xs border border-gray-300 rounded text-center"
+                            />
+                            <span className="text-[10px] text-gray-600">% 개방</span>
+                          </div>
+                          {sideTimePoints.length > 2 && (
+                            <button
+                              onClick={() => setSideTimePoints(prev => prev.filter((_, i) => i !== sideTimePoints.indexOf(point)))}
+                              className="text-[10px] text-red-500 hover:text-red-700 px-1"
+                            >✕</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* 온도·습도 기준: 센서 선택 */}
+                {sideAutoType === "temp" && (
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] sm:text-xs font-semibold text-gray-700">제어 기준:</span>
+                  <span className="text-[10px] sm:text-xs font-semibold text-gray-700">센서:</span>
                   <div className="flex rounded overflow-hidden border border-gray-300">
                     {(["temp", "humi"] as const).map(s => (
                       <button
@@ -2222,9 +2360,10 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </div>
                   <span className="text-[10px] text-gray-500">{sideAutoSensor === "temp" ? "°C 기준" : "%RH 기준"}</span>
                 </div>
+                )}
 
                 {/* 온도 포인트 설정 */}
-                {sideAutoSensor === "temp" && (
+                {sideAutoType === "temp" && sideAutoSensor === "temp" && (
                   <>
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] sm:text-xs font-semibold text-gray-700">온도-개도율 설정</p>
@@ -2286,7 +2425,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 )}
 
                 {/* 습도 포인트 설정 */}
-                {sideAutoSensor === "humi" && (
+                {sideAutoType === "temp" && sideAutoSensor === "humi" && (
                   <>
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] sm:text-xs font-semibold text-gray-700">습도-개도율 설정</p>
@@ -2475,7 +2614,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   {/* AUTO 모드에서는 자동 제어 안내 표시 */}
                   {sideMode === "AUTO" && (
                     <div className="text-center text-[10px] text-blue-600 bg-blue-50 rounded p-1.5">
-                      {sideAutoActive ? "🪟 온도 기반 자동 개폐 중" : "AUTO 모드 — 작동시작 버튼을 누르세요"}
+                      {sideAutoActive
+                        ? sideAutoType === "time" ? "🕐 시간 기반 자동 개폐 중" : "🌡 온도 기반 자동 개폐 중"
+                        : "AUTO 모드 — 작동시작 버튼을 누르세요"}
                     </div>
                   )}
                 </div>
