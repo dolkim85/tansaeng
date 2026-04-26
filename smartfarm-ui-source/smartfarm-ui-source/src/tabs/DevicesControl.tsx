@@ -201,8 +201,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [sideMode, setSideMode] = useState<"AUTO" | "MANUAL">("MANUAL");
   const sideModeRef = useRef<"AUTO" | "MANUAL">("MANUAL");
   const [sideAutoActive, setSideAutoActive] = useState(false);
-  const [sideAutoType, setSideAutoType] = useState<"temp" | "time">("temp");
-  const sideAutoTypeRef = useRef<"temp" | "time">("temp");
+  const [sideAutoType, setSideAutoType] = useState<"temp" | "time" | "daynight">("temp");
+  const sideAutoTypeRef = useRef<"temp" | "time" | "daynight">("temp");
   const sideAutoTypeFromMqttRef = useRef(false);
   const sideAutoTypeFirstRunRef = useRef(true);
   const [sideTimePoints, setSideTimePoints] = useState<Array<{ time: string; rate: number }>>([
@@ -232,6 +232,61 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const sideHumPointsFirstRunRef = useRef(true);
   // 마지막 전송 개도율 추적 (중복/히스테리시스 방지)
   const sideLastTargetRef = useRef<Record<string, number | null>>({});
+
+  // ── 주간/야간 공통 타입 ────────────────────────────────────────────────────
+  type DayNightPeriodSide = {
+    sensor: "temp" | "humi";
+    tempPoints: { temp: number; rate: number }[];
+    humPoints:  { humi: number; rate: number }[];
+  };
+  type DayNightConfigSide = {
+    dayStart: string; nightStart: string;
+    day: DayNightPeriodSide; night: DayNightPeriodSide;
+  };
+  type DayNightPeriodFan = {
+    sensor: "temp" | "humi";
+    ranges:    Record<string, { low: number; high: number }>;
+    humRanges: Record<string, { low: number; high: number }>;
+  };
+  type DayNightConfigFan = {
+    enabled: boolean; dayStart: string; nightStart: string;
+    day: DayNightPeriodFan; night: DayNightPeriodFan;
+  };
+  type DayNightConfigHp = {
+    enabled: boolean; dayStart: string; nightStart: string;
+    day:   { ranges: Record<string, { low: number; high: number }> };
+    night: { ranges: Record<string, { low: number; high: number }> };
+  };
+
+  // 측창 주야간 설정
+  const defaultSideDNConfig: DayNightConfigSide = {
+    dayStart: "06:00", nightStart: "20:00",
+    day:   { sensor: "temp", tempPoints: [{temp:20,rate:0},{temp:28,rate:100}], humPoints: [{humi:60,rate:0},{humi:80,rate:100}] },
+    night: { sensor: "temp", tempPoints: [{temp:15,rate:0},{temp:20,rate:50}],  humPoints: [{humi:70,rate:0},{humi:85,rate:100}] },
+  };
+  const [sideDayNightConfig, setSideDayNightConfig] = useState<DayNightConfigSide>(defaultSideDNConfig);
+  const sideDayNightFromMqttRef = useRef(false);
+  const sideDayNightFirstRunRef = useRef(true);
+
+  // 팬 주야간 설정
+  const defaultFanDNConfig: DayNightConfigFan = {
+    enabled: false, dayStart: "06:00", nightStart: "20:00",
+    day:   { sensor: "temp", ranges: {}, humRanges: {} },
+    night: { sensor: "temp", ranges: {}, humRanges: {} },
+  };
+  const [fanDayNightConfig, setFanDayNightConfig] = useState<DayNightConfigFan>(defaultFanDNConfig);
+  const fanDayNightFromMqttRef = useRef(false);
+  const fanDayNightFirstRunRef = useRef(true);
+
+  // HP 주야간 설정
+  const defaultHpDNConfig: DayNightConfigHp = {
+    enabled: false, dayStart: "06:00", nightStart: "20:00",
+    day:   { ranges: { hp_pump:{low:15,high:22}, hp_heater:{low:15,high:22}, hp_fan:{low:15,high:22} } },
+    night: { ranges: { hp_pump:{low:8,high:15},  hp_heater:{low:8,high:15},  hp_fan:{low:8,high:15}  } },
+  };
+  const [hpDayNightConfig, setHpDayNightConfig] = useState<DayNightConfigHp>(defaultHpDNConfig);
+  const hpDayNightFromMqttRef = useRef(false);
+  const hpDayNightFirstRunRef = useRef(true);
 
   // 히트펌프 전용 장치는 일반 섹션에서 제외
   const fans = getDevicesByType("fan").filter(d => d.esp32Id !== "ctlr-heat-001");
@@ -801,10 +856,10 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         } catch {}
       }),
       subscribeToTopic("tansaeng/side-control/autoType", (v) => {
-        if (v === "temp" || v === "time") {
+        if (v === "temp" || v === "time" || v === "daynight") {
           sideAutoTypeFromMqttRef.current = true;
-          sideAutoTypeRef.current = v;
-          setSideAutoType(v);
+          sideAutoTypeRef.current = v as "temp" | "time" | "daynight";
+          setSideAutoType(v as "temp" | "time" | "daynight");
         }
       }),
       subscribeToTopic("tansaeng/side-control/timePoints", (v) => {
@@ -814,6 +869,24 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             sideTimePointsFromMqttRef.current = true;
             setSideTimePoints(parsed);
           }
+        } catch {}
+      }),
+      subscribeToTopic("tansaeng/side-control/dayNightConfig", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed && typeof parsed === "object") { sideDayNightFromMqttRef.current = true; setSideDayNightConfig(parsed); }
+        } catch {}
+      }),
+      subscribeToTopic("tansaeng/fan-control/dayNightConfig", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed && typeof parsed === "object") { fanDayNightFromMqttRef.current = true; setFanDayNightConfig(parsed); }
+        } catch {}
+      }),
+      subscribeToTopic("tansaeng/hp-control/dayNightConfig", (v) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed && typeof parsed === "object") { hpDayNightFromMqttRef.current = true; setHpDayNightConfig(parsed); }
         } catch {}
       }),
     ];
@@ -861,6 +934,44 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       }
       targetRate = activePoint.rate;
       sensorLabel = `시간기준`;
+    } else if (sideAutoTypeRef.current === "daynight") {
+      // 주간/야간 기준 제어
+      const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      const nowMin = currentMinute;
+      const dayMin = toMin(sideDayNightConfig.dayStart);
+      const nightMin = toMin(sideDayNightConfig.nightStart);
+      const isDay = dayMin < nightMin
+        ? (nowMin >= dayMin && nowMin < nightMin)
+        : (nowMin >= dayMin || nowMin < nightMin);
+      const periodCfg = isDay ? sideDayNightConfig.day : sideDayNightConfig.night;
+      sensorLabel = `${isDay ? "주간" : "야간"} ${periodCfg.sensor === "temp" ? "온도" : "습도"}기준`;
+      if (periodCfg.sensor === "humi") {
+        const humis = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
+        if (humis.length === 0) return;
+        const avg = humis.reduce((a, b) => a + b, 0) / humis.length;
+        const pts = [...periodCfg.humPoints].sort((a, b) => a.humi - b.humi);
+        if (avg < pts[0].humi) targetRate = 0;
+        else if (avg >= pts[pts.length - 1].humi) targetRate = 100;
+        else for (let i = 0; i < pts.length - 1; i++) {
+          if (avg >= pts[i].humi && avg < pts[i + 1].humi) {
+            targetRate = Math.round(pts[i].rate + (avg - pts[i].humi) / (pts[i + 1].humi - pts[i].humi) * (pts[i + 1].rate - pts[i].rate));
+            break;
+          }
+        }
+      } else {
+        const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+        if (temps.length === 0) return;
+        const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
+        const pts = [...periodCfg.tempPoints].sort((a, b) => a.temp - b.temp);
+        if (avg < pts[0].temp) targetRate = 0;
+        else if (avg >= pts[pts.length - 1].temp) targetRate = 100;
+        else for (let i = 0; i < pts.length - 1; i++) {
+          if (avg >= pts[i].temp && avg < pts[i + 1].temp) {
+            targetRate = Math.round(pts[i].rate + (avg - pts[i].temp) / (pts[i + 1].temp - pts[i].temp) * (pts[i + 1].rate - pts[i].rate));
+            break;
+          }
+        }
+      }
     } else if (sideAutoSensorRef.current === "humi") {
       // 습도 기준 제어
       const humis = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
@@ -933,7 +1044,28 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         }, targetTimeSeconds * 1000);
       });
     });
-  }, [farmSensors, sideTempPoints, sideHumPoints, sideTimePoints, sideAutoActive, sideAutoSensor, sideAutoType, currentMinute, sideLeftFullTime, sideRightFullTime]);
+  }, [farmSensors, sideTempPoints, sideHumPoints, sideTimePoints, sideDayNightConfig, sideAutoActive, sideAutoSensor, sideAutoType, currentMinute, sideLeftFullTime, sideRightFullTime]);
+
+  // 측창 주야간 설정 변경 시 MQTT retain 발행
+  useEffect(() => {
+    if (sideDayNightFirstRunRef.current) { sideDayNightFirstRunRef.current = false; return; }
+    if (sideDayNightFromMqttRef.current) { sideDayNightFromMqttRef.current = false; return; }
+    getMqttClient().publish("tansaeng/side-control/dayNightConfig", JSON.stringify(sideDayNightConfig), { qos: 1, retain: true });
+  }, [sideDayNightConfig]);
+
+  // 팬 주야간 설정 변경 시 MQTT retain 발행
+  useEffect(() => {
+    if (fanDayNightFirstRunRef.current) { fanDayNightFirstRunRef.current = false; return; }
+    if (fanDayNightFromMqttRef.current) { fanDayNightFromMqttRef.current = false; return; }
+    getMqttClient().publish("tansaeng/fan-control/dayNightConfig", JSON.stringify(fanDayNightConfig), { qos: 1, retain: true });
+  }, [fanDayNightConfig]);
+
+  // HP 주야간 설정 변경 시 MQTT retain 발행
+  useEffect(() => {
+    if (hpDayNightFirstRunRef.current) { hpDayNightFirstRunRef.current = false; return; }
+    if (hpDayNightFromMqttRef.current) { hpDayNightFromMqttRef.current = false; return; }
+    getMqttClient().publish("tansaeng/hp-control/dayNightConfig", JSON.stringify(hpDayNightConfig), { qos: 1, retain: true });
+  }, [hpDayNightConfig]);
 
   // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
@@ -2261,7 +2393,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       }}
                       className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${sideAutoType === "temp" ? "bg-blue-500 text-white shadow" : "bg-white border border-blue-300 text-blue-600 hover:bg-blue-50"}`}
                     >
-                      🌡 온도·습도 기준
+                      🌡 온도·습도
                     </button>
                     <button
                       onClick={() => {
@@ -2273,7 +2405,19 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       }}
                       className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${sideAutoType === "time" ? "bg-blue-500 text-white shadow" : "bg-white border border-blue-300 text-blue-600 hover:bg-blue-50"}`}
                     >
-                      🕐 시간 기준
+                      🕐 시간
+                    </button>
+                    <button
+                      onClick={() => {
+                        sideAutoTypeRef.current = "daynight";
+                        sideAutoTypeFromMqttRef.current = false;
+                        setSideAutoType("daynight");
+                        sideLastTargetRef.current = {};
+                        getMqttClient().publish("tansaeng/side-control/autoType", "daynight", { qos: 1, retain: true });
+                      }}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${sideAutoType === "daynight" ? "bg-indigo-500 text-white shadow" : "bg-white border border-indigo-300 text-indigo-600 hover:bg-indigo-50"}`}
+                    >
+                      🌓 주간/야간
                     </button>
                   </div>
                 </div>
@@ -2337,6 +2481,97 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                   </>
                 )}
+
+                {/* 주간/야간 기준 설정 */}
+                {sideAutoType === "daynight" && (() => {
+                  const mkPeriodEditor = (period: "day" | "night", label: string) => {
+                    const cfg = sideDayNightConfig[period];
+                    const updateCfg = (patch: Partial<typeof cfg>) =>
+                      setSideDayNightConfig(prev => ({ ...prev, [period]: { ...prev[period], ...patch } }));
+                    return (
+                      <div key={period} className="bg-white border border-indigo-200 rounded-lg p-2 space-y-2">
+                        <p className="text-xs font-bold text-indigo-700">{label}</p>
+                        {/* 센서 선택 */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-semibold text-gray-600">센서:</span>
+                          <div className="flex rounded overflow-hidden border border-gray-300">
+                            {(["temp", "humi"] as const).map(s => (
+                              <button key={s} onClick={() => updateCfg({ sensor: s })}
+                                className={`px-2 py-0.5 text-[10px] font-semibold transition-colors ${cfg.sensor === s ? "bg-indigo-500 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                                {s === "temp" ? "🌡온도" : "💧습도"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {/* 온도 포인트 */}
+                        {cfg.sensor === "temp" && (
+                          <div className="space-y-1">
+                            {[...cfg.tempPoints].sort((a,b)=>a.temp-b.temp).map((pt, i) => (
+                              <div key={i} className="flex items-center gap-1 text-[10px]">
+                                <span className="w-12 text-gray-500">온도:</span>
+                                <input type="number" value={pt.temp} onChange={e => {
+                                  const pts = cfg.tempPoints.map((p,j) => j===i ? {...p, temp: Number(e.target.value)} : p);
+                                  updateCfg({ tempPoints: pts });
+                                }} className="w-14 border rounded px-1 py-0.5 text-center text-[10px]" />
+                                <span className="text-gray-400">°C →</span>
+                                <input type="number" value={pt.rate} min={0} max={100} onChange={e => {
+                                  const pts = cfg.tempPoints.map((p,j) => j===i ? {...p, rate: Number(e.target.value)} : p);
+                                  updateCfg({ tempPoints: pts });
+                                }} className="w-14 border rounded px-1 py-0.5 text-center text-[10px]" />
+                                <span className="text-gray-400">%</span>
+                                <button onClick={() => updateCfg({ tempPoints: cfg.tempPoints.filter((_,j)=>j!==i) })}
+                                  className="text-red-400 hover:text-red-600 ml-1 text-xs">✕</button>
+                              </div>
+                            ))}
+                            <button onClick={() => updateCfg({ tempPoints: [...cfg.tempPoints, {temp:25,rate:50}] })}
+                              className="text-[10px] text-indigo-600 hover:text-indigo-800">+ 포인트 추가</button>
+                          </div>
+                        )}
+                        {/* 습도 포인트 */}
+                        {cfg.sensor === "humi" && (
+                          <div className="space-y-1">
+                            {[...cfg.humPoints].sort((a,b)=>a.humi-b.humi).map((pt, i) => (
+                              <div key={i} className="flex items-center gap-1 text-[10px]">
+                                <span className="w-12 text-gray-500">습도:</span>
+                                <input type="number" value={pt.humi} onChange={e => {
+                                  const pts = cfg.humPoints.map((p,j) => j===i ? {...p, humi: Number(e.target.value)} : p);
+                                  updateCfg({ humPoints: pts });
+                                }} className="w-14 border rounded px-1 py-0.5 text-center text-[10px]" />
+                                <span className="text-gray-400">% →</span>
+                                <input type="number" value={pt.rate} min={0} max={100} onChange={e => {
+                                  const pts = cfg.humPoints.map((p,j) => j===i ? {...p, rate: Number(e.target.value)} : p);
+                                  updateCfg({ humPoints: pts });
+                                }} className="w-14 border rounded px-1 py-0.5 text-center text-[10px]" />
+                                <span className="text-gray-400">%</span>
+                                <button onClick={() => updateCfg({ humPoints: cfg.humPoints.filter((_,j)=>j!==i) })}
+                                  className="text-red-400 hover:text-red-600 ml-1 text-xs">✕</button>
+                              </div>
+                            ))}
+                            <button onClick={() => updateCfg({ humPoints: [...cfg.humPoints, {humi:75,rate:50}] })}
+                              className="text-[10px] text-indigo-600 hover:text-indigo-800">+ 포인트 추가</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  };
+                  return (
+                    <div className="space-y-2">
+                      {/* 주간/야간 시간 설정 */}
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="font-semibold text-gray-700">주간 시작:</span>
+                        <input type="time" value={sideDayNightConfig.dayStart}
+                          onChange={e => setSideDayNightConfig(prev => ({...prev, dayStart: e.target.value}))}
+                          className="border rounded px-2 py-0.5 text-xs" />
+                        <span className="font-semibold text-gray-700">야간 시작:</span>
+                        <input type="time" value={sideDayNightConfig.nightStart}
+                          onChange={e => setSideDayNightConfig(prev => ({...prev, nightStart: e.target.value}))}
+                          className="border rounded px-2 py-0.5 text-xs" />
+                      </div>
+                      {mkPeriodEditor("day", "☀️ 주간 설정")}
+                      {mkPeriodEditor("night", "🌙 야간 설정")}
+                    </div>
+                  );
+                })()}
 
                 {/* 온도·습도 기준: 센서 선택 */}
                 {sideAutoType === "temp" && (
@@ -2615,7 +2850,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   {sideMode === "AUTO" && (
                     <div className="text-center text-[10px] text-blue-600 bg-blue-50 rounded p-1.5">
                       {sideAutoActive
-                        ? sideAutoType === "time" ? "🕐 시간 기반 자동 개폐 중" : "🌡 온도 기반 자동 개폐 중"
+                        ? sideAutoType === "time" ? "🕐 시간 기반 자동 개폐 중" : sideAutoType === "daynight" ? "🌓 주야간 기준 자동 개폐 중" : "🌡 온도 기반 자동 개폐 중"
                         : "AUTO 모드 — 작동시작 버튼을 누르세요"}
                     </div>
                   )}
@@ -2748,6 +2983,90 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
               return (
                 <div className="space-y-2 sm:space-y-3">
+                  {/* 주간/야간 모드 토글 */}
+                  <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
+                    <span className="text-xs text-gray-700 font-medium flex-1">🌓 주간/야간 구분 제어</span>
+                    <button
+                      onClick={() => {
+                        const next = { ...fanDayNightConfig, enabled: !fanDayNightConfig.enabled };
+                        fanDayNightFromMqttRef.current = false;
+                        setFanDayNightConfig(next);
+                        getMqttClient().publish("tansaeng/fan-control/dayNightConfig", JSON.stringify(next), { qos: 1, retain: true });
+                      }}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${fanDayNightConfig.enabled ? "bg-indigo-500 text-white" : "bg-white border border-indigo-300 text-indigo-600 hover:bg-indigo-50"}`}
+                    >
+                      {fanDayNightConfig.enabled ? "✅ 사용중" : "사용 안함"}
+                    </button>
+                  </div>
+
+                  {fanDayNightConfig.enabled ? (
+                    /* 주야간 모드 설정 UI */
+                    <div className="space-y-2">
+                      {/* 시간 설정 */}
+                      <div className="flex items-center gap-3 text-xs bg-white border border-indigo-100 rounded-lg px-3 py-2">
+                        <span className="font-semibold text-gray-700">주간 시작:</span>
+                        <input type="time" value={fanDayNightConfig.dayStart}
+                          onChange={e => setFanDayNightConfig(prev => ({...prev, dayStart: e.target.value}))}
+                          className="border rounded px-2 py-0.5 text-xs" />
+                        <span className="font-semibold text-gray-700">야간 시작:</span>
+                        <input type="time" value={fanDayNightConfig.nightStart}
+                          onChange={e => setFanDayNightConfig(prev => ({...prev, nightStart: e.target.value}))}
+                          className="border rounded px-2 py-0.5 text-xs" />
+                      </div>
+                      {/* 주간/야간 각각 설정 */}
+                      {(["day", "night"] as const).map(period => {
+                        const pCfg = fanDayNightConfig[period];
+                        const pLabel = period === "day" ? "☀️ 주간" : "🌙 야간";
+                        const useH = pCfg.sensor === "humi";
+                        const GMIN = useH ? 0 : -10; const GMAX = useH ? 100 : 50; const gRange = GMAX - GMIN;
+                        const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+                        const humis = [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[];
+                        const avgV = useH
+                          ? (humis.length > 0 ? humis.reduce((a,b)=>a+b,0)/humis.length : null)
+                          : (temps.length > 0 ? temps.reduce((a,b)=>a+b,0)/temps.length : null);
+                        const markerP = avgV !== null ? Math.max(0, Math.min(100, ((avgV - GMIN) / gRange) * 100)) : null;
+                        return (
+                          <div key={period} className="bg-white border border-indigo-200 rounded-lg p-2.5 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-bold text-indigo-700 flex-1">{pLabel}</p>
+                              <div className="flex rounded overflow-hidden border border-gray-300">
+                                {(["temp", "humi"] as const).map(s => (
+                                  <button key={s}
+                                    onClick={() => setFanDayNightConfig(prev => ({...prev, [period]: {...prev[period], sensor: s}}))}
+                                    className={`px-2 py-0.5 text-[10px] font-semibold transition-colors ${pCfg.sensor === s ? "bg-indigo-500 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                                    {s === "temp" ? "🌡온도" : "💧습도"}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            {fans.map(f => {
+                              const rangeKey = useH ? "humRanges" : "ranges";
+                              const defRange = useH ? {low:60,high:80} : {low:15,high:22};
+                              const range = pCfg[rangeKey][f.id] ?? defRange;
+                              const inR = avgV !== null && avgV >= range.low && avgV <= range.high;
+                              const unit = useH ? "%" : "°C";
+                              return (
+                                <div key={f.id} className="space-y-1">
+                                  <div className="flex justify-between text-[10px] text-gray-600 px-1">
+                                    <span className="font-semibold">🌀 {f.name}</span>
+                                    <span className={inR ? "text-green-600" : "text-gray-400"}>{range.low}{unit} ~ {range.high}{unit}</span>
+                                  </div>
+                                  <DualRangeSlider
+                                    min={GMIN} max={GMAX} step={useH ? 1 : 0.5}
+                                    low={range.low} high={range.high}
+                                    onLowChange={v => setFanDayNightConfig(prev => ({...prev, [period]: {...prev[period], [rangeKey]: {...prev[period][rangeKey], [f.id]: {...(prev[period][rangeKey][f.id] ?? defRange), low: v}}}}))}
+                                    onHighChange={v => setFanDayNightConfig(prev => ({...prev, [period]: {...prev[period], [rangeKey]: {...prev[period][rangeKey], [f.id]: {...(prev[period][rangeKey][f.id] ?? defRange), high: v}}}}))}
+                                    markerPct={markerP} isActive={inR}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                  <>
                   {/* 제어 센서 선택 */}
                   <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
                     <span className="text-xs text-gray-600 font-medium">제어 기준:</span>
@@ -2889,6 +3208,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </div>
                     );
                   })}
+                </>
+              )}
                 </div>
               );
             })() : (
@@ -3078,6 +3399,72 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
               return (
                 <div className="space-y-2 sm:space-y-3">
+
+                  {/* 주간/야간 모드 토글 */}
+                  <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
+                    <span className="text-xs text-gray-700 font-medium flex-1">🌓 주간/야간 구분 제어</span>
+                    <button
+                      onClick={() => {
+                        const next = { ...hpDayNightConfig, enabled: !hpDayNightConfig.enabled };
+                        hpDayNightFromMqttRef.current = false;
+                        setHpDayNightConfig(next);
+                        getMqttClient().publish("tansaeng/hp-control/dayNightConfig", JSON.stringify(next), { qos: 1, retain: true });
+                      }}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${hpDayNightConfig.enabled ? "bg-indigo-500 text-white" : "bg-white border border-indigo-300 text-indigo-600 hover:bg-indigo-50"}`}
+                    >
+                      {hpDayNightConfig.enabled ? "✅ 사용중" : "사용 안함"}
+                    </button>
+                  </div>
+
+                  {hpDayNightConfig.enabled && (
+                    <div className="space-y-2">
+                      {/* 시간 설정 */}
+                      <div className="flex items-center gap-3 text-xs bg-white border border-indigo-100 rounded-lg px-3 py-2">
+                        <span className="font-semibold text-gray-700">주간 시작:</span>
+                        <input type="time" value={hpDayNightConfig.dayStart}
+                          onChange={e => setHpDayNightConfig(prev => ({...prev, dayStart: e.target.value}))}
+                          className="border rounded px-2 py-0.5 text-xs" />
+                        <span className="font-semibold text-gray-700">야간 시작:</span>
+                        <input type="time" value={hpDayNightConfig.nightStart}
+                          onChange={e => setHpDayNightConfig(prev => ({...prev, nightStart: e.target.value}))}
+                          className="border rounded px-2 py-0.5 text-xs" />
+                      </div>
+                      {/* 주간/야간 범위 설정 */}
+                      {(["day", "night"] as const).map(period => {
+                        const pRanges = hpDayNightConfig[period].ranges;
+                        const pLabel = period === "day" ? "☀️ 주간" : "🌙 야간";
+                        return (
+                          <div key={period} className="bg-white border border-indigo-200 rounded-lg p-2.5 space-y-2">
+                            <p className="text-xs font-bold text-indigo-700">{pLabel} — 작동 온도 범위</p>
+                            {gaugeItems.map(({ key, label, icon }) => {
+                              const range = pRanges[key] ?? { low: 8, high: 15 };
+                              return (
+                                <div key={key} className="space-y-1">
+                                  <div className="flex justify-between text-[10px] text-gray-600 px-1">
+                                    <span className="font-semibold">{icon} {label}</span>
+                                    <span className="text-gray-400">{range.low}°C ~ {range.high}°C</span>
+                                  </div>
+                                  <DualRangeSlider
+                                    min={-30} max={30} step={0.5}
+                                    low={range.low} high={range.high}
+                                    onLowChange={(v) => {
+                                      const def = {low:8,high:15};
+                                      setHpDayNightConfig(prev => ({ ...prev, [period]: { ranges: { ...prev[period].ranges, [key]: { ...(prev[period].ranges[key] ?? def), low: v } } } }));
+                                    }}
+                                    onHighChange={(v) => {
+                                      const def = {low:8,high:15};
+                                      setHpDayNightConfig(prev => ({ ...prev, [period]: { ranges: { ...prev[period].ranges, [key]: { ...(prev[period].ranges[key] ?? def), high: v } } } }));
+                                    }}
+                                    markerPct={markerPct} isActive={avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* 현재온도 + 작동시작/멈춤 버튼 */}
                   <div className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2 gap-2">
