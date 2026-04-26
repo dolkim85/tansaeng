@@ -26,8 +26,8 @@ export const DEVICES: DeviceConfig[] = [
     name: "내부팬 뒤",
     type: "fan",
     esp32Id: "ctlr-0002",
-    commandTopic: "tansaeng/ctlr-0002/fan2/cmd",
-    stateTopic: "tansaeng/ctlr-0002/fan2/state",
+    commandTopic: "tansaeng/ctlr-0002/fan_top/cmd",
+    stateTopic: "tansaeng/ctlr-0002/fan_top/state",
   },
   {
     id: "fan_top",
@@ -38,12 +38,28 @@ export const DEVICES: DeviceConfig[] = [
     stateTopic: "tansaeng/ctlr-0003/fan_top/state",
   },
   {
-    id: "fan_ground",
-    name: "지상팬",
+    id: "fan_ground_front",
+    name: "앞지상팬",
     type: "fan",
     esp32Id: "ctlr-0003",
     commandTopic: "tansaeng/ctlr-0003/fan_ground/cmd",
     stateTopic: "tansaeng/ctlr-0003/fan_ground/state",
+  },
+  {
+    id: "fan_ground",
+    name: "중간지상팬",
+    type: "fan",
+    esp32Id: "ctlr-0002",
+    commandTopic: "tansaeng/ctlr-0002/fan_ground/cmd",
+    stateTopic: "tansaeng/ctlr-0002/fan_ground/state",
+  },
+  {
+    id: "fan_ground_back",
+    name: "백지상팬",
+    type: "fan",
+    esp32Id: "ctlr-0002",
+    commandTopic: "tansaeng/ctlr-0002/fan_ground_back/cmd",
+    stateTopic: "tansaeng/ctlr-0002/fan_ground_back/state",
   },
 
   // ========== 천창 스크린 제어 (OPEN/CLOSE/STOP) ==========

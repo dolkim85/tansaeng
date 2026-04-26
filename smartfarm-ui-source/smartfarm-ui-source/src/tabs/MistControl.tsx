@@ -343,9 +343,33 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     }
   };
 
-  // AUTO 작동 시작 → 서버 데몬에 위임
+  // AUTO 작동 시작 → 설정 저장 후 데몬에 위임
   const handleStartOperation = async (zone: MistZoneConfig) => {
     if (!zone.controllerId) { alert("컨트롤러가 연결되어 있지 않습니다."); return; }
+
+    if (zone.mode === "AUTO") {
+      if (zone.daySchedule.enabled && !zone.daySchedule.sprayDurationSeconds) {
+        alert("주간 모드: 작동분무주기(초)를 입력해야 합니다."); return;
+      }
+      if (zone.nightSchedule.enabled && !zone.nightSchedule.sprayDurationSeconds) {
+        alert("야간 모드: 작동분무주기(초)를 입력해야 합니다."); return;
+      }
+      if (!zone.daySchedule.enabled && !zone.nightSchedule.enabled) {
+        alert("AUTO 모드에서는 주간 또는 야간을 하나 이상 활성화해야 합니다."); return;
+      }
+    }
+
+    // 최신 설정을 데몬에 먼저 전송 (저장 안 하고 작동 눌러도 최신 스케줄 적용)
+    await saveDeviceSettings({
+      mist_zones: {
+        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: "valve1", isRunning: true, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
+      },
+    });
+    getMqttClient().publish(
+      `tansaeng/mist-control/${zone.id}/schedule`,
+      JSON.stringify({ mode: zone.mode, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule }),
+      { qos: 1, retain: true }
+    );
 
     setZones(prev => prev.map(z => z.id === zone.id ? { ...z, isRunning: true } : z));
     isRunningSelfPublishRef.current[zone.id] = true;
@@ -575,6 +599,17 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                     <div className="mb-2">
                       <LedIndicator zoneId={zone.id} controllerId={zone.controllerId} />
                       <ZoneTimer zoneId={zone.id} stopDuration={currentSchedule?.stopDurationSeconds} />
+                      {/* 작동 중이나 현재 시각이 스케줄 범위 밖일 때 안내 */}
+                      {zone.isRunning && !currentSchedule && (
+                        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-300 rounded text-xs text-yellow-700">
+                          ⏳ 스케줄 시간 범위 밖 — 활성 시간대가 되면 자동 시작됩니다
+                          <div className="mt-1 text-[10px] text-yellow-600">
+                            {zone.daySchedule.enabled && `☀️ 주간: ${zone.daySchedule.startTime}~${zone.daySchedule.endTime}`}
+                            {zone.daySchedule.enabled && zone.nightSchedule.enabled && " / "}
+                            {zone.nightSchedule.enabled && `🌙 야간: ${zone.nightSchedule.startTime}~${zone.nightSchedule.endTime}`}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* 제어 버튼 */}
