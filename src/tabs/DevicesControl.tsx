@@ -3394,11 +3394,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
             {/* AUTO 모드: 장치별 개별 게이지 / MANUAL 모드: 장치 카드 */}
             {hpMode === "AUTO" ? (() => {
-              const GMIN = -10, GMAX = 50;
+              const GMIN = -30, GMAX = 50;
               const gRange = GMAX - GMIN;
               const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
               const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
-              // 현재 평균온도의 -10~+50 스케일 상 위치
+              // 현재 평균온도의 -30~+50 스케일 상 위치
               const markerPct = avgTemp !== null
                 ? Math.max(0, Math.min(100, ((avgTemp - GMIN) / gRange) * 100))
                 : null;
@@ -3457,7 +3457,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                                     <span className="text-gray-400">{range.low}°C ~ {range.high}°C</span>
                                   </div>
                                   <DualRangeSlider
-                                    min={-10} max={50} step={0.5}
+                                    min={-30} max={50} step={0.5}
                                     low={range.low} high={range.high}
                                     onLowChange={(v) => {
                                       const def = {low:8,high:15};
@@ -3569,7 +3569,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         />
                         {/* 눈금 */}
                         <div className="flex justify-between text-[10px] text-gray-400 mx-3 mt-0.5">
-                          <span>-10°C</span><span>+20°C</span><span>+50°C</span>
+                          <span>-30°C</span><span>+10°C</span><span>+50°C</span>
                         </div>
                         {/* 저장 버튼 + 마지막 저장 시각 */}
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-orange-100">
