@@ -541,7 +541,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => clearInterval(interval);
   }, []);
 
-  // AUTO 모드 제어 로직 — 평균온도가 설정 범위 안에 있으면 ON, 벗어나면 OFF
+  // AUTO 모드 제어 로직 — 각 장치별 기준 센서 범위 안에 있으면 ON, 벗어나면 OFF
+  // 냉각기(hp_heater)는 물온도 기준, 나머지는 팜 내부 평균온도 기준
   useEffect(() => {
     // state + ref 이중 체크 (MANUAL 모드에서 절대 실행 안 되도록)
     if (hpMode !== "AUTO") return;
@@ -549,9 +550,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     if (!hpAutoActive) return; // 작동시작 버튼을 눌러야 활성화
 
     const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
-    if (temps.length === 0) return;
-
-    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+    const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
     const HP = "ctlr-heat-001";
 
     const deviceMap: Array<{ key: string; mqttId: string }> = [
@@ -561,9 +560,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     ];
 
     deviceMap.forEach(({ key, mqttId }) => {
+      // 냉각기는 물온도, 나머지는 팜 평균온도
+      const sensorValue = key === "hp_heater" ? hpSensors.waterTemp : avgTemp;
+      if (sensorValue === null) return;
       const range = hpDeviceRanges[key] ?? { low: 15, high: 22 };
-      // 평균온도가 [low, high] 안에 있으면 ON, 벗어나면 OFF
-      const inRange = avgTemp >= range.low && avgTemp <= range.high;
+      const inRange = sensorValue >= range.low && sensorValue <= range.high;
       const newCmd: "ON" | "OFF" = inRange ? "ON" : "OFF";
       if (hpDeviceLastCmd.current[key] !== newCmd) {
         hpDeviceLastCmd.current[key] = newCmd;
@@ -575,7 +576,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         });
       }
     });
-  }, [farmSensors, hpDeviceRanges, hpAutoActive, hpMode]);
+  }, [farmSensors, hpSensors, hpDeviceRanges, hpAutoActive, hpMode]);
 
   // 팬 AUTO 모드 제어 로직 — 선택된 센서(온도/습도) 범위 안에 있으면 ON, 벗어나면 OFF
   // 히스테리시스: 경계값 근처 진동 방지 (온도 0.5°C, 습도 2%RH)
@@ -3398,15 +3399,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
               const gRange = GMAX - GMIN;
               const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
               const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
-              // 현재 평균온도의 -30~+50 스케일 상 위치
-              const markerPct = avgTemp !== null
-                ? Math.max(0, Math.min(100, ((avgTemp - GMIN) / gRange) * 100))
+              const waterTemp = hpSensors.waterTemp;
+              const toMarkerPct = (v: number | null) => v !== null
+                ? Math.max(0, Math.min(100, ((v - GMIN) / gRange) * 100))
                 : null;
 
               const gaugeItems = [
-                { key: "hp_pump",   label: "냉각순환펌프", icon: "💧" },
-                { key: "hp_heater", label: "냉각기",       icon: "❄️" },
-                { key: "hp_fan",    label: "장치실 팬",     icon: "🌀" },
+                { key: "hp_pump",   label: "냉각순환펌프", icon: "💧", sensorVal: avgTemp,   sensorLabel: "팜평균온도" },
+                { key: "hp_heater", label: "냉각기",       icon: "❄️", sensorVal: waterTemp, sensorLabel: "물온도" },
+                { key: "hp_fan",    label: "장치실 팬",     icon: "🌀", sensorVal: avgTemp,   sensorLabel: "팜평균온도" },
               ];
 
               return (
@@ -3467,7 +3468,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                                       const def = {low:8,high:15};
                                       setHpDayNightConfig(prev => ({ ...prev, [period]: { ranges: { ...prev[period].ranges, [key]: { ...(prev[period].ranges[key] ?? def), high: v } } } }));
                                     }}
-                                    markerPct={markerPct} isActive={avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high}
+                                    markerPct={toMarkerPct(avgTemp)} isActive={avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high}
                                   />
                                 </div>
                               );
@@ -3526,11 +3527,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </div>
 
                   {/* 장치별 게이지 */}
-                  {gaugeItems.map(({ key, label, icon }) => {
+                  {gaugeItems.map(({ key, label, icon, sensorVal, sensorLabel }) => {
                     const range = hpDeviceRanges[key] ?? { low: 15, high: 22 };
                     const isOn = hpDeviceStates[key] === "ON";
-                    // 평균온도가 설정 범위 안에 있는지 표시용
-                    const inRange = avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high;
+                    const markerPct = toMarkerPct(sensorVal);
+                    const inRange = sensorVal !== null && sensorVal >= range.low && sensorVal <= range.high;
 
                     return (
                       <div key={key} className="bg-orange-50 border border-orange-200 rounded-lg p-2.5 sm:p-3">
@@ -3538,6 +3539,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs sm:text-sm font-semibold text-gray-700">{icon} {label}</span>
                           <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-gray-400">{sensorLabel}: {sensorVal !== null ? `${sensorVal.toFixed(1)}°C` : "—"}</span>
                             <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isOn ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
                             <span className={`text-xs font-bold ${isOn ? 'text-green-600' : 'text-gray-500'}`}>
                               {isOn ? '작동중' : '정지'}
@@ -3549,7 +3551,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         <div className="flex justify-between text-xs mb-1 px-3">
                           <span className="text-orange-600 font-bold">{range.low.toFixed(1)}°C</span>
                           <span className="text-[10px] text-gray-400">
-                            {inRange ? "✅ 현재온도 범위 내" : "❌ 현재온도 범위 밖"}
+                            {inRange ? `✅ ${sensorLabel} 범위 내` : `❌ ${sensorLabel} 범위 밖`}
                           </span>
                           <span className="text-red-600 font-bold">{range.high.toFixed(1)}°C</span>
                         </div>
