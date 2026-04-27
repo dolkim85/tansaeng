@@ -26,16 +26,40 @@ export const DEVICES: DeviceConfig[] = [
     name: "내부팬 뒤",
     type: "fan",
     esp32Id: "ctlr-0002",
-    commandTopic: "tansaeng/ctlr-0002/fan2/cmd",
-    stateTopic: "tansaeng/ctlr-0002/fan2/state",
+    commandTopic: "tansaeng/ctlr-0002/fan_top/cmd",
+    stateTopic: "tansaeng/ctlr-0002/fan_top/state",
   },
   {
     id: "fan_top",
     name: "천장팬",
     type: "fan",
-    esp32Id: "esp32-node-1",
-    commandTopic: "tansaeng/esp32-node-1/fan_top/cmd",
-    stateTopic: "tansaeng/esp32-node-1/fan_top/state",
+    esp32Id: "ctlr-0003",
+    commandTopic: "tansaeng/ctlr-0003/fan_top/cmd",
+    stateTopic: "tansaeng/ctlr-0003/fan_top/state",
+  },
+  {
+    id: "fan_ground_front",
+    name: "앞지상팬",
+    type: "fan",
+    esp32Id: "ctlr-0003",
+    commandTopic: "tansaeng/ctlr-0003/fan_ground/cmd",
+    stateTopic: "tansaeng/ctlr-0003/fan_ground/state",
+  },
+  {
+    id: "fan_ground",
+    name: "중간지상팬",
+    type: "fan",
+    esp32Id: "ctlr-0002",
+    commandTopic: "tansaeng/ctlr-0002/fan_ground/cmd",
+    stateTopic: "tansaeng/ctlr-0002/fan_ground/state",
+  },
+  {
+    id: "fan_ground_back",
+    name: "백지상팬",
+    type: "fan",
+    esp32Id: "ctlr-0002",
+    commandTopic: "tansaeng/ctlr-0002/fan_ground_back/cmd",
+    stateTopic: "tansaeng/ctlr-0002/fan_ground_back/state",
   },
 
   // ========== 천창 스크린 제어 (OPEN/CLOSE/STOP) ==========
@@ -117,7 +141,7 @@ export const DEVICES: DeviceConfig[] = [
   // 기능: 히트펌프 제어, 전기온열기 제어, 물온도 측정, 팬 제어, 온습도 측정
   {
     id: "hp_pump",
-    name: "히트펌프 순환펌프",
+    name: "냉각순환펌프",
     type: "pump",
     esp32Id: "ctlr-heat-001",
     commandTopic: "tansaeng/ctlr-heat-001/pump/cmd",
@@ -125,7 +149,7 @@ export const DEVICES: DeviceConfig[] = [
   },
   {
     id: "hp_heater",
-    name: "전기온열기",
+    name: "냉각기",
     type: "heater",
     esp32Id: "ctlr-heat-001",
     commandTopic: "tansaeng/ctlr-heat-001/heater/cmd",
@@ -133,7 +157,7 @@ export const DEVICES: DeviceConfig[] = [
   },
   {
     id: "hp_fan",
-    name: "열교환기 팬",
+    name: "장치실 팬",
     type: "fan",
     esp32Id: "ctlr-heat-001",
     commandTopic: "tansaeng/ctlr-heat-001/fan/cmd",
