@@ -375,8 +375,8 @@ try {
             $sensorType = $parts[2];
             $dataType = $parts[3];
 
-            // 실시간 캐시 업데이트 (UI 표시용 - 매번 호출)
-            updateRealtimeSensorCache($controllerId, $dataType, $message);
+            // 실시간 캐시 업데이트는 Node.js 데몬에서 단독 처리 (race condition 방지)
+            // updateRealtimeSensorCache($controllerId, $dataType, $message);
 
             // 온도/습도 알림 체크
             if ($dataType === 'temperature') {

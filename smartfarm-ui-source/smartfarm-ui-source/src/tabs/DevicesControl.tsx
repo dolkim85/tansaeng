@@ -525,14 +525,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         const res = await fetch('/api/smartfarm/get_realtime_sensor_data.php');
         const result = await res.json();
         if (result.success) {
-          setFarmSensors({
-            front:    result.data.front.temperature,
-            back:     result.data.back.temperature,
-            top:      result.data.top.temperature,
-            frontHum: result.data.front.humidity,
-            backHum:  result.data.back.humidity,
-            topHum:   result.data.top.humidity,
-          });
+          // null 수신 시 이전 값 유지 (깜빡임 방지)
+          setFarmSensors(prev => ({
+            front:    result.data.front?.temperature    ?? prev.front,
+            back:     result.data.back?.temperature     ?? prev.back,
+            top:      result.data.top?.temperature      ?? prev.top,
+            frontHum: result.data.front?.humidity       ?? prev.frontHum,
+            backHum:  result.data.back?.humidity        ?? prev.backHum,
+            topHum:   result.data.top?.humidity         ?? prev.topHum,
+          }));
         }
       } catch {}
     };

@@ -83,6 +83,47 @@ let roomTemp = null;
 // 냉각수 온도 (hp_heater 전용, MQTT 구독)
 let waterTemp = null;
 
+// ─── 팜 실시간 센서 캐시 ────────────────────────────────────────────────────────
+// PHP MQTT 데몬 대신 Node.js에서 직접 수신 후 realtime_sensor.json 업데이트
+const SENSOR_TIMEOUT_MS = 120000; // 2분 이상 오래된 데이터는 null 처리
+const farmSensorCache = {
+  front: { temperature: null, humidity: null, lastUpdate: null },
+  back:  { temperature: null, humidity: null, lastUpdate: null },
+  top:   { temperature: null, humidity: null, lastUpdate: null },
+};
+const CTRL_TO_LOCATION = { 'ctlr-0001': 'front', 'ctlr-0002': 'back', 'ctlr-0003': 'top' };
+
+function updateFarmSensor(controllerId, dataType, rawValue) {
+  const location = CTRL_TO_LOCATION[controllerId];
+  if (!location) return;
+  const val = parseFloat(rawValue);
+  if (isNaN(val)) return;
+  if (dataType === 'temperature' && (val < -40 || val > 80)) return;
+  if (dataType === 'humidity'    && (val < 0   || val > 100)) return;
+  farmSensorCache[location][dataType] = val;
+  const n = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const pad = (v) => String(v).padStart(2, '0');
+  farmSensorCache[location].lastUpdate =
+    `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+  writeSensorFile();
+}
+
+function writeSensorFile() {
+  try {
+    const out = {};
+    const now = Date.now();
+    for (const [loc, d] of Object.entries(farmSensorCache)) {
+      // lastUpdate가 있는 경우에만 포함 (한 번이라도 받은 경우)
+      if (d.lastUpdate !== null) {
+        out[loc] = { temperature: d.temperature, humidity: d.humidity, lastUpdate: d.lastUpdate };
+      }
+    }
+    fs.writeFileSync(SENSOR_FILE, JSON.stringify(out, null, 4), 'utf8');
+  } catch (e) {
+    log(`[SENSOR] 파일 쓰기 실패: ${e.message}`);
+  }
+}
+
 // 장치 정의
 const DEVICES = {
   sky: [
@@ -322,6 +363,13 @@ function runAutoControl(mqttClient) {
     return;
   }
 
+  // 메모리 캐시가 파일보다 최신일 수 있으므로 병합 사용
+  const now = Date.now();
+  for (const [loc, d] of Object.entries(farmSensorCache)) {
+    if (d.temperature !== null) sensorData[loc] = { ...sensorData[loc], temperature: d.temperature };
+    if (d.humidity    !== null) sensorData[loc] = { ...sensorData[loc], humidity:    d.humidity    };
+  }
+
   // 유효한 온도/습도값 수집
   const temps = [sensorData.front?.temperature, sensorData.back?.temperature, sensorData.top?.temperature]
     .filter(t => typeof t === 'number' && !isNaN(t));
@@ -497,6 +545,13 @@ function main() {
       'tansaeng/ctlr-heat-001/air/temperature',
       // 냉각수 온도 (hp_heater 제어용)
       'tansaeng/ctlr-heat-001/water/temperature',
+      // 팜 실내 센서 (front/back/top 온습도)
+      'tansaeng/ctlr-0001/+/temperature',
+      'tansaeng/ctlr-0001/+/humidity',
+      'tansaeng/ctlr-0002/+/temperature',
+      'tansaeng/ctlr-0002/+/humidity',
+      'tansaeng/ctlr-0003/+/temperature',
+      'tansaeng/ctlr-0003/+/humidity',
       // 스크린 현재 위치 retain (재시작 후 위치 복원)
       'tansaeng/sky-control/windowL/currentPos',
       'tansaeng/sky-control/windowR/currentPos',
@@ -777,6 +832,17 @@ function main() {
     } else if (topic === 'tansaeng/side-control/sideR/currentPos') {
       const pos = parseFloat(payload);
       if (!isNaN(pos)) { ctrl.side.currentPos['sidescreen_right'] = pos; log(`[POS 복원] 측창 우측: ${pos}%`); }
+
+    // ── 팜 실내 온습도 센서 (ctlr-0001/0002/0003) ────────────────────────────
+    } else {
+      // tansaeng/ctlr-0001/dht11/temperature 등
+      const parts = topic.split('/');
+      if (parts.length === 4 && parts[0] === 'tansaeng' && CTRL_TO_LOCATION[parts[1]]) {
+        const dataType = parts[3]; // 'temperature' | 'humidity'
+        if (dataType === 'temperature' || dataType === 'humidity') {
+          updateFarmSensor(parts[1], dataType, payload);
+        }
+      }
     }
   });
 
