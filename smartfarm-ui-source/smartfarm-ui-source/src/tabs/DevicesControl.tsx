@@ -541,70 +541,106 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => clearInterval(interval);
   }, []);
 
-  // AUTO 모드 제어 로직 — 각 장치별 기준 센서 범위 안에 있으면 ON, 벗어나면 OFF
-  // 냉각기(hp_heater)는 물온도 기준, 나머지는 팜 내부 평균온도 기준
+  // HP AUTO 모드 제어 로직 — 주야간 모드 or 일반 온도 범위 기준 ON/OFF
   useEffect(() => {
-    // state + ref 이중 체크 (MANUAL 모드에서 절대 실행 안 되도록)
     if (hpMode !== "AUTO") return;
     if (hpModeRef.current !== "AUTO") return;
-    if (!hpAutoActive) return; // 작동시작 버튼을 눌러야 활성화
+    if (!hpAutoActive) return;
 
     const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
     const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
     const HP = "ctlr-heat-001";
 
-    const deviceMap: Array<{ key: string; mqttId: string }> = [
-      { key: "hp_pump",   mqttId: "pump"   },
-      { key: "hp_heater", mqttId: "heater" },
-      { key: "hp_fan",    mqttId: "fan"    },
+    // 주야간 모드일 때 현재 구간 판단
+    let activeRanges: Record<string, { low: number; high: number }> | null = null;
+    if (hpDayNightConfig.enabled) {
+      const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const dayMin = toMin(hpDayNightConfig.dayStart);
+      const nightMin = toMin(hpDayNightConfig.nightStart);
+      const isDay = dayMin < nightMin
+        ? (nowMin >= dayMin && nowMin < nightMin)
+        : (nowMin >= dayMin || nowMin < nightMin);
+      activeRanges = isDay ? hpDayNightConfig.day.ranges : hpDayNightConfig.night.ranges;
+    }
+
+    const deviceMap: Array<{ key: string; mqttId: string; name: string }> = [
+      { key: "hp_pump",   mqttId: "pump",   name: "냉각순환펌프" },
+      { key: "hp_heater", mqttId: "heater", name: "냉각기"       },
+      { key: "hp_fan",    mqttId: "fan",    name: "장치실 팬"     },
     ];
 
-    deviceMap.forEach(({ key, mqttId }) => {
-      // 냉각기는 물온도, 나머지는 팜 평균온도
+    deviceMap.forEach(({ key, mqttId, name }) => {
       const sensorValue = key === "hp_heater" ? hpSensors.waterTemp : avgTemp;
       if (sensorValue === null) return;
-      const range = hpDeviceRanges[key] ?? { low: 15, high: 22 };
-      const inRange = sensorValue >= range.low && sensorValue <= range.high;
-      const newCmd: "ON" | "OFF" = inRange ? "ON" : "OFF";
+      const range = (activeRanges?.[key]) ?? hpDeviceRanges[key] ?? { low: 15, high: 22 };
+      const newCmd: "ON" | "OFF" = (sensorValue >= range.low && sensorValue <= range.high) ? "ON" : "OFF";
       if (hpDeviceLastCmd.current[key] !== newCmd) {
         hpDeviceLastCmd.current[key] = newCmd;
         setHpDeviceStates(prev => ({ ...prev, [key]: newCmd }));
-        const deviceName = { hp_pump: "냉각순환펌프", hp_heater: "냉각기", hp_fan: "장치실 팬" }[key];
         sendDeviceCommand(HP, mqttId, newCmd).then(result => {
-          if (result.success) console.log(`[API SUCCESS] ${deviceName} - ${newCmd}`);
-          else console.error(`[API ERROR] ${deviceName} - ${newCmd}: ${result.message}`);
+          if (result.success) console.log(`[API SUCCESS] ${name} - ${newCmd}`);
+          else console.error(`[API ERROR] ${name} - ${newCmd}: ${result.message}`);
         });
       }
     });
-  }, [farmSensors, hpSensors, hpDeviceRanges, hpAutoActive, hpMode]);
+  }, [farmSensors, hpSensors, hpDeviceRanges, hpAutoActive, hpMode, hpDayNightConfig, currentMinute]);
 
-  // 팬 AUTO 모드 제어 로직 — 선택된 센서(온도/습도) 범위 안에 있으면 ON, 벗어나면 OFF
+  // 팬 AUTO 모드 제어 로직 — 주야간 모드 or 일반 온도/습도 범위 기준 ON/OFF
   // 히스테리시스: 경계값 근처 진동 방지 (온도 0.5°C, 습도 2%RH)
   useEffect(() => {
     if (fanModeRef.current !== "AUTO") return;
     if (!fanAutoActive) return;
-    const useHumi = fanAutoSensorRef.current === "humi";
-    const values = useHumi
-      ? [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[]
-      : [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
-    if (values.length === 0) return;
-    const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
-    // 히스테리시스 대역: ON→OFF 전환을 위해 경계값보다 더 벗어나야 함
+
+    let useHumi: boolean;
+    let avgValue: number | null;
+    let getRangeForFan: (fanId: string) => { low: number; high: number };
+
+    if (fanDayNightConfig.enabled) {
+      // 주야간 모드: 현재 시각으로 주간/야간 판단
+      const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const dayMin = toMin(fanDayNightConfig.dayStart);
+      const nightMin = toMin(fanDayNightConfig.nightStart);
+      const isDay = dayMin < nightMin
+        ? (nowMin >= dayMin && nowMin < nightMin)
+        : (nowMin >= dayMin || nowMin < nightMin);
+      const period = isDay ? "day" : "night";
+      const cfg = fanDayNightConfig[period];
+      useHumi = cfg.sensor === "humi";
+      const vals = useHumi
+        ? [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[]
+        : [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+      if (vals.length === 0) return;
+      avgValue = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const rangeKey = useHumi ? "humRanges" : "ranges";
+      const defRange = useHumi ? { low: 60, high: 80 } : { low: 15, high: 22 };
+      getRangeForFan = (fanId) => (cfg[rangeKey][fanId] ?? defRange);
+    } else {
+      // 일반 모드
+      useHumi = fanAutoSensorRef.current === "humi";
+      const vals = useHumi
+        ? [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[]
+        : [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+      if (vals.length === 0) return;
+      avgValue = vals.reduce((a, b) => a + b, 0) / vals.length;
+      getRangeForFan = (fanId) => useHumi
+        ? (fanHumRanges[fanId] ?? { low: 60, high: 80 })
+        : (fanDeviceRanges[fanId] ?? { low: 15, high: 22 });
+    }
+
     const hyst = useHumi ? 2 : 0.5;
     fans.forEach((fan) => {
-      const range = useHumi
-        ? (fanHumRanges[fan.id] ?? { low: 60, high: 80 })
-        : (fanDeviceRanges[fan.id] ?? { low: 15, high: 22 });
+      const range = getRangeForFan(fan.id);
       const lastCmd = fanDeviceLastCmd.current[fan.id];
       let newCmd: "ON" | "OFF";
       if (lastCmd === "ON") {
-        // 현재 ON: 범위 밖으로 히스테리시스만큼 더 벗어나야 OFF
-        const shouldOff = avgValue < range.low - hyst || avgValue > range.high + hyst;
+        const shouldOff = avgValue! < range.low - hyst || avgValue! > range.high + hyst;
         newCmd = shouldOff ? "OFF" : "ON";
       } else {
-        // 현재 OFF(또는 초기): 범위 안에 들어오면 ON
-        const inRange = avgValue >= range.low && avgValue <= range.high;
-        newCmd = inRange ? "ON" : "OFF";
+        newCmd = (avgValue! >= range.low && avgValue! <= range.high) ? "ON" : "OFF";
       }
       if (lastCmd !== newCmd) {
         fanDeviceLastCmd.current[fan.id] = newCmd;
@@ -616,7 +652,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         sendDeviceCommand(fan.esp32Id, mqttDeviceId, newCmd);
       }
     });
-  }, [farmSensors, fanDeviceRanges, fanHumRanges, fanAutoActive, fanAutoSensor]);
+  }, [farmSensors, fanDeviceRanges, fanHumRanges, fanAutoActive, fanAutoSensor, fanDayNightConfig, currentMinute]);
 
   // 팬 온도 범위 변경 시 MQTT retain 발행 (MQTT 복원에서 온 변경은 재발행 안함)
   useEffect(() => {
