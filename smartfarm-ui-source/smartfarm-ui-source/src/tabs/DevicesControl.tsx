@@ -573,9 +573,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     deviceMap.forEach(({ key, mqttId, name }) => {
       const sensorValue = key === "hp_heater" ? hpSensors.waterTemp : avgTemp;
-      if (sensorValue === null) return;
-      const range = (activeRanges?.[key]) ?? hpDeviceRanges[key] ?? { low: 15, high: 22 };
-      const newCmd: "ON" | "OFF" = (sensorValue >= range.low && sensorValue <= range.high) ? "ON" : "OFF";
+      // 센서 없으면 OFF (건너뜀 방지 — 이전 ON 상태 유지 금지)
+      const newCmd: "ON" | "OFF" = (sensorValue !== null)
+        ? ((sensorValue >= (activeRanges?.[key] ?? hpDeviceRanges[key] ?? { low: 15, high: 22 }).low &&
+            sensorValue <= (activeRanges?.[key] ?? hpDeviceRanges[key] ?? { low: 15, high: 22 }).high) ? "ON" : "OFF")
+        : "OFF";
       if (hpDeviceLastCmd.current[key] !== newCmd) {
         hpDeviceLastCmd.current[key] = newCmd;
         setHpDeviceStates(prev => ({ ...prev, [key]: newCmd }));
@@ -3431,6 +3433,13 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/hp-control/mode", "MANUAL", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
+                      // 수동 전환 시 모든 HP 장치 OFF (AUTO 상태 초기화)
+                      const HP = "ctlr-heat-001";
+                      (["hp_pump", "hp_heater", "hp_fan"] as const).forEach((k, i) => {
+                        const mqttId = ["pump", "heater", "fan"][i];
+                        setHpDeviceStates(prev => ({ ...prev, [k]: "OFF" }));
+                        sendDeviceCommand(HP, mqttId, "OFF");
+                      });
                     }}
                     className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
                       hpMode === "MANUAL"

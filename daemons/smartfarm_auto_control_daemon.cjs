@@ -80,6 +80,8 @@ const hp = {
 };
 // 장치제어실 내부 온도 (팬 전용, MQTT 구독)
 let roomTemp = null;
+// 냉각수 온도 (hp_heater 전용, MQTT 구독)
+let waterTemp = null;
 
 // 장치 정의
 const DEVICES = {
@@ -282,13 +284,20 @@ function runHpAutoControl(mqttClient, avgTemp) {
   }
 
   const devices = [
-    { key: 'hp_pump',   mqttId: 'pump',   name: '히트펌프 순환펌프', temp: avgTemp  },
-    { key: 'hp_heater', mqttId: 'heater', name: '전기온열기',        temp: avgTemp  },
-    { key: 'hp_fan',    mqttId: 'fan',    name: '열교환기 팬',       temp: roomTemp },
+    { key: 'hp_pump',   mqttId: 'pump',   name: '히트펌프 순환펌프', temp: avgTemp   },
+    { key: 'hp_heater', mqttId: 'heater', name: '냉각기',            temp: waterTemp },
+    { key: 'hp_fan',    mqttId: 'fan',    name: '열교환기 팬',       temp: roomTemp  },
   ];
 
   devices.forEach(({ key, mqttId, name, temp }) => {
-    if (temp === null) { log(`[HP] ${name}: 온도 데이터 없음 — 건너뜀`); return; }
+    if (temp === null) {
+      log(`[HP] ${name}: 온도 데이터 없음 — OFF 명령`);
+      if (hp.lastCmd[key] !== 'OFF') {
+        hp.lastCmd[key] = 'OFF';
+        mqttClient.publish(`tansaeng/ctlr-heat-001/${mqttId}/cmd`, 'OFF', { qos: 1 });
+      }
+      return;
+    }
     const range = activeRanges[key] ?? hp.ranges[key];
     if (!range) return;
     const { low, high } = range;
@@ -486,6 +495,8 @@ function main() {
       'tansaeng/side-control/dayNightConfig',
       // 장치제어실 내부 온도 (팬 제어용)
       'tansaeng/ctlr-heat-001/air/temperature',
+      // 냉각수 온도 (hp_heater 제어용)
+      'tansaeng/ctlr-heat-001/water/temperature',
       // 스크린 현재 위치 retain (재시작 후 위치 복원)
       'tansaeng/sky-control/windowL/currentPos',
       'tansaeng/sky-control/windowR/currentPos',
@@ -694,6 +705,13 @@ function main() {
           log(`[HP] dayNightConfig 업데이트 (enabled: ${hp.dayNight.enabled})`);
         }
       } catch (_) {}
+
+    } else if (topic === 'tansaeng/ctlr-heat-001/water/temperature') {
+      const n = parseFloat(payload);
+      if (!isNaN(n)) {
+        waterTemp = n;
+        log(`[HP] 냉각수 온도: ${waterTemp.toFixed(1)}°C`);
+      }
 
     } else if (topic === 'tansaeng/ctlr-heat-001/air/temperature') {
       const n = parseFloat(payload);
