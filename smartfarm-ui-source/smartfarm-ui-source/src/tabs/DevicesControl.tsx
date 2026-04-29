@@ -541,7 +541,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => clearInterval(interval);
   }, []);
 
-  // AUTO 모드 제어 로직 — 평균온도가 설정 범위 안에 있으면 ON, 벗어나면 OFF
+  // AUTO 모드 제어 로직 — 각 장치별 기준 센서 범위 안에 있으면 ON, 벗어나면 OFF
+  // 냉각기(hp_heater)는 물온도 기준, 나머지는 팜 내부 평균온도 기준
   useEffect(() => {
     // state + ref 이중 체크 (MANUAL 모드에서 절대 실행 안 되도록)
     if (hpMode !== "AUTO") return;
@@ -549,9 +550,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     if (!hpAutoActive) return; // 작동시작 버튼을 눌러야 활성화
 
     const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
-    if (temps.length === 0) return;
-
-    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+    const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
     const HP = "ctlr-heat-001";
 
     const deviceMap: Array<{ key: string; mqttId: string }> = [
@@ -561,23 +560,26 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     ];
 
     deviceMap.forEach(({ key, mqttId }) => {
+      // 냉각기는 물온도, 나머지는 팜 평균온도
+      const sensorValue = key === "hp_heater" ? hpSensors.waterTemp : avgTemp;
+      if (sensorValue === null) return;
       const range = hpDeviceRanges[key] ?? { low: 15, high: 22 };
-      // 평균온도가 [low, high] 안에 있으면 ON, 벗어나면 OFF
-      const inRange = avgTemp >= range.low && avgTemp <= range.high;
+      const inRange = sensorValue >= range.low && sensorValue <= range.high;
       const newCmd: "ON" | "OFF" = inRange ? "ON" : "OFF";
       if (hpDeviceLastCmd.current[key] !== newCmd) {
         hpDeviceLastCmd.current[key] = newCmd;
         setHpDeviceStates(prev => ({ ...prev, [key]: newCmd }));
-        const deviceName = { hp_pump: "히트펌프 순환펌프", hp_heater: "전기온열기", hp_fan: "장치실 팬" }[key];
+        const deviceName = { hp_pump: "냉각순환펌프", hp_heater: "냉각기", hp_fan: "장치실 팬" }[key];
         sendDeviceCommand(HP, mqttId, newCmd).then(result => {
           if (result.success) console.log(`[API SUCCESS] ${deviceName} - ${newCmd}`);
           else console.error(`[API ERROR] ${deviceName} - ${newCmd}: ${result.message}`);
         });
       }
     });
-  }, [farmSensors, hpDeviceRanges, hpAutoActive, hpMode]);
+  }, [farmSensors, hpSensors, hpDeviceRanges, hpAutoActive, hpMode]);
 
   // 팬 AUTO 모드 제어 로직 — 선택된 센서(온도/습도) 범위 안에 있으면 ON, 벗어나면 OFF
+  // 히스테리시스: 경계값 근처 진동 방지 (온도 0.5°C, 습도 2%RH)
   useEffect(() => {
     if (fanModeRef.current !== "AUTO") return;
     if (!fanAutoActive) return;
@@ -587,17 +589,28 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       : [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
     if (values.length === 0) return;
     const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
+    // 히스테리시스 대역: ON→OFF 전환을 위해 경계값보다 더 벗어나야 함
+    const hyst = useHumi ? 2 : 0.5;
     fans.forEach((fan) => {
       const range = useHumi
         ? (fanHumRanges[fan.id] ?? { low: 60, high: 80 })
         : (fanDeviceRanges[fan.id] ?? { low: 15, high: 22 });
-      const inRange = avgValue >= range.low && avgValue <= range.high;
-      const newCmd: "ON" | "OFF" = inRange ? "ON" : "OFF";
-      if (fanDeviceLastCmd.current[fan.id] !== newCmd) {
+      const lastCmd = fanDeviceLastCmd.current[fan.id];
+      let newCmd: "ON" | "OFF";
+      if (lastCmd === "ON") {
+        // 현재 ON: 범위 밖으로 히스테리시스만큼 더 벗어나야 OFF
+        const shouldOff = avgValue < range.low - hyst || avgValue > range.high + hyst;
+        newCmd = shouldOff ? "OFF" : "ON";
+      } else {
+        // 현재 OFF(또는 초기): 범위 안에 들어오면 ON
+        const inRange = avgValue >= range.low && avgValue <= range.high;
+        newCmd = inRange ? "ON" : "OFF";
+      }
+      if (lastCmd !== newCmd) {
         fanDeviceLastCmd.current[fan.id] = newCmd;
         setDeviceState(prev => ({
           ...prev,
-          [fan.id]: { ...prev[fan.id], power: inRange ? "on" : "off", lastSavedAt: new Date().toISOString() }
+          [fan.id]: { ...prev[fan.id], power: newCmd === "ON" ? "on" : "off", lastSavedAt: new Date().toISOString() }
         }));
         const mqttDeviceId = fan.commandTopic.split('/')[2];
         sendDeviceCommand(fan.esp32Id, mqttDeviceId, newCmd);
@@ -3000,7 +3013,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </div>
 
                   {fanDayNightConfig.enabled ? (
-                    /* 주야간 모드 설정 UI */
+                    <>
+                    {/* 주야간 모드 설정 UI */}
                     <div className="space-y-2">
                       {/* 시간 설정 */}
                       <div className="flex items-center gap-3 text-xs bg-white border border-indigo-100 rounded-lg px-3 py-2">
@@ -3065,6 +3079,48 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         );
                       })}
                     </div>
+                    {/* 현재값 + 작동시작/멈춤 버튼 (주야간 모드) */}
+                    <div className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2 gap-2 mt-2">
+                      <div className="text-xs text-gray-600">
+                        평균온도: <span className="font-bold text-gray-800">{avgTemp !== null ? `${avgTemp.toFixed(1)}°C` : "—"}</span>
+                        {" / "}습도: <span className="font-bold text-gray-800">{avgHumi !== null ? `${avgHumi.toFixed(0)}%` : "—"}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            fanDeviceLastCmd.current = {};
+                            setFanAutoActive(true);
+                            getMqttClient().publish("tansaeng/fan-control/autoActive", "true", { qos: 1, retain: true });
+                          }}
+                          className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                            fanAutoActive ? "bg-green-500 text-white shadow" : "bg-white border border-green-400 text-green-600 hover:bg-green-50"
+                          }`}
+                        >
+                          ▶ 작동시작
+                        </button>
+                        <button
+                          onClick={() => {
+                            setFanAutoActive(false);
+                            getMqttClient().publish("tansaeng/fan-control/autoActive", "false", { qos: 1, retain: true });
+                            fans.forEach((fan) => {
+                              fanDeviceLastCmd.current[fan.id] = "OFF";
+                              setDeviceState(prev => ({
+                                ...prev,
+                                [fan.id]: { ...prev[fan.id], power: "off", lastSavedAt: new Date().toISOString() }
+                              }));
+                              const mqttDeviceId = fan.commandTopic.split('/')[2];
+                              sendDeviceCommand(fan.esp32Id, mqttDeviceId, "OFF");
+                            });
+                          }}
+                          className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                            !fanAutoActive ? "bg-gray-500 text-white shadow" : "bg-white border border-gray-400 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          ■ 작동멈춤
+                        </button>
+                      </div>
+                    </div>
+                    </>
                   ) : (
                   <>
                   {/* 제어 센서 선택 */}
@@ -3382,19 +3438,19 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
             {/* AUTO 모드: 장치별 개별 게이지 / MANUAL 모드: 장치 카드 */}
             {hpMode === "AUTO" ? (() => {
-              const GMIN = -30, GMAX = 30;
+              const GMIN = -30, GMAX = 50;
               const gRange = GMAX - GMIN;
               const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
               const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
-              // 현재 평균온도의 -30~+30 스케일 상 위치
-              const markerPct = avgTemp !== null
-                ? Math.max(0, Math.min(100, ((avgTemp - GMIN) / gRange) * 100))
+              const waterTemp = hpSensors.waterTemp;
+              const toMarkerPct = (v: number | null) => v !== null
+                ? Math.max(0, Math.min(100, ((v - GMIN) / gRange) * 100))
                 : null;
 
               const gaugeItems = [
-                { key: "hp_pump",   label: "순환펌프",   icon: "💧" },
-                { key: "hp_heater", label: "전기온열기", icon: "🔥" },
-                { key: "hp_fan",    label: "장치실 팬",   icon: "🌀" },
+                { key: "hp_pump",   label: "냉각순환펌프", icon: "💧", sensorVal: avgTemp,   sensorLabel: "팜평균온도" },
+                { key: "hp_heater", label: "냉각기",       icon: "❄️", sensorVal: waterTemp, sensorLabel: "물온도" },
+                { key: "hp_fan",    label: "장치실 팬",     icon: "🌀", sensorVal: avgTemp,   sensorLabel: "팜평균온도" },
               ];
 
               return (
@@ -3445,7 +3501,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                                     <span className="text-gray-400">{range.low}°C ~ {range.high}°C</span>
                                   </div>
                                   <DualRangeSlider
-                                    min={-30} max={30} step={0.5}
+                                    min={-30} max={50} step={0.5}
                                     low={range.low} high={range.high}
                                     onLowChange={(v) => {
                                       const def = {low:8,high:15};
@@ -3455,7 +3511,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                                       const def = {low:8,high:15};
                                       setHpDayNightConfig(prev => ({ ...prev, [period]: { ranges: { ...prev[period].ranges, [key]: { ...(prev[period].ranges[key] ?? def), high: v } } } }));
                                     }}
-                                    markerPct={markerPct} isActive={avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high}
+                                    markerPct={toMarkerPct(avgTemp)} isActive={avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high}
                                   />
                                 </div>
                               );
@@ -3514,11 +3570,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </div>
 
                   {/* 장치별 게이지 */}
-                  {gaugeItems.map(({ key, label, icon }) => {
+                  {gaugeItems.map(({ key, label, icon, sensorVal, sensorLabel }) => {
                     const range = hpDeviceRanges[key] ?? { low: 15, high: 22 };
                     const isOn = hpDeviceStates[key] === "ON";
-                    // 평균온도가 설정 범위 안에 있는지 표시용
-                    const inRange = avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high;
+                    const markerPct = toMarkerPct(sensorVal);
+                    const inRange = sensorVal !== null && sensorVal >= range.low && sensorVal <= range.high;
 
                     return (
                       <div key={key} className="bg-orange-50 border border-orange-200 rounded-lg p-2.5 sm:p-3">
@@ -3526,6 +3582,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs sm:text-sm font-semibold text-gray-700">{icon} {label}</span>
                           <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-gray-400">{sensorLabel}: {sensorVal !== null ? `${sensorVal.toFixed(1)}°C` : "—"}</span>
                             <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isOn ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
                             <span className={`text-xs font-bold ${isOn ? 'text-green-600' : 'text-gray-500'}`}>
                               {isOn ? '작동중' : '정지'}
@@ -3537,7 +3594,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         <div className="flex justify-between text-xs mb-1 px-3">
                           <span className="text-orange-600 font-bold">{range.low.toFixed(1)}°C</span>
                           <span className="text-[10px] text-gray-400">
-                            {inRange ? "✅ 현재온도 범위 내" : "❌ 현재온도 범위 밖"}
+                            {inRange ? `✅ ${sensorLabel} 범위 내` : `❌ ${sensorLabel} 범위 밖`}
                           </span>
                           <span className="text-red-600 font-bold">{range.high.toFixed(1)}°C</span>
                         </div>
@@ -3557,7 +3614,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         />
                         {/* 눈금 */}
                         <div className="flex justify-between text-[10px] text-gray-400 mx-3 mt-0.5">
-                          <span>-30°C</span><span>0°C</span><span>+30°C</span>
+                          <span>-30°C</span><span>+10°C</span><span>+50°C</span>
                         </div>
                         {/* 저장 버튼 + 마지막 저장 시각 */}
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-orange-100">
