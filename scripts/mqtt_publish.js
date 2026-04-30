@@ -6,7 +6,7 @@
  * Usage: node mqtt_publish.js <topic> <message>
  */
 
-import mqtt from 'mqtt';
+const mqtt = require('mqtt');
 
 // HiveMQ Cloud 설정
 const MQTT_BROKER = 'mqtts://22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud:8883';
@@ -32,15 +32,12 @@ const client = mqtt.connect(MQTT_BROKER, {
 });
 
 client.on('connect', () => {
-  console.log(`[MQTT] Connected to broker`);
-
-  // 메시지 발행 (장치 명령은 retain: false - retained 명령이 재연결 시 재실행되면 ESP32 오작동 유발)
+  // 장치 명령은 retain: false (재연결 시 ESP32 오작동 방지)
   client.publish(topic, message, { qos: 1, retain: false }, (err) => {
     if (err) {
       console.error(`[ERROR] Failed to publish: ${err.message}`);
       process.exit(1);
     }
-
     console.log(`[SUCCESS] Published to ${topic}: ${message}`);
     client.end();
     process.exit(0);
