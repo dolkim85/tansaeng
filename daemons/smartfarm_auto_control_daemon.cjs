@@ -54,10 +54,12 @@ const fan = {
 
 // 팬 장치 목록 (devices.ts와 동일한 토픽)
 const FAN_DEVICES = [
-  { id: 'fan_front',  name: '내부팬 앞', cmdTopic: 'tansaeng/ctlr-0001/fan1/cmd' },
-  { id: 'fan_back',   name: '내부팬 뒤', cmdTopic: 'tansaeng/ctlr-0002/fan2/cmd' },
-  { id: 'fan_top',    name: '천장팬',    cmdTopic: 'tansaeng/ctlr-0003/fan_top/cmd' },
-  { id: 'fan_ground', name: '지상팬',    cmdTopic: 'tansaeng/ctlr-0003/fan_ground/cmd' },
+  { id: 'fan_front',        name: '내부팬 앞',  cmdTopic: 'tansaeng/ctlr-0001/fan1/cmd' },
+  { id: 'fan_back',         name: '내부팬 뒤',  cmdTopic: 'tansaeng/ctlr-0002/fan_top/cmd' },
+  { id: 'fan_top',          name: '천장팬',     cmdTopic: 'tansaeng/ctlr-0003/fan_top/cmd' },
+  { id: 'fan_ground_front', name: '앞지상팬',   cmdTopic: 'tansaeng/ctlr-0003/fan_ground/cmd' },
+  { id: 'fan_ground',       name: '중간지상팬', cmdTopic: 'tansaeng/ctlr-0002/fan_ground/cmd' },
+  { id: 'fan_ground_back',  name: '백지상팬',   cmdTopic: 'tansaeng/ctlr-0002/fan_ground_back/cmd' },
 ];
 
 // ─── 히트시스템 상태 ──────────────────────────────────────────────────────────

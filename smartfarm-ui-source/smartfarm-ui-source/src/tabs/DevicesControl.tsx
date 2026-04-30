@@ -3001,7 +3001,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     onClick={() => {
                       fanModeRef.current = "MANUAL";
                       setFanMode("MANUAL");
+                      setFanAutoActive(false);
+                      fanDeviceLastCmd.current = {};
                       getMqttClient().publish("tansaeng/fan-control/mode", "MANUAL", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/fan-control/autoActive", "false", { qos: 1, retain: true });
+                      fans.forEach((fan) => {
+                        const mqttDeviceId = fan.commandTopic.split('/')[2];
+                        setDeviceState(prev => ({ ...prev, [fan.id]: { ...prev[fan.id], power: "off" } }));
+                        sendDeviceCommand(fan.esp32Id, mqttDeviceId, "OFF");
+                      });
                     }}
                     className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
                       fanMode === "MANUAL"
