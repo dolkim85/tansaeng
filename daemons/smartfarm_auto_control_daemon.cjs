@@ -71,7 +71,8 @@ const hp = {
     hp_heater: { low: 15, high: 22 },
     hp_fan:    { low: 15, high: 22 },
   },
-  lastCmd: { hp_pump: null, hp_heater: null, hp_fan: null },
+  lastCmd:     { hp_pump: null, hp_heater: null, hp_fan: null },
+  lastOffTime: { hp_pump: 0,    hp_heater: 0,    hp_fan: 0    },
   dayNight: {
     enabled: false,
     dayStart: '06:00',
@@ -332,11 +333,17 @@ function runHpAutoControl(mqttClient, avgTemp) {
     { key: 'hp_fan',    mqttId: 'fan',    name: '열교환기 팬',       temp: roomTemp  },
   ];
 
+  // 히스테리시스: hp_heater(수온) 1.0°C, 나머지(기온) 0.5°C
+  const HP_HYST    = { hp_pump: 0.5, hp_heater: 1.0, hp_fan: 0.5 };
+  // 최소 정지시간: hp_heater 컴프레서 3분(180초), 나머지 없음
+  const HP_MIN_OFF = { hp_heater: 180000 };
+
   devices.forEach(({ key, mqttId, name, temp }) => {
     if (temp === null) {
       log(`[HP] ${name}: 온도 데이터 없음 — OFF 명령`);
       if (hp.lastCmd[key] !== 'OFF') {
         hp.lastCmd[key] = 'OFF';
+        hp.lastOffTime[key] = Date.now();
         mqttClient.publish(`tansaeng/ctlr-heat-001/${mqttId}/cmd`, 'OFF', { qos: 1 });
       }
       return;
@@ -344,8 +351,26 @@ function runHpAutoControl(mqttClient, avgTemp) {
     const range = activeRanges[key] ?? hp.ranges[key];
     if (!range) return;
     const { low, high } = range;
-    const cmd = (temp >= low && temp <= high) ? 'ON' : 'OFF';
+    const hyst      = HP_HYST[key]    ?? 0.5;
+    const minOffMs  = HP_MIN_OFF[key] ?? 0;
+
+    let cmd;
+    if (hp.lastCmd[key] === 'ON') {
+      // ON 상태: 범위 ± hyst 벗어날 때만 OFF (경계 진동 방지)
+      cmd = (temp < low - hyst || temp > high + hyst) ? 'OFF' : 'ON';
+    } else {
+      // OFF 상태: 최소 정지시간 확인 후 범위 내 진입 시 ON
+      const elapsed = Date.now() - (hp.lastOffTime[key] ?? 0);
+      if (elapsed < minOffMs) {
+        const remain = Math.ceil((minOffMs - elapsed) / 1000);
+        log(`[HP] ${name}: 최소 정지시간 대기 중 (${remain}초 남음)`);
+        return;
+      }
+      cmd = (temp >= low && temp <= high) ? 'ON' : 'OFF';
+    }
+
     if (hp.lastCmd[key] !== cmd) {
+      if (cmd === 'OFF') hp.lastOffTime[key] = Date.now();
       hp.lastCmd[key] = cmd;
       mqttClient.publish(`tansaeng/ctlr-heat-001/${mqttId}/cmd`, cmd, { qos: 1 });
       log(`[HP] ${name}: ${cmd} (온도 ${temp.toFixed(1)}°C, 범위 ${low}~${high}°C)`);

@@ -141,6 +141,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [hpDeviceRanges, setHpDeviceRanges] = useState<Record<string, { low: number; high: number }>>({});
   const [hpAutoActive, setHpAutoActive] = useState(false);
   const hpDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({ hp_pump: null, hp_heater: null, hp_fan: null });
+  const hpLastOffTime = useRef<Record<string, number>>({ hp_pump: 0, hp_heater: 0, hp_fan: 0 });
   const hpDeviceRangesFromMqttRef = useRef(false);
 
   // 팬 AUTO 제어 상태
@@ -572,14 +573,33 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       { key: "hp_fan",    mqttId: "fan",    name: "장치실 팬"     },
     ];
 
+    // 히스테리시스: hp_heater(수온) 1.0°C, 나머지(기온) 0.5°C
+    const HP_HYST: Record<string, number> = { hp_pump: 0.5, hp_heater: 1.0, hp_fan: 0.5 };
+    // 최소 정지시간: hp_heater 컴프레서 3분, 나머지 없음
+    const HP_MIN_OFF_MS: Record<string, number> = { hp_heater: 180000 };
+
     deviceMap.forEach(({ key, mqttId, name }) => {
       const sensorValue = key === "hp_heater" ? hpSensors.waterTemp : avgTemp;
-      // 센서 없으면 OFF (건너뜀 방지 — 이전 ON 상태 유지 금지)
-      const newCmd: "ON" | "OFF" = (sensorValue !== null)
-        ? ((sensorValue >= (activeRanges?.[key] ?? hpDeviceRanges[key] ?? { low: 15, high: 22 }).low &&
-            sensorValue <= (activeRanges?.[key] ?? hpDeviceRanges[key] ?? { low: 15, high: 22 }).high) ? "ON" : "OFF")
-        : "OFF";
+      const range = activeRanges?.[key] ?? hpDeviceRanges[key] ?? { low: 15, high: 22 };
+      const { low, high } = range;
+      const hyst = HP_HYST[key] ?? 0.5;
+      const minOffMs = HP_MIN_OFF_MS[key] ?? 0;
+
+      let newCmd: "ON" | "OFF";
+      if (sensorValue === null) {
+        newCmd = "OFF";
+      } else if (hpDeviceLastCmd.current[key] === "ON") {
+        // 히스테리시스: ON 상태에서는 범위 ± hyst 벗어날 때만 OFF
+        newCmd = (sensorValue < low - hyst || sensorValue > high + hyst) ? "OFF" : "ON";
+      } else {
+        // OFF 상태에서는 최소 정지시간 확인 후 범위 내 진입 시 ON
+        const elapsed = Date.now() - (hpLastOffTime.current[key] ?? 0);
+        if (elapsed < minOffMs) return; // 아직 대기 중
+        newCmd = (sensorValue >= low && sensorValue <= high) ? "ON" : "OFF";
+      }
+
       if (hpDeviceLastCmd.current[key] !== newCmd) {
+        if (newCmd === "OFF") hpLastOffTime.current[key] = Date.now();
         hpDeviceLastCmd.current[key] = newCmd;
         setHpDeviceStates(prev => ({ ...prev, [key]: newCmd }));
         sendDeviceCommand(HP, mqttId, newCmd).then(result => {
