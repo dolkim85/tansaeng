@@ -117,6 +117,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
   // 천창/측창 현재 위치 추적 (0~100%)
   const [currentPosition, setCurrentPosition] = useState<Record<string, number>>({});
+  const [displayPosition, setDisplayPosition] = useState<Record<string, number>>({});
+  const [transitionDuration, setTransitionDuration] = useState<Record<string, number>>({});
   // 천창/측창 위치 초기화 상태
   const [resetStatus, setResetStatus] = useState<Record<string, 'idle' | 'resetting'>>({});
 
@@ -728,11 +730,19 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       }),
       subscribeToTopic("tansaeng/sky-control/windowL/currentPos", (v) => {
         const n = Number(v);
-        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, skylight_left: n }));
+        if (!isNaN(n)) {
+          setCurrentPosition(prev => ({ ...prev, skylight_left: n }));
+          setDisplayPosition(prev => ({ ...prev, skylight_left: n }));
+          setTransitionDuration(prev => ({ ...prev, skylight_left: 0.3 }));
+        }
       }),
       subscribeToTopic("tansaeng/sky-control/windowR/currentPos", (v) => {
         const n = Number(v);
-        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, skylight_right: n }));
+        if (!isNaN(n)) {
+          setCurrentPosition(prev => ({ ...prev, skylight_right: n }));
+          setDisplayPosition(prev => ({ ...prev, skylight_right: n }));
+          setTransitionDuration(prev => ({ ...prev, skylight_right: 0.3 }));
+        }
       }),
       subscribeToTopic("tansaeng/sky-control/autoType", (v) => {
         if (v === "temp" || v === "time" || v === "combined") {
@@ -877,11 +887,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
       console.log(`[SKY AUTO] ${skylight.name} (${skyAutoTypeRef.current}) →${targetRate}% (현재:${currentPos}%, ${targetTimeSeconds.toFixed(1)}초 ${command})`);
 
+      setDisplayPosition(prev => ({ ...prev, [skylight.id]: targetRate }));
+      setTransitionDuration(prev => ({ ...prev, [skylight.id]: targetTimeSeconds }));
       sendDeviceCommand(skylight.esp32Id, mqttDeviceId, command).then(() => {
         percentageTimers.current[skylight.id] = setTimeout(async () => {
           await sendDeviceCommand(skylight.esp32Id, mqttDeviceId, "STOP");
           delete percentageTimers.current[skylight.id];
           setCurrentPosition(prev => ({ ...prev, [skylight.id]: targetRate }));
+          setTransitionDuration(prev => ({ ...prev, [skylight.id]: 0.3 }));
           setOperationStatus(prev => ({ ...prev, [skylight.id]: 'completed' }));
           console.log(`[SKY AUTO] ${skylight.name} → ${targetRate}% 완료`);
         }, targetTimeSeconds * 1000);
@@ -912,11 +925,19 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       }),
       subscribeToTopic("tansaeng/side-control/sideL/currentPos", (v) => {
         const n = Number(v);
-        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, sidescreen_left: n }));
+        if (!isNaN(n)) {
+          setCurrentPosition(prev => ({ ...prev, sidescreen_left: n }));
+          setDisplayPosition(prev => ({ ...prev, sidescreen_left: n }));
+          setTransitionDuration(prev => ({ ...prev, sidescreen_left: 0.3 }));
+        }
       }),
       subscribeToTopic("tansaeng/side-control/sideR/currentPos", (v) => {
         const n = Number(v);
-        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, sidescreen_right: n }));
+        if (!isNaN(n)) {
+          setCurrentPosition(prev => ({ ...prev, sidescreen_right: n }));
+          setDisplayPosition(prev => ({ ...prev, sidescreen_right: n }));
+          setTransitionDuration(prev => ({ ...prev, sidescreen_right: 0.3 }));
+        }
       }),
       subscribeToTopic("tansaeng/side-control/autoSensor", (v) => {
         if (v === "temp" || v === "humi") { sideAutoSensorRef.current = v; setSideAutoSensor(v); }
@@ -1106,11 +1127,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
       console.log(`[SIDE AUTO] ${sidescreen.name} ${sensorLabel}→${targetRate}% (현재:${currentPos}%, ${targetTimeSeconds.toFixed(1)}초 ${command})`);
 
+      setDisplayPosition(prev => ({ ...prev, [sidescreen.id]: targetRate }));
+      setTransitionDuration(prev => ({ ...prev, [sidescreen.id]: targetTimeSeconds }));
       sendDeviceCommand(sidescreen.esp32Id, mqttDeviceId, command).then(() => {
         percentageTimers.current[sidescreen.id] = setTimeout(async () => {
           await sendDeviceCommand(sidescreen.esp32Id, mqttDeviceId, "STOP");
           delete percentageTimers.current[sidescreen.id];
           setCurrentPosition(prev => ({ ...prev, [sidescreen.id]: targetRate }));
+          setTransitionDuration(prev => ({ ...prev, [sidescreen.id]: 0.3 }));
           setOperationStatus(prev => ({ ...prev, [sidescreen.id]: 'completed' }));
           console.log(`[SIDE AUTO] ${sidescreen.name} → ${targetRate}% 완료`);
         }, targetTimeSeconds * 1000);
@@ -1329,23 +1353,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       await sendDeviceCommand(device.esp32Id, mqttDeviceId, command);
       console.log(`[EXECUTE] ${device.name} - ${targetTimeSeconds.toFixed(1)}초 동안 ${action} 시작`);
 
+      setDisplayPosition(prev => ({ ...prev, [deviceId]: targetPercentage }));
+      setTransitionDuration(prev => ({ ...prev, [deviceId]: targetTimeSeconds }));
+
       // 목표 시간만큼 작동 후 자동 정지
       percentageTimers.current[deviceId] = setTimeout(async () => {
         await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
         console.log(`[EXECUTE] ${device.name} - ${targetPercentage}% 위치에서 정지`);
         delete percentageTimers.current[deviceId];
 
-        // 현재 위치를 목표 위치로 업데이트
-        setCurrentPosition(prev => ({
-          ...prev,
-          [deviceId]: targetPercentage
-        }));
-
-        // 작동 완료 - 상태를 "완료"로 변경
-        setOperationStatus(prev => ({
-          ...prev,
-          [deviceId]: 'completed'
-        }));
+        setCurrentPosition(prev => ({ ...prev, [deviceId]: targetPercentage }));
+        setTransitionDuration(prev => ({ ...prev, [deviceId]: 0.3 }));
+        setOperationStatus(prev => ({ ...prev, [deviceId]: 'completed' }));
       }, targetTimeSeconds * 1000);
     } catch (error) {
       console.error(`[EXECUTE ERROR] ${device.name}:`, error);
@@ -1381,10 +1400,13 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     try {
       await sendDeviceCommand(device.esp32Id, mqttDeviceId, "CLOSE");
+      setDisplayPosition(prev => ({ ...prev, [deviceId]: 0 }));
+      setTransitionDuration(prev => ({ ...prev, [deviceId]: fullTimeSeconds }));
       percentageTimers.current[deviceId] = setTimeout(async () => {
         await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
         delete percentageTimers.current[deviceId];
         setCurrentPosition(prev => ({ ...prev, [deviceId]: 0 }));
+        setTransitionDuration(prev => ({ ...prev, [deviceId]: 0.3 }));
         getMqttClient().publish(
           `tansaeng/${groupPrefix}/${mqttDeviceId}/currentPos`,
           "0",
@@ -2188,7 +2210,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     <div className="flex items-center justify-between text-[10px] sm:text-xs text-gray-600 mb-1">
                       <span>현재 위치</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-amber-600 text-sm">{currentPosition[skylight.id] ?? 0}%</span>
+                        <span className="font-bold text-amber-600 text-sm">{Math.round(displayPosition[skylight.id] ?? currentPosition[skylight.id] ?? 0)}%</span>
                         <button
                           onClick={() => handleResetPosition(skylight.id)}
                           disabled={resetStatus[skylight.id] === 'resetting' || operationStatus[skylight.id] === 'running'}
@@ -2204,8 +2226,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className="bg-amber-500 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${currentPosition[skylight.id] ?? 0}%` }}
+                        className="bg-amber-500 h-2 rounded-full"
+                        style={{
+                          width: `${displayPosition[skylight.id] ?? currentPosition[skylight.id] ?? 0}%`,
+                          transition: `width ${transitionDuration[skylight.id] ?? 0.5}s linear`
+                        }}
                       />
                     </div>
                   </div>
@@ -2828,7 +2853,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     <div className="flex items-center justify-between text-[10px] sm:text-xs text-gray-600 mb-1">
                       <span>현재 위치</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-blue-600 text-sm">{currentPosition[sidescreen.id] ?? 0}%</span>
+                        <span className="font-bold text-blue-600 text-sm">{Math.round(displayPosition[sidescreen.id] ?? currentPosition[sidescreen.id] ?? 0)}%</span>
                         <button
                           onClick={() => handleResetPosition(sidescreen.id)}
                           disabled={resetStatus[sidescreen.id] === 'resetting' || operationStatus[sidescreen.id] === 'running'}
@@ -2844,8 +2869,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${currentPosition[sidescreen.id] ?? 0}%` }}
+                        className="bg-blue-500 h-2 rounded-full"
+                        style={{
+                          width: `${displayPosition[sidescreen.id] ?? currentPosition[sidescreen.id] ?? 0}%`,
+                          transition: `width ${transitionDuration[sidescreen.id] ?? 0.5}s linear`
+                        }}
                       />
                     </div>
                   </div>
