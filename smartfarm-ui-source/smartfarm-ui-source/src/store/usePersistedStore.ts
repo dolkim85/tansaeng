@@ -126,6 +126,7 @@ const DEFAULT_MIST_ZONES: MistZoneConfig[] = [
     controllerId: "ctlr-0004",
     deviceId: "valve2",
     isRunning: false,
+    humidityControl: { enabled: false, threshold: 70 },
     intervalMinutes: null,
     spraySeconds: null,
     startTime: "",

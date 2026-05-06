@@ -47,6 +47,11 @@ export interface MistScheduleSettings {
   enabled: boolean;                     // 활성화 여부
 }
 
+export interface HumidityControl {
+  enabled: boolean;
+  threshold: number;   // 이 % 미만일 때만 작동
+}
+
 export interface MistZoneConfig {
   id: string;
   name: string;
@@ -54,6 +59,7 @@ export interface MistZoneConfig {
   controllerId: string;            // 연결된 ESP32 컨트롤러 ID (예: "ctlr-0004")
   deviceId?: string;               // 밸브 채널 ID (기본값: "valve1")
   isRunning: boolean;              // 현재 작동 중인지 여부
+  humidityControl?: HumidityControl; // 습도 조건 제어 (포깅 등)
   // 기존 단일 설정 (하위 호환성)
   intervalMinutes: number | null;
   spraySeconds: number | null;

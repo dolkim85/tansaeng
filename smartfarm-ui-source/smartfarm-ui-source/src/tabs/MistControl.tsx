@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import type { MistZoneConfig, MistMode, MistScheduleSettings } from "../types";
+import type { MistZoneConfig, MistMode, MistScheduleSettings, HumidityControl } from "../types";
 import { getMqttClient, isMqttConnected, onConnectionChange, subscribeToTopic } from "../mqtt/mqttClient";
 import { saveDeviceSettings } from "../api/deviceControl";
 
@@ -36,6 +36,9 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
   // isRunning echo 방지 (자신이 publish한 retain 무시)
   const isRunningSelfPublishRef = useRef<Record<string, boolean>>({});
+
+  // 현재 팜 평균 습도 (API 폴링)
+  const [avgHumidity, setAvgHumidity] = useState<number | null>(null);
 
   // ── MQTT 연결 상태 감시 ────────────────────────────────────────────────────
   useEffect(() => {
@@ -101,7 +104,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     return () => { client.off("message", handleMessage); };
   }, []);
 
-  // ── isRunning / schedule MQTT retain 구독 ─────────────────────────────────
+  // ── isRunning / schedule / humidityConfig MQTT retain 구독 ──────────────
   useEffect(() => {
     const zoneIds = Object.keys(ZONE_CONTROLLER_MAP);
     const unsubs = [
@@ -133,9 +136,38 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
           } catch {}
         })
       ),
+      subscribeToTopic("tansaeng/mist-control/fogging/humidityConfig", (v) => {
+        try {
+          const parsed = JSON.parse(v) as HumidityControl;
+          if (parsed && typeof parsed === "object") {
+            setZones(prev => prev.map(z =>
+              z.id === "fogging" ? { ...z, humidityControl: { ...z.humidityControl, ...parsed } } : z
+            ));
+          }
+        } catch {}
+      }),
     ];
     return () => unsubs.forEach(u => u());
   }, [setZones]);
+
+  // ── 팜 평균 습도 폴링 (10초마다) ─────────────────────────────────────────
+  useEffect(() => {
+    const fetchHumidity = async () => {
+      try {
+        const res = await fetch("/api/smartfarm/get_realtime_sensor_data.php");
+        const data = await res.json();
+        if (data.success && data.sensors) {
+          const s = data.sensors;
+          const vals = [s.front?.humidity, s.back?.humidity, s.top?.humidity]
+            .filter((v): v is number => typeof v === "number" && v >= 0 && v <= 100);
+          setAvgHumidity(vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null);
+        }
+      } catch {}
+    };
+    fetchHumidity();
+    const interval = setInterval(fetchHumidity, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ── ESP32 상태 API 폴링 ────────────────────────────────────────────────────
   useEffect(() => {
@@ -339,6 +371,13 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         JSON.stringify({ mode: zone.mode, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule }),
         { qos: 1, retain: true }
       );
+      if (zone.humidityControl) {
+        getMqttClient().publish(
+          `tansaeng/mist-control/${zone.id}/humidityConfig`,
+          JSON.stringify(zone.humidityControl),
+          { qos: 1, retain: true }
+        );
+      }
       alert(`${zone.name} 설정이 저장되었습니다.`);
     } else {
       alert(`설정 저장 실패: ${result.message}`);
@@ -372,6 +411,13 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       JSON.stringify({ mode: zone.mode, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule }),
       { qos: 1, retain: true }
     );
+    if (zone.humidityControl) {
+      getMqttClient().publish(
+        `tansaeng/mist-control/${zone.id}/humidityConfig`,
+        JSON.stringify(zone.humidityControl),
+        { qos: 1, retain: true }
+      );
+    }
 
     setZones(prev => prev.map(z => z.id === zone.id ? { ...z, isRunning: true } : z));
     isRunningSelfPublishRef.current[zone.id] = true;
@@ -592,6 +638,80 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                         </div>
                       )}
                     </div>
+
+                    {/* 습도 조건 제어 (포깅 전용) */}
+                    {zone.humidityControl !== undefined && (
+                      <div className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-lg font-semibold text-blue-800 m-0">💧 습도 조건</h3>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={zone.humidityControl.enabled}
+                              onChange={(e) =>
+                                setZones(prev => prev.map(z =>
+                                  z.id === zone.id
+                                    ? { ...z, humidityControl: { ...z.humidityControl!, enabled: e.target.checked } }
+                                    : z
+                                ))
+                              }
+                              className="w-4 h-4 accent-blue-500"
+                            />
+                            <span className="text-sm text-blue-700">활성화</span>
+                          </label>
+                        </div>
+
+                        {/* 현재 습도 표시 */}
+                        <div className="flex items-center gap-2 mb-3 p-2 bg-white rounded-lg border border-blue-200">
+                          <span className="text-sm text-blue-700 font-medium">현재 팜 습도:</span>
+                          <span className={`text-lg font-bold tabular-nums ${
+                            avgHumidity === null ? "text-gray-400" :
+                            zone.humidityControl.enabled && avgHumidity >= zone.humidityControl.threshold
+                              ? "text-green-600" : "text-red-500"
+                          }`}>
+                            {avgHumidity !== null ? `${avgHumidity}%` : "—"}
+                          </span>
+                          {avgHumidity !== null && zone.humidityControl.enabled && (
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                              avgHumidity < zone.humidityControl.threshold
+                                ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                            }`}>
+                              {avgHumidity < zone.humidityControl.threshold ? "포깅 작동 조건" : "습도 충족 — 대기"}
+                            </span>
+                          )}
+                        </div>
+
+                        {zone.humidityControl.enabled && (
+                          <div className="space-y-2">
+                            <div className="bg-white p-3 rounded-lg border border-blue-200">
+                              <label className="block text-sm font-medium text-blue-700 mb-1">
+                                작동 기준 습도 (%)
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                max="99"
+                                value={zone.humidityControl.threshold}
+                                onChange={(e) =>
+                                  setZones(prev => prev.map(z =>
+                                    z.id === zone.id
+                                      ? { ...z, humidityControl: { ...z.humidityControl!, threshold: Number(e.target.value) || 70 } }
+                                      : z
+                                  ))
+                                }
+                                className="w-full px-3 py-2 border border-blue-300 rounded-lg text-base"
+                              />
+                              <p className="text-xs text-blue-600 mt-1">
+                                현재 습도가 이 값 미만일 때만 분무 작동
+                              </p>
+                            </div>
+                            <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded">
+                              💡 조건: 스케줄 시간 범위 내 AND 습도 &lt; {zone.humidityControl.threshold}% → 분무
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* 저장된 설정값 표시 */}
                     <div className="mb-4 flex flex-wrap gap-2">
