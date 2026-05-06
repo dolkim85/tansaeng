@@ -156,11 +156,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       try {
         const res = await fetch("/api/smartfarm/get_realtime_sensor_data.php");
         const data = await res.json();
-        if (data.success && data.sensors) {
-          const s = data.sensors;
+        if (data.success && data.data) {
+          const s = data.data;
           const vals = [s.front?.humidity, s.back?.humidity, s.top?.humidity]
             .filter((v): v is number => typeof v === "number" && v >= 0 && v <= 100);
-          setAvgHumidity(vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null);
+          setAvgHumidity(vals.length > 0 ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : null);
         }
       } catch {}
     };
