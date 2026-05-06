@@ -119,6 +119,21 @@ const DEFAULT_MIST_ZONES: MistZoneConfig[] = [
     daySchedule: { ...DEFAULT_SCHEDULE_SETTINGS, startTime: "06:00", endTime: "18:00" },
     nightSchedule: { ...DEFAULT_SCHEDULE_SETTINGS, startTime: "18:00", endTime: "06:00" },
   },
+  {
+    id: "fogging",
+    name: "포깅",
+    mode: "OFF",
+    controllerId: "ctlr-0004",
+    deviceId: "valve2",
+    isRunning: false,
+    intervalMinutes: null,
+    spraySeconds: null,
+    startTime: "",
+    endTime: "",
+    allowNightOperation: false,
+    daySchedule: { ...DEFAULT_SCHEDULE_SETTINGS, startTime: "06:00", endTime: "18:00" },
+    nightSchedule: { ...DEFAULT_SCHEDULE_SETTINGS, startTime: "18:00", endTime: "06:00" },
+  },
 ];
 
 // controllerId 오타 수정 함수 (ctrl- → ctlr-)

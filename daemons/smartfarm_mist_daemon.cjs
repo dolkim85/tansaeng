@@ -27,11 +27,12 @@ const LOG_FILE      = path.join(__dirname, '../logs/mist_daemon.log');
 
 // ─── Zone 정의 ───────────────────────────────────────────────────────────────
 const ZONES = {
-  zone_a: { name: 'Zone A', controllerId: 'ctlr-0004' },
-  zone_b: { name: 'Zone B', controllerId: 'ctlr-0005' },
-  zone_c: { name: 'Zone C', controllerId: 'ctlr-0006' },
-  zone_d: { name: 'Zone D', controllerId: 'ctlr-0007' },
-  zone_e: { name: 'Zone E', controllerId: 'ctlr-0008' },
+  zone_a:  { name: 'Zone A', controllerId: 'ctlr-0004', deviceId: 'valve1' },
+  zone_b:  { name: 'Zone B', controllerId: 'ctlr-0005', deviceId: 'valve1' },
+  zone_c:  { name: 'Zone C', controllerId: 'ctlr-0006', deviceId: 'valve1' },
+  zone_d:  { name: 'Zone D', controllerId: 'ctlr-0007', deviceId: 'valve1' },
+  zone_e:  { name: 'Zone E', controllerId: 'ctlr-0008', deviceId: 'valve1' },
+  fogging: { name: '포깅',   controllerId: 'ctlr-0004', deviceId: 'valve2' },
 };
 
 // ─── 존별 상태 (isRunning / 스케줄 설정만 보관) ─────────────────────────────
@@ -174,7 +175,7 @@ function startSharedCycle(mqttClient) {
     const zoneNames = zones.map(id => ZONES[id].name).join(', ');
     log(`[CYCLE] OPEN → 존: [${zones.join(', ')}] / 분무 ${sprayMs/1000}s / 정지 ${stopMs/1000}s`);
     zones.forEach(zoneId => {
-      mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/valve1/cmd`, 'OPEN', { qos: 1 });
+      mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'OPEN', { qos: 1 });
       mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'OPEN', timestamp: ts }), { qos: 1, retain: true });
       saveMistLog(zoneId, ZONES[zoneId].name, 'start', zoneState[zoneId].mode || 'AUTO');
     });
@@ -190,7 +191,7 @@ function startSharedCycle(mqttClient) {
     const ts = Date.now();
     log(`[CYCLE] CLOSE → 존: [${zones.join(', ')}] / 정지 ${stopMs/1000}s`);
     zones.forEach(zoneId => {
-      mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/valve1/cmd`, 'CLOSE', { qos: 1 });
+      mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 });
       mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'CLOSE', timestamp: ts }), { qos: 1, retain: true });
       saveMistLog(zoneId, ZONES[zoneId].name, 'stop', zoneState[zoneId].mode || 'AUTO');
     });
@@ -256,7 +257,7 @@ function main() {
           } else if (!newRunning) {
             // 이 존의 밸브 닫기
             client.publish(
-              `tansaeng/${ZONES[zoneId].controllerId}/valve1/cmd`, 'CLOSE', { qos: 1 }
+              `tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 }
             );
             log(`[${ZONES[zoneId].name}] 중지 — 밸브 OFF`);
             // 남은 활성 존이 있으면 계속, 없으면 사이클 종료

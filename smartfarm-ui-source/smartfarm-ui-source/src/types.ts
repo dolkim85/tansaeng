@@ -51,7 +51,8 @@ export interface MistZoneConfig {
   id: string;
   name: string;
   mode: MistMode;
-  controllerId: string;            // 연결된 ESP32 컨트롤러 ID (예: "ctrl-0004")
+  controllerId: string;            // 연결된 ESP32 컨트롤러 ID (예: "ctlr-0004")
+  deviceId?: string;               // 밸브 채널 ID (기본값: "valve1")
   isRunning: boolean;              // 현재 작동 중인지 여부
   // 기존 단일 설정 (하위 호환성)
   intervalMinutes: number | null;

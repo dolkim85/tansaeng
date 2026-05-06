@@ -10,11 +10,12 @@ interface MistControlProps {
 
 // Zone ID와 Controller ID 매핑
 const ZONE_CONTROLLER_MAP: Record<string, string> = {
-  zone_a: "ctlr-0004",
-  zone_b: "ctlr-0005",
-  zone_c: "ctlr-0006",
-  zone_d: "ctlr-0007",
-  zone_e: "ctlr-0008",
+  zone_a:  "ctlr-0004",
+  zone_b:  "ctlr-0005",
+  zone_c:  "ctlr-0006",
+  zone_d:  "ctlr-0007",
+  zone_e:  "ctlr-0008",
+  fogging: "ctlr-0004",
 };
 
 export default function MistControl({ zones, setZones }: MistControlProps) {
@@ -58,6 +59,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         "tansaeng/ctlr-0006/valve1/state": "zone_c",
         "tansaeng/ctlr-0007/valve1/state": "zone_d",
         "tansaeng/ctlr-0008/valve1/state": "zone_e",
+        "tansaeng/ctlr-0004/valve2/state": "fogging",
       };
       const STATUS_TOPICS: Record<string, string> = {
         "tansaeng/ctlr-0004/status": "ctlr-0004",
@@ -88,7 +90,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     client.on("message", handleMessage);
 
     const topics = [
-      "tansaeng/ctlr-0004/valve1/state", "tansaeng/ctlr-0004/status",
+      "tansaeng/ctlr-0004/valve1/state", "tansaeng/ctlr-0004/valve2/state", "tansaeng/ctlr-0004/status",
       "tansaeng/ctlr-0005/valve1/state", "tansaeng/ctlr-0005/status",
       "tansaeng/ctlr-0006/valve1/state", "tansaeng/ctlr-0006/status",
       "tansaeng/ctlr-0007/valve1/state", "tansaeng/ctlr-0007/status",
@@ -292,7 +294,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
         await saveDeviceSettings({
           mist_zones: {
-            [zoneId]: { mode: newMode, controllerId: zone.controllerId, deviceId: "valve1", isRunning: false, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
+            [zoneId]: { mode: newMode, controllerId: zone.controllerId, deviceId: zone.deviceId ?? "valve1", isRunning: false, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
           },
         });
         getMqttClient().publish(
@@ -327,7 +329,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
     const result = await saveDeviceSettings({
       mist_zones: {
-        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: "valve1", isRunning: zone.isRunning, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
+        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: zone.deviceId ?? "valve1", isRunning: zone.isRunning, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
       },
     });
 
@@ -362,7 +364,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     // 최신 설정을 데몬에 먼저 전송 (저장 안 하고 작동 눌러도 최신 스케줄 적용)
     await saveDeviceSettings({
       mist_zones: {
-        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: "valve1", isRunning: true, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
+        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: zone.deviceId ?? "valve1", isRunning: true, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
       },
     });
     getMqttClient().publish(
@@ -381,7 +383,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     if (!zone.controllerId) { alert("컨트롤러가 연결되어 있지 않습니다."); return; }
 
     // 밸브 즉시 닫기
-    getMqttClient().publish(`tansaeng/${zone.controllerId}/valve1/cmd`, "CLOSE", { qos: 1 });
+    getMqttClient().publish(`tansaeng/${zone.controllerId}/${zone.deviceId ?? "valve1"}/cmd`, "CLOSE", { qos: 1 });
 
     setZones(prev => prev.map(z => z.id === zone.id ? { ...z, isRunning: false } : z));
     isRunningSelfPublishRef.current[zone.id] = true;
@@ -389,7 +391,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
     await saveDeviceSettings({
       mist_zones: {
-        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: "valve1", isRunning: false, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
+        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: zone.deviceId ?? "valve1", isRunning: false, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
       },
     });
   };
@@ -397,15 +399,17 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   // MANUAL 분무 시작
   const handleManualSpray = (zone: MistZoneConfig) => {
     if (!zone.controllerId) { alert("컨트롤러가 연결되어 있지 않습니다."); return; }
-    getMqttClient().publish(`tansaeng/${zone.controllerId}/valve1/cmd`, "OPEN", { qos: 1 });
-    console.log(`[MANUAL] OPEN → tansaeng/${zone.controllerId}/valve1/cmd`);
+    const deviceId = zone.deviceId ?? "valve1";
+    getMqttClient().publish(`tansaeng/${zone.controllerId}/${deviceId}/cmd`, "OPEN", { qos: 1 });
+    console.log(`[MANUAL] OPEN → tansaeng/${zone.controllerId}/${deviceId}/cmd`);
   };
 
   // MANUAL 분무 중지
   const handleManualStop = (zone: MistZoneConfig) => {
     if (!zone.controllerId) { alert("컨트롤러가 연결되어 있지 않습니다."); return; }
-    getMqttClient().publish(`tansaeng/${zone.controllerId}/valve1/cmd`, "CLOSE", { qos: 1 });
-    console.log(`[MANUAL] CLOSE → tansaeng/${zone.controllerId}/valve1/cmd`);
+    const deviceId = zone.deviceId ?? "valve1";
+    getMqttClient().publish(`tansaeng/${zone.controllerId}/${deviceId}/cmd`, "CLOSE", { qos: 1 });
+    console.log(`[MANUAL] CLOSE → tansaeng/${zone.controllerId}/${deviceId}/cmd`);
   };
 
   // ── 렌더링 ────────────────────────────────────────────────────────────────
