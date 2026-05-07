@@ -141,7 +141,7 @@ export const DEVICES: DeviceConfig[] = [
   // 기능: 히트펌프 제어, 전기온열기 제어, 물온도 측정, 팬 제어, 온습도 측정
   {
     id: "hp_pump",
-    name: "히트펌프 순환펌프",
+    name: "냉각순환펌프",
     type: "pump",
     esp32Id: "ctlr-heat-001",
     commandTopic: "tansaeng/ctlr-heat-001/pump/cmd",
@@ -149,7 +149,7 @@ export const DEVICES: DeviceConfig[] = [
   },
   {
     id: "hp_heater",
-    name: "전기온열기",
+    name: "냉각기",
     type: "heater",
     esp32Id: "ctlr-heat-001",
     commandTopic: "tansaeng/ctlr-heat-001/heater/cmd",

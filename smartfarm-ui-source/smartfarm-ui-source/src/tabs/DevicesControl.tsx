@@ -172,6 +172,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [editSideRightFullTime, setEditSideRightFullTime] = useState(120);
   const [screenTimeSaving, setScreenTimeSaving] = useState(false);
   const [screenTimeSavedMsg, setScreenTimeSavedMsg] = useState("");
+  const [skySaveStatus, setSkySaveStatus] = useState<"idle" | "saved">("idle");
+  const [sideSaveStatus, setSideSaveStatus] = useState<"idle" | "saved">("idle");
 
   // 천창 AUTO 제어 상태
   const [skyMode, setSkyMode] = useState<"AUTO" | "MANUAL">("MANUAL");
@@ -700,13 +702,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     getMqttClient().publish("tansaeng/hp-control/ranges", JSON.stringify(hpDeviceRanges), { qos: 1, retain: true });
   }, [hpDeviceRanges]);
 
-  // 측창 습도 포인트 변경 시 MQTT retain 발행
-  useEffect(() => {
-    if (sideHumPointsFirstRunRef.current) { sideHumPointsFirstRunRef.current = false; return; }
-    if (sideHumPointsFromMqttRef.current) { sideHumPointsFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/side-control/humPoints", JSON.stringify(sideHumPoints), { qos: 1, retain: true });
-  }, [sideHumPoints]);
-
   // 천창 MQTT 상태 구독 (retain으로 다른 브라우저 동기화)
   useEffect(() => {
     const unsubs = [
@@ -764,26 +759,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => unsubs.forEach(u => u());
   }, []);
 
-  // 천창 온도 포인트 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
-  useEffect(() => {
-    if (skyTempPointsFirstRunRef.current) { skyTempPointsFirstRunRef.current = false; return; }
-    if (skyTempPointsFromMqttRef.current) { skyTempPointsFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/sky-control/tempPoints", JSON.stringify(skyTempPoints), { qos: 1, retain: true });
-  }, [skyTempPoints]);
-
   // 천창 autoType 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
   useEffect(() => {
     if (skyAutoTypeFirstRunRef.current) { skyAutoTypeFirstRunRef.current = false; return; }
     if (skyAutoTypeFromMqttRef.current) { skyAutoTypeFromMqttRef.current = false; return; }
     getMqttClient().publish("tansaeng/sky-control/autoType", skyAutoType, { qos: 1, retain: true });
   }, [skyAutoType]);
-
-  // 천창 시간 포인트 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
-  useEffect(() => {
-    if (skyTimePointsFirstRunRef.current) { skyTimePointsFirstRunRef.current = false; return; }
-    if (skyTimePointsFromMqttRef.current) { skyTimePointsFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/sky-control/timePoints", JSON.stringify(skyTimePoints), { qos: 1, retain: true });
-  }, [skyTimePoints]);
 
   // 천창 AUTO 제어 로직 — 평균온도→개도율 계산 후 자동 이동
   useEffect(() => {
@@ -986,26 +967,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => unsubs.forEach(u => u());
   }, []);
 
-  // 측창 온도 포인트 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
-  useEffect(() => {
-    if (sideTempPointsFirstRunRef.current) { sideTempPointsFirstRunRef.current = false; return; }
-    if (sideTempPointsFromMqttRef.current) { sideTempPointsFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/side-control/tempPoints", JSON.stringify(sideTempPoints), { qos: 1, retain: true });
-  }, [sideTempPoints]);
-
   // 측창 autoType 변경 시 MQTT retain 발행
   useEffect(() => {
     if (sideAutoTypeFirstRunRef.current) { sideAutoTypeFirstRunRef.current = false; return; }
     if (sideAutoTypeFromMqttRef.current) { sideAutoTypeFromMqttRef.current = false; return; }
     getMqttClient().publish("tansaeng/side-control/autoType", sideAutoType, { qos: 1, retain: true });
   }, [sideAutoType]);
-
-  // 측창 시간 포인트 변경 시 MQTT retain 발행
-  useEffect(() => {
-    if (sideTimePointsFirstRunRef.current) { sideTimePointsFirstRunRef.current = false; return; }
-    if (sideTimePointsFromMqttRef.current) { sideTimePointsFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/side-control/timePoints", JSON.stringify(sideTimePoints), { qos: 1, retain: true });
-  }, [sideTimePoints]);
 
   // 측창 AUTO 제어 로직 — 시간/온도/습도 기준 개도율 계산 후 자동 이동
   useEffect(() => {
@@ -1142,13 +1109,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     });
   }, [farmSensors, sideTempPoints, sideHumPoints, sideTimePoints, sideDayNightConfig, sideAutoActive, sideAutoSensor, sideAutoType, currentMinute, sideLeftFullTime, sideRightFullTime]);
 
-  // 측창 주야간 설정 변경 시 MQTT retain 발행
-  useEffect(() => {
-    if (sideDayNightFirstRunRef.current) { sideDayNightFirstRunRef.current = false; return; }
-    if (sideDayNightFromMqttRef.current) { sideDayNightFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/side-control/dayNightConfig", JSON.stringify(sideDayNightConfig), { qos: 1, retain: true });
-  }, [sideDayNightConfig]);
-
   // 팬 주야간 설정 변경 시 MQTT retain 발행
   useEffect(() => {
     if (fanDayNightFirstRunRef.current) { fanDayNightFirstRunRef.current = false; return; }
@@ -1275,6 +1235,22 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         console.error(`[API ERROR] ${result.message}`);
       }
     }
+  };
+
+  const handleSkyPointsSave = () => {
+    getMqttClient().publish("tansaeng/sky-control/tempPoints", JSON.stringify(skyTempPoints), { qos: 1, retain: true });
+    getMqttClient().publish("tansaeng/sky-control/timePoints", JSON.stringify(skyTimePoints), { qos: 1, retain: true });
+    setSkySaveStatus("saved");
+    setTimeout(() => setSkySaveStatus("idle"), 2000);
+  };
+
+  const handleSidePointsSave = () => {
+    getMqttClient().publish("tansaeng/side-control/tempPoints", JSON.stringify(sideTempPoints), { qos: 1, retain: true });
+    getMqttClient().publish("tansaeng/side-control/timePoints", JSON.stringify(sideTimePoints), { qos: 1, retain: true });
+    getMqttClient().publish("tansaeng/side-control/humPoints", JSON.stringify(sideHumPoints), { qos: 1, retain: true });
+    getMqttClient().publish("tansaeng/side-control/dayNightConfig", JSON.stringify(sideDayNightConfig), { qos: 1, retain: true });
+    setSideSaveStatus("saved");
+    setTimeout(() => setSideSaveStatus("idle"), 2000);
   };
 
   // 천창/측창 퍼센트 저장 핸들러
@@ -2000,6 +1976,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                   ))}
                 </div>
+                <div className="flex justify-end mt-2">
+                  <button onClick={handleSkyPointsSave} className="text-[10px] px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 font-semibold">
+                    {skySaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -2069,6 +2050,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       )}
                     </div>
                   ))}
+                </div>
+                <div className="flex justify-end mt-2">
+                  <button onClick={handleSkyPointsSave} className="text-[10px] px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 font-semibold">
+                    {skySaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                  </button>
                 </div>
               </div>
             )}
@@ -2173,6 +2159,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </div>
                     ))}
                   </div>
+                </div>
+                <div className="flex justify-end">
+                  <button onClick={handleSkyPointsSave} className="text-[10px] px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 font-semibold">
+                    {skySaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                  </button>
                 </div>
               </div>
             )}
@@ -2576,6 +2567,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         </div>
                       ))}
                     </div>
+                    <div className="flex justify-end mt-2">
+                      <button onClick={handleSidePointsSave} className="text-[10px] px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 font-semibold">
+                        {sideSaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                      </button>
+                    </div>
                   </>
                 )}
 
@@ -2666,6 +2662,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </div>
                       {mkPeriodEditor("day", "☀️ 주간 설정")}
                       {mkPeriodEditor("night", "🌙 야간 설정")}
+                      <div className="flex justify-end mt-1">
+                        <button onClick={handleSidePointsSave} className="text-[10px] px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 font-semibold">
+                          {sideSaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                        </button>
+                      </div>
                     </div>
                   );
                 })()}
@@ -2816,6 +2817,13 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       ))}
                     </div>
                   </>
+                )}
+                {sideAutoType === "temp" && (
+                  <div className="flex justify-end mt-2">
+                    <button onClick={handleSidePointsSave} className="text-[10px] px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 font-semibold">
+                      {sideSaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                    </button>
+                  </div>
                 )}
               </div>
             )}

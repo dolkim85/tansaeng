@@ -533,7 +533,10 @@ function main() {
 
   const client = mqtt.connect(`mqtts://${MQTT_HOST}:${MQTT_PORT}`, mqttOptions);
 
+  let startupComplete = false;
+
   client.on('connect', () => {
+    startupComplete = false;
     log('HiveMQ Cloud 연결 성공');
 
     // 설정 retain 토픽 구독 (UI에서 발행한 값 복원)
@@ -590,13 +593,14 @@ function main() {
       else log(`구독: ${t}`);
     }));
 
-    // 시작 후 5초 대기(retain 메시지 수신) 후 첫 번째 제어 실행
+    // 시작 후 10초 대기(retain 메시지 수신 보장) 후 첫 번째 제어 실행
     setTimeout(() => {
+      startupComplete = true;
       log('[INIT] 초기 AUTO 제어 실행');
       runAutoControl(client);
       // 이후 60초 주기
       setInterval(() => runAutoControl(client), CHECK_INTERVAL_MS);
-    }, 5000);
+    }, 10000);
   });
 
   client.on('message', (topic, message) => {
@@ -609,8 +613,7 @@ function main() {
     } else if (topic === 'tansaeng/sky-control/autoActive') {
       ctrl.sky.autoActive = payload === 'true';
       log(`[설정] 천창 autoActive: ${ctrl.sky.autoActive}`);
-      // autoActive 변경 시 즉시 제어
-      if (ctrl.sky.autoActive) {
+      if (ctrl.sky.autoActive && startupComplete) {
         ctrl.sky.lastTarget = {};
         setTimeout(() => runAutoControl(client), 500);
       }
@@ -647,7 +650,7 @@ function main() {
     } else if (topic === 'tansaeng/side-control/autoActive') {
       ctrl.side.autoActive = payload === 'true';
       log(`[설정] 측창 autoActive: ${ctrl.side.autoActive}`);
-      if (ctrl.side.autoActive) {
+      if (ctrl.side.autoActive && startupComplete) {
         ctrl.side.lastTarget = {};
         setTimeout(() => runAutoControl(client), 500);
       }
@@ -711,7 +714,7 @@ function main() {
     } else if (topic === 'tansaeng/fan-control/autoActive') {
       fan.autoActive = payload === 'true';
       log(`[FAN] autoActive: ${fan.autoActive}`);
-      if (fan.autoActive) {
+      if (fan.autoActive && startupComplete) {
         fan.lastCmd = {};
         setTimeout(() => runAutoControl(client), 500);
       }
@@ -761,7 +764,7 @@ function main() {
     } else if (topic === 'tansaeng/hp-control/autoActive') {
       hp.autoActive = payload === 'true';
       log(`[HP] autoActive: ${hp.autoActive}`);
-      if (hp.autoActive) {
+      if (hp.autoActive && startupComplete) {
         hp.lastCmd = { hp_pump: null, hp_heater: null, hp_fan: null };
         setTimeout(() => runAutoControl(client), 500);
       }

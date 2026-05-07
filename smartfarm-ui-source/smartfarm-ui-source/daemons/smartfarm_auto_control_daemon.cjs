@@ -44,10 +44,12 @@ const fan = {
 
 // 팬 장치 목록 (devices.ts와 동일한 토픽)
 const FAN_DEVICES = [
-  { id: 'fan_front',  name: '내부팬 앞', cmdTopic: 'tansaeng/ctlr-0001/fan1/cmd' },
-  { id: 'fan_back',   name: '내부팬 뒤', cmdTopic: 'tansaeng/ctlr-0002/fan2/cmd' },
-  { id: 'fan_top',    name: '천장팬',    cmdTopic: 'tansaeng/ctlr-0003/fan_top/cmd' },
-  { id: 'fan_ground', name: '지상팬',    cmdTopic: 'tansaeng/ctlr-0003/fan_ground/cmd' },
+  { id: 'fan_front',        name: '내부팬 앞',  cmdTopic: 'tansaeng/ctlr-0001/fan1/cmd' },
+  { id: 'fan_back',         name: '내부팬 뒤',  cmdTopic: 'tansaeng/ctlr-0002/fan_top/cmd' },
+  { id: 'fan_top',          name: '천장팬',     cmdTopic: 'tansaeng/ctlr-0003/fan_top/cmd' },
+  { id: 'fan_ground_front', name: '앞지상팬',   cmdTopic: 'tansaeng/ctlr-0003/fan_ground/cmd' },
+  { id: 'fan_ground',       name: '중간지상팬', cmdTopic: 'tansaeng/ctlr-0002/fan_ground/cmd' },
+  { id: 'fan_ground_back',  name: '백지상팬',   cmdTopic: 'tansaeng/ctlr-0002/fan_ground_back/cmd' },
 ];
 
 // ─── 히트시스템 상태 ──────────────────────────────────────────────────────────
@@ -124,23 +126,22 @@ function calcTargetRate(avgTemp, tempPoints) {
   return 0;
 }
 
-// ─── 시각→개도율 선형 보간 ────────────────────────────────────────────────────
+// ─── 시각→개도율 (step function, UI와 동일 방식) ──────────────────────────────
 function calcTargetRateByTime(timePoints) {
   const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const sorted = [...timePoints].sort((a, b) => toMin(a.time) - toMin(b.time));
   if (sorted.length === 0) return 0;
-  if (nowMin < toMin(sorted[0].time)) return sorted[0].rate;
-  if (nowMin >= toMin(sorted[sorted.length - 1].time)) return sorted[sorted.length - 1].rate;
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const s = toMin(sorted[i].time), e = toMin(sorted[i + 1].time);
-    if (nowMin >= s && nowMin < e) {
-      const ratio = (nowMin - s) / (e - s);
-      return Math.round(sorted[i].rate + ratio * (sorted[i + 1].rate - sorted[i].rate));
+  // 현재 시각 이전의 가장 최근 포인트를 그대로 적용 (보간 없음)
+  let activePoint = sorted[sorted.length - 1];
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    if (nowMin >= toMin(sorted[i].time)) {
+      activePoint = sorted[i];
+      break;
     }
   }
-  return 0;
+  return activePoint.rate;
 }
 
 // ─── 장치 이동 명령 ──────────────────────────────────────────────────────────
@@ -191,7 +192,14 @@ function runFanAutoControl(mqttClient, avgTemp) {
   FAN_DEVICES.forEach(({ id, name, cmdTopic }) => {
     const range = fan.ranges[id];
     if (!range) return;
-    const cmd = (avgTemp >= range.low && avgTemp <= range.high) ? 'ON' : 'OFF';
+    const lastCmd = fan.lastCmd[id];
+    let cmd;
+    if (lastCmd === 'ON') {
+      // ON 상태: 범위를 0.5°C 벗어나야 OFF (히스테리시스)
+      cmd = (avgTemp < range.low - 0.5 || avgTemp > range.high + 0.5) ? 'OFF' : 'ON';
+    } else {
+      cmd = (avgTemp >= range.low && avgTemp <= range.high) ? 'ON' : 'OFF';
+    }
     if (fan.lastCmd[id] !== cmd) {
       fan.lastCmd[id] = cmd;
       mqttClient.publish(cmdTopic, cmd, { qos: 1 });
