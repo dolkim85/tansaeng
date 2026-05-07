@@ -227,12 +227,14 @@ function getCurrentPeriod(dayStart, nightStart) {
 }
 
 // ─── 장치 이동 명령 ──────────────────────────────────────────────────────────
-function moveDevice(mqttClient, ctrlState, device, targetRate) {
+// forceMove=true: lastTarget이 null이었던 경우(재시작/초기화 직후) — retain된 currentPos가
+// 실제 위치와 다를 수 있으므로 위치 일치 여부와 무관하게 명령 전송
+function moveDevice(mqttClient, ctrlState, device, targetRate, forceMove = false) {
   const { id, name, esp32Id, mqttId } = device;
   const currentPos = ctrlState.currentPos[id] ?? 0;
   const difference = targetRate - currentPos;
 
-  if (Math.abs(difference) < 1) {
+  if (!forceMove && Math.abs(difference) < 1) {
     log(`[SKIP] ${name} 이미 목표 위치 (${currentPos}%)`);
     return;
   }
@@ -504,14 +506,15 @@ function runAutoControl(mqttClient) {
     }
 
     for (const device of DEVICES[key]) {
-      const lastTarget = ctrlState.lastTarget[device.id] ?? null;
+      const prevLastTarget = ctrlState.lastTarget[device.id] ?? null;
       // 히스테리시스
-      if (lastTarget !== null && Math.abs(targetRate - lastTarget) < HYSTERESIS_PCT) {
-        log(`[SKIP] ${device.name} 히스테리시스 (마지막:${lastTarget}%, 목표:${targetRate}%)`);
+      if (prevLastTarget !== null && Math.abs(targetRate - prevLastTarget) < HYSTERESIS_PCT) {
+        log(`[SKIP] ${device.name} 히스테리시스 (마지막:${prevLastTarget}%, 목표:${targetRate}%)`);
         continue;
       }
       ctrlState.lastTarget[device.id] = targetRate;
-      moveDevice(mqttClient, ctrlState, device, targetRate);
+      // prevLastTarget이 null이면 재시작/초기화 직후 → 위치 무시하고 강제 명령
+      moveDevice(mqttClient, ctrlState, device, targetRate, prevLastTarget === null);
     }
   }
 }
