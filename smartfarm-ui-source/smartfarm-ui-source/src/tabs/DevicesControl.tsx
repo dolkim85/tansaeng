@@ -1662,6 +1662,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 </button>
                 <button
                   onClick={() => {
+                    if (skyMode === "AUTO" && !window.confirm("천창 AUTO 모드를 종료하고 수동(MANUAL)으로 전환합니다.\n계속하시겠습니까?")) return;
                     skyModeRef.current = "MANUAL";
                     setSkyMode("MANUAL");
                     setSkyAutoActive(false);
@@ -2345,6 +2346,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 </button>
                 <button
                   onClick={() => {
+                    if (sideMode === "AUTO" && !window.confirm("측창 AUTO 모드를 종료하고 수동(MANUAL)으로 전환합니다.\n계속하시겠습니까?")) return;
                     sideModeRef.current = "MANUAL";
                     setSideMode("MANUAL");
                     setSideAutoActive(false);
