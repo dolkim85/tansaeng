@@ -3057,6 +3057,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </button>
                   <button
                     onClick={() => {
+                      if (fanMode === "AUTO" && !window.confirm("팬 AUTO 모드를 종료하고 수동(MANUAL)으로 전환합니다.\n계속하시겠습니까?")) return;
                       fanModeRef.current = "MANUAL";
                       setFanMode("MANUAL");
                       setFanAutoActive(false);
@@ -3492,6 +3493,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </button>
                   <button
                     onClick={() => {
+                      if (hpMode === "AUTO" && !window.confirm("히트펌프 AUTO 모드를 종료하고 수동(MANUAL)으로 전환합니다.\n계속하시겠습니까?")) return;
                       hpModeRef.current = "MANUAL";
                       setHpMode("MANUAL");
                       setHpAutoActive(false);

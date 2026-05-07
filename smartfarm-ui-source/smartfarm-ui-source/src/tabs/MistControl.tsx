@@ -498,7 +498,10 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                   {(["OFF", "MANUAL", "AUTO"] as MistMode[]).map((mode) => (
                     <button
                       key={mode}
-                      onClick={() => updateZone(zone.id, { mode })}
+                      onClick={() => {
+                        if (mode === "MANUAL" && zone.mode === "AUTO" && !window.confirm("AUTO 모드를 종료하고 수동(MANUAL)으로 전환합니다.\n계속하시겠습니까?")) return;
+                        updateZone(zone.id, { mode });
+                      }}
                       className={`flex-1 py-2 text-xs font-bold rounded transition-all ${
                         zone.mode === mode ? "bg-farm-500 text-white" : "bg-gray-100 text-gray-600 active:bg-gray-200"
                       }`}
