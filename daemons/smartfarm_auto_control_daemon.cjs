@@ -10,18 +10,20 @@
  * - 히트시스템 펌프/히터: 팜 평균온도 기준
  */
 
-const mqtt = require('mqtt');
-const fs   = require('fs');
-const path = require('path');
+const mqtt  = require('mqtt');
+const fs    = require('fs');
+const path  = require('path');
+const https = require('https');
 
 // ─── 설정 ────────────────────────────────────────────────────────────────────
-const MQTT_HOST     = '22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud';
-const MQTT_PORT     = 8883;
-const MQTT_USERNAME = 'esp32-client-01';
-const MQTT_PASSWORD = 'Qjawns3445';
+const MQTT_HOST        = '22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud';
+const MQTT_PORT        = 8883;
+const MQTT_USERNAME    = 'esp32-client-01';
+const MQTT_PASSWORD    = 'Qjawns3445';
 
-const SENSOR_FILE   = path.join(__dirname, '../config/realtime_sensor.json');
-const LOG_FILE      = path.join(__dirname, '../logs/auto_control_daemon.log');
+const SENSOR_FILE      = path.join(__dirname, '../config/realtime_sensor.json');
+const LOG_FILE         = path.join(__dirname, '../logs/auto_control_daemon.log');
+const ALERT_CONFIG_FILE = path.join(__dirname, '../config/alert_config.json');
 
 // 제어 주기 (ms) — 60초마다 온도 체크
 const CHECK_INTERVAL_MS = 60000;
@@ -183,6 +185,48 @@ function log(msg) {
   try { fs.appendFileSync(LOG_FILE, line + '\n'); } catch (_) {}
 }
 
+// ─── Telegram 알림 ───────────────────────────────────────────────────────────
+const alertCooldowns = {};  // { key: lastSentTimestamp }
+let sensorNullCount  = 0;   // 연속 null 카운트 (runAutoControl 1회 = 1분)
+
+function loadAlertConfig() {
+  try { return JSON.parse(fs.readFileSync(ALERT_CONFIG_FILE, 'utf8')); }
+  catch (_) { return null; }
+}
+
+function sendTelegramMsg(token, chatId, text) {
+  const body = JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' });
+  const req = https.request({
+    hostname: 'api.telegram.org',
+    path:     `/bot${token}/sendMessage`,
+    method:   'POST',
+    headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+  }, (res) => { res.resume(); });
+  req.on('error', (e) => log(`[TELEGRAM] 전송 오류: ${e.message}`));
+  req.write(body);
+  req.end();
+}
+
+function sendAlert(key, title, message) {
+  const cfg = loadAlertConfig();
+  if (!cfg?.telegram?.enabled) return;
+  const { bot_token: token, chat_id: chatId } = cfg.telegram;
+  if (!token || !chatId) return;
+
+  const cooldownMs = (cfg.cooldown_minutes ?? 30) * 60 * 1000;
+  const now = Date.now();
+  if (now - (alertCooldowns[key] ?? 0) < cooldownMs) {
+    log(`[ALERT] 쿨다운 중 (${key}) — 스킵`);
+    return;
+  }
+  alertCooldowns[key] = now;
+
+  const ts = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+  const text = `<b>[탄생농원 스마트팜]</b>\n<b>${title}</b>\n${message}\n🕐 ${ts}`;
+  log(`[ALERT] ${title}`);
+  sendTelegramMsg(token, chatId, text);
+}
+
 // ─── 온도→개도율 선형 보간 ────────────────────────────────────────────────────
 function calcTargetRate(avgTemp, tempPoints) {
   const sorted = [...tempPoints].sort((a, b) => a.temp - b.temp);
@@ -252,6 +296,8 @@ function moveDevice(mqttClient, ctrlState, device, targetRate, forceMove = false
 
   log(`[CMD] ${name}: ${currentPos}% → ${targetRate}% (${command}, ${moveSeconds.toFixed(1)}초)`);
   mqttClient.publish(cmdTopic, command, { qos: 1 });
+  sendAlert(`screen_${id}`, `🪟 ${ctrlState.label} AUTO 제어`,
+    `${name}: ${currentPos}% → ${targetRate}% (${command === 'OPEN' ? '열기' : '닫기'}, ${moveSeconds.toFixed(0)}초)`);
 
   // 이동 시간 후 STOP + 현재 위치 retain 발행 (브라우저 게이지 동기화)
   const screenType = ctrlState.label === '천창' ? 'sky' : 'side';
@@ -311,6 +357,7 @@ function runFanAutoControl(mqttClient, avgTemp, avgHumi) {
       fan.lastCmd[id] = cmd;
       mqttClient.publish(cmdTopic, cmd, { qos: 1 });
       log(`[FAN] ${name}: ${cmd} (${sensorLabel}, 범위 ${range.low}~${range.high})`);
+      sendAlert(`fan_${id}`, `💨 팬 AUTO ${cmd === 'ON' ? '가동' : '정지'}`, `${name}: ${cmd}\n현재 ${sensorLabel}`);
     }
   });
 }
@@ -376,6 +423,7 @@ function runHpAutoControl(mqttClient, avgTemp) {
       hp.lastCmd[key] = cmd;
       mqttClient.publish(`tansaeng/ctlr-heat-001/${mqttId}/cmd`, cmd, { qos: 1 });
       log(`[HP] ${name}: ${cmd} (온도 ${temp.toFixed(1)}°C, 범위 ${low}~${high}°C)`);
+      sendAlert(`hp_${key}`, `🔥 히트펌프 AUTO ${cmd === 'ON' ? '가동' : '정지'}`, `${name}: ${cmd}\n현재 ${temp.toFixed(1)}°C (범위 ${low}~${high}°C)`);
     }
   });
 }
@@ -407,7 +455,16 @@ function runAutoControl(mqttClient) {
 
   const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
   const avgHumi = humis.length > 0 ? humis.reduce((a, b) => a + b, 0) / humis.length : null;
-  if (avgTemp !== null) log(`[TEMP] 평균온도: ${avgTemp.toFixed(1)}°C (센서 ${temps.length}개)`);
+  if (avgTemp !== null) {
+    log(`[TEMP] 평균온도: ${avgTemp.toFixed(1)}°C (센서 ${temps.length}개)`);
+    sensorNullCount = 0;
+  } else {
+    sensorNullCount++;
+    log(`[WARN] 팜 온도 센서 없음 (${sensorNullCount}분 지속)`);
+    if (sensorNullCount === 5) {
+      sendAlert('sensor_null', '⚠️ 팜 센서 데이터 없음', `팜 내부 온도 센서에서 5분 이상 데이터가 수신되지 않고 있습니다.\nAUTO 제어가 비정상 동작할 수 있습니다.`);
+    }
+  }
 
   // 팬 AUTO 제어
   runFanAutoControl(mqttClient, avgTemp, avgHumi);
@@ -522,6 +579,7 @@ function runAutoControl(mqttClient) {
 // ─── MQTT 연결 및 구독 ────────────────────────────────────────────────────────
 function main() {
   log('=== 스마트팜 자동 제어 데몬 시작 ===');
+  sendAlert('daemon_start', '✅ 오토컨트롤 데몬 시작', '스마트팜 자동 제어 데몬(tansaeng-autocontrol)이 시작되었습니다.');
 
   const mqttOptions = {
     host:            MQTT_HOST,
@@ -537,9 +595,14 @@ function main() {
   const client = mqtt.connect(`mqtts://${MQTT_HOST}:${MQTT_PORT}`, mqttOptions);
 
   let startupComplete = false;
+  let mqttWasOffline  = false;
 
   client.on('connect', () => {
     startupComplete = false;
+    if (mqttWasOffline) {
+      sendAlert('mqtt_reconnect', '📡 MQTT 재연결됨', 'HiveMQ Cloud 브로커에 재연결되었습니다.\n자동 제어가 정상 재개됩니다.');
+      mqttWasOffline = false;
+    }
     log('HiveMQ Cloud 연결 성공');
 
     // 설정 retain 토픽 구독 (UI에서 발행한 값 복원)
@@ -880,7 +943,11 @@ function main() {
   });
 
   client.on('error', (e) => log(`[MQTT ERROR] ${e.message}`));
-  client.on('offline', () => log('[MQTT] 연결 끊김 — 재연결 중...'));
+  client.on('offline', () => {
+    mqttWasOffline = true;
+    log('[MQTT] 연결 끊김 — 재연결 중...');
+    sendAlert('mqtt_offline', '🔴 MQTT 연결 끊김', 'HiveMQ Cloud 브로커 연결이 끊어졌습니다.\n자동 제어가 일시 중단됩니다.');
+  });
   client.on('reconnect', () => log('[MQTT] 재연결 시도...'));
 
   process.on('SIGTERM', () => { log('SIGTERM — 종료'); client.end(); process.exit(0); });
