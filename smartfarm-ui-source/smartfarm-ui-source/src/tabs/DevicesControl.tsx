@@ -1765,6 +1765,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </button>
                     <button
                       onClick={() => {
+                        if (!window.confirm("천창 AUTO 작동을 멈춥니다.\n계속하시겠습니까?")) return;
                         setSkyAutoActive(false);
                         getMqttClient().publish("tansaeng/sky-control/autoActive", "false", { qos: 1, retain: true });
                         skylights.forEach((skylight) => {
@@ -2382,6 +2383,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </button>
                   <button
                     onClick={() => {
+                      if (!window.confirm("측창 AUTO 작동을 멈춥니다.\n계속하시겠습니까?")) return;
                       setSideAutoActive(false);
                       getMqttClient().publish("tansaeng/side-control/autoActive", "false", { qos: 1, retain: true });
                       // 진행 중인 모터 타이머 취소 + STOP 명령 즉시 전송
@@ -3206,6 +3208,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         </button>
                         <button
                           onClick={() => {
+                            if (!fanAutoActive || !window.confirm("팬 AUTO 작동을 멈춥니다.\n계속하시겠습니까?")) return;
                             setFanAutoActive(false);
                             getMqttClient().publish("tansaeng/fan-control/autoActive", "false", { qos: 1, retain: true });
                             fans.forEach((fan) => {
@@ -3276,6 +3279,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </button>
                       <button
                         onClick={() => {
+                          if (!fanAutoActive || !window.confirm("팬 AUTO 작동을 멈춥니다.\n계속하시겠습니까?")) return;
                           setFanAutoActive(false);
                           getMqttClient().publish("tansaeng/fan-control/autoActive", "false", { qos: 1, retain: true });
                           fans.forEach((fan) => {
@@ -3661,6 +3665,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </button>
                       <button
                         onClick={() => {
+                          if (!hpAutoActive || !window.confirm("히트펌프 AUTO 작동을 멈춥니다.\n계속하시겠습니까?")) return;
                           setHpAutoActive(false);
                           getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
                           // 모든 HP 장치 정지
