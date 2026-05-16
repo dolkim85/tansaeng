@@ -24,6 +24,7 @@ const MQTT_PASSWORD    = 'Qjawns3445';
 const SENSOR_FILE      = path.join(__dirname, '../config/realtime_sensor.json');
 const LOG_FILE         = path.join(__dirname, '../logs/auto_control_daemon.log');
 const ALERT_CONFIG_FILE = path.join(__dirname, '../config/alert_config.json');
+const SETTINGS_FILE    = path.join(__dirname, '../config/daemon_settings.json');
 
 // 제어 주기 (ms) — 60초마다 온도 체크
 const CHECK_INTERVAL_MS = 60000;
@@ -225,6 +226,114 @@ function sendAlert(key, title, message) {
   const text = `<b>[탄생농원 스마트팜]</b>\n<b>${title}</b>\n${message}\n🕐 ${ts}`;
   log(`[ALERT] ${title}`);
   sendTelegramMsg(token, chatId, text);
+}
+
+// ─── settings.json 로드/저장 ─────────────────────────────────────────────────
+function loadSettings() {
+  try {
+    if (!fs.existsSync(SETTINGS_FILE)) return false;
+    const data = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+
+    // 천창
+    if (data.sky) {
+      const s = data.sky;
+      if (s.mode)        ctrl.sky.mode       = s.mode;
+      if (s.autoActive !== undefined) ctrl.sky.autoActive = s.autoActive;
+      if (s.autoType)    ctrl.sky.autoType   = s.autoType;
+      if (s.tempPoints)  ctrl.sky.tempPoints = s.tempPoints;
+      if (s.timePoints)  ctrl.sky.timePoints = s.timePoints;
+      if (s.currentPos)  ctrl.sky.currentPos = s.currentPos;
+      if (s.fullTimeSMap) ctrl.sky.fullTimeSMap = { ...ctrl.sky.fullTimeSMap, ...s.fullTimeSMap };
+    }
+    // 측창
+    if (data.side) {
+      const s = data.side;
+      if (s.mode)        ctrl.side.mode       = s.mode;
+      if (s.autoActive !== undefined) ctrl.side.autoActive = s.autoActive;
+      if (s.autoType)    ctrl.side.autoType   = s.autoType;
+      if (s.autoSensor)  ctrl.side.autoSensor = s.autoSensor;
+      if (s.tempPoints)  ctrl.side.tempPoints = s.tempPoints;
+      if (s.humPoints)   ctrl.side.humPoints  = s.humPoints;
+      if (s.timePoints)  ctrl.side.timePoints = s.timePoints;
+      if (s.dayNightConfig) ctrl.side.dayNightConfig = { ...ctrl.side.dayNightConfig, ...s.dayNightConfig };
+      if (s.currentPos)  ctrl.side.currentPos = s.currentPos;
+      if (s.fullTimeSMap) ctrl.side.fullTimeSMap = { ...ctrl.side.fullTimeSMap, ...s.fullTimeSMap };
+    }
+    // 팬
+    if (data.fan) {
+      const s = data.fan;
+      if (s.mode)       fan.mode       = s.mode;
+      if (s.autoActive !== undefined) fan.autoActive = s.autoActive;
+      if (s.autoSensor) fan.autoSensor = s.autoSensor;
+      if (s.ranges)     fan.ranges     = { ...fan.ranges, ...s.ranges };
+      if (s.humRanges)  fan.humRanges  = { ...fan.humRanges, ...s.humRanges };
+      if (s.dayNight)   fan.dayNight   = { ...fan.dayNight, ...s.dayNight };
+    }
+    // 히트시스템
+    if (data.hp) {
+      const s = data.hp;
+      if (s.mode)       hp.mode       = s.mode;
+      if (s.autoActive !== undefined) hp.autoActive = s.autoActive;
+      if (s.ranges)     hp.ranges     = { ...hp.ranges, ...s.ranges };
+      if (s.dayNight)   hp.dayNight   = { ...hp.dayNight, ...s.dayNight };
+    }
+
+    log('[SETTINGS] settings.json 로드 완료');
+    return true;
+  } catch (e) {
+    log(`[SETTINGS] 로드 실패: ${e.message}`);
+    return false;
+  }
+}
+
+let _saveTimer = null;
+function saveSettings() {
+  if (_saveTimer) return;
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null;
+    try {
+      const data = {
+        sky: {
+          mode:        ctrl.sky.mode,
+          autoActive:  ctrl.sky.autoActive,
+          autoType:    ctrl.sky.autoType,
+          tempPoints:  ctrl.sky.tempPoints,
+          timePoints:  ctrl.sky.timePoints,
+          currentPos:  ctrl.sky.currentPos,
+          fullTimeSMap: ctrl.sky.fullTimeSMap,
+        },
+        side: {
+          mode:          ctrl.side.mode,
+          autoActive:    ctrl.side.autoActive,
+          autoType:      ctrl.side.autoType,
+          autoSensor:    ctrl.side.autoSensor,
+          tempPoints:    ctrl.side.tempPoints,
+          humPoints:     ctrl.side.humPoints,
+          timePoints:    ctrl.side.timePoints,
+          dayNightConfig: ctrl.side.dayNightConfig,
+          currentPos:    ctrl.side.currentPos,
+          fullTimeSMap:  ctrl.side.fullTimeSMap,
+        },
+        fan: {
+          mode:       fan.mode,
+          autoActive: fan.autoActive,
+          autoSensor: fan.autoSensor,
+          ranges:     fan.ranges,
+          humRanges:  fan.humRanges,
+          dayNight:   fan.dayNight,
+        },
+        hp: {
+          mode:       hp.mode,
+          autoActive: hp.autoActive,
+          ranges:     hp.ranges,
+          dayNight:   hp.dayNight,
+        },
+      };
+      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data, null, 2), 'utf8');
+    } catch (e) {
+      log(`[SETTINGS] 저장 실패: ${e.message}`);
+    }
+  }, 1000); // 1초 debounce — 연속 메시지가 와도 1초에 1번만 씀
 }
 
 // ─── 온도→개도율 선형 보간 ────────────────────────────────────────────────────
@@ -579,6 +688,7 @@ function runAutoControl(mqttClient) {
 // ─── MQTT 연결 및 구독 ────────────────────────────────────────────────────────
 function main() {
   log('=== 스마트팜 자동 제어 데몬 시작 ===');
+  const settingsLoaded = loadSettings(); // settings.json 있으면 즉시 상태 복원
   sendAlert('daemon_start', '✅ 오토컨트롤 데몬 시작', '스마트팜 자동 제어 데몬(tansaeng-autocontrol)이 시작되었습니다.');
 
   const mqttOptions = {
@@ -659,14 +769,16 @@ function main() {
       else log(`구독: ${t}`);
     }));
 
-    // 시작 후 10초 대기(retain 메시지 수신 보장) 후 첫 번째 제어 실행
+    // settings.json 있으면 3초(MQTT retain 최신값 반영용), 없으면 10초 대기
+    const initDelay = settingsLoaded ? 3000 : 10000;
+    log(`[INIT] ${initDelay / 1000}초 후 첫 제어 실행 (settings.json: ${settingsLoaded ? '로드됨' : '없음'})`);
     setTimeout(() => {
       startupComplete = true;
       log('[INIT] 초기 AUTO 제어 실행');
       runAutoControl(client);
       // 이후 60초 주기
       setInterval(() => runAutoControl(client), CHECK_INTERVAL_MS);
-    }, 10000);
+    }, initDelay);
   });
 
   client.on('message', (topic, message) => {
@@ -940,6 +1052,14 @@ function main() {
         }
       }
     }
+
+    // 센서/위치 토픽은 저장 불필요, 설정 토픽만 저장
+    const isSettingsTopic =
+      topic.startsWith('tansaeng/sky-control/') ||
+      topic.startsWith('tansaeng/side-control/') ||
+      topic.startsWith('tansaeng/fan-control/') ||
+      topic.startsWith('tansaeng/hp-control/');
+    if (isSettingsTopic) saveSettings();
   });
 
   client.on('error', (e) => log(`[MQTT ERROR] ${e.message}`));
