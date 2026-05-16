@@ -117,6 +117,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
   // 천창/측창 현재 위치 추적 (0~100%)
   const [currentPosition, setCurrentPosition] = useState<Record<string, number>>({});
+  const [displayPosition, setDisplayPosition] = useState<Record<string, number>>({});
+  const [transitionDuration, setTransitionDuration] = useState<Record<string, number>>({});
   // 천창/측창 위치 초기화 상태
   const [resetStatus, setResetStatus] = useState<Record<string, 'idle' | 'resetting'>>({});
 
@@ -141,6 +143,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [hpDeviceRanges, setHpDeviceRanges] = useState<Record<string, { low: number; high: number }>>({});
   const [hpAutoActive, setHpAutoActive] = useState(false);
   const hpDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({ hp_pump: null, hp_heater: null, hp_fan: null });
+  const hpLastOffTime = useRef<Record<string, number>>({ hp_pump: 0, hp_heater: 0, hp_fan: 0 });
   const hpDeviceRangesFromMqttRef = useRef(false);
 
   // 팬 AUTO 제어 상태
@@ -169,6 +172,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [editSideRightFullTime, setEditSideRightFullTime] = useState(120);
   const [screenTimeSaving, setScreenTimeSaving] = useState(false);
   const [screenTimeSavedMsg, setScreenTimeSavedMsg] = useState("");
+  const [skySaveStatus, setSkySaveStatus] = useState<"idle" | "saved">("idle");
+  const [sideSaveStatus, setSideSaveStatus] = useState<"idle" | "saved">("idle");
+  // MQTT retain 수신 완료 여부 — false인 동안 저장 버튼 비활성화(기본값 덮어씌움 방지)
+  const [skyPointsReady, setSkyPointsReady] = useState(false);
+  const [sidePointsReady, setSidePointsReady] = useState(false);
 
   // 천창 AUTO 제어 상태
   const [skyMode, setSkyMode] = useState<"AUTO" | "MANUAL">("MANUAL");
@@ -525,14 +533,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         const res = await fetch('/api/smartfarm/get_realtime_sensor_data.php');
         const result = await res.json();
         if (result.success) {
-          setFarmSensors({
-            front:    result.data.front.temperature,
-            back:     result.data.back.temperature,
-            top:      result.data.top.temperature,
-            frontHum: result.data.front.humidity,
-            backHum:  result.data.back.humidity,
-            topHum:   result.data.top.humidity,
-          });
+          // null 수신 시 이전 값 유지 (깜빡임 방지)
+          setFarmSensors(prev => ({
+            front:    result.data.front?.temperature    ?? prev.front,
+            back:     result.data.back?.temperature     ?? prev.back,
+            top:      result.data.top?.temperature      ?? prev.top,
+            frontHum: result.data.front?.humidity       ?? prev.frontHum,
+            backHum:  result.data.back?.humidity        ?? prev.backHum,
+            topHum:   result.data.top?.humidity         ?? prev.topHum,
+          }));
         }
       } catch {}
     };
@@ -541,70 +550,127 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => clearInterval(interval);
   }, []);
 
-  // AUTO 모드 제어 로직 — 각 장치별 기준 센서 범위 안에 있으면 ON, 벗어나면 OFF
-  // 냉각기(hp_heater)는 물온도 기준, 나머지는 팜 내부 평균온도 기준
+  // HP AUTO 모드 제어 로직 — 주야간 모드 or 일반 온도 범위 기준 ON/OFF
   useEffect(() => {
-    // state + ref 이중 체크 (MANUAL 모드에서 절대 실행 안 되도록)
     if (hpMode !== "AUTO") return;
     if (hpModeRef.current !== "AUTO") return;
-    if (!hpAutoActive) return; // 작동시작 버튼을 눌러야 활성화
+    if (!hpAutoActive) return;
 
     const temps = [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
     const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
     const HP = "ctlr-heat-001";
 
-    const deviceMap: Array<{ key: string; mqttId: string }> = [
-      { key: "hp_pump",   mqttId: "pump"   },
-      { key: "hp_heater", mqttId: "heater" },
-      { key: "hp_fan",    mqttId: "fan"    },
+    // 주야간 모드일 때 현재 구간 판단
+    let activeRanges: Record<string, { low: number; high: number }> | null = null;
+    if (hpDayNightConfig.enabled) {
+      const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const dayMin = toMin(hpDayNightConfig.dayStart);
+      const nightMin = toMin(hpDayNightConfig.nightStart);
+      const isDay = dayMin < nightMin
+        ? (nowMin >= dayMin && nowMin < nightMin)
+        : (nowMin >= dayMin || nowMin < nightMin);
+      activeRanges = isDay ? hpDayNightConfig.day.ranges : hpDayNightConfig.night.ranges;
+    }
+
+    const deviceMap: Array<{ key: string; mqttId: string; name: string }> = [
+      { key: "hp_pump",   mqttId: "pump",   name: "냉각순환펌프" },
+      { key: "hp_heater", mqttId: "heater", name: "냉각기"       },
+      { key: "hp_fan",    mqttId: "fan",    name: "장치실 팬"     },
     ];
 
-    deviceMap.forEach(({ key, mqttId }) => {
-      // 냉각기는 물온도, 나머지는 팜 평균온도
+    // 히스테리시스: hp_heater(수온) 1.0°C, 나머지(기온) 0.5°C
+    const HP_HYST: Record<string, number> = { hp_pump: 0.5, hp_heater: 1.0, hp_fan: 0.5 };
+    // 최소 정지시간: hp_heater 컴프레서 3분, 나머지 없음
+    const HP_MIN_OFF_MS: Record<string, number> = { hp_heater: 180000 };
+
+    deviceMap.forEach(({ key, mqttId, name }) => {
       const sensorValue = key === "hp_heater" ? hpSensors.waterTemp : avgTemp;
-      if (sensorValue === null) return;
-      const range = hpDeviceRanges[key] ?? { low: 15, high: 22 };
-      const inRange = sensorValue >= range.low && sensorValue <= range.high;
-      const newCmd: "ON" | "OFF" = inRange ? "ON" : "OFF";
+      const range = activeRanges?.[key] ?? hpDeviceRanges[key] ?? { low: 15, high: 22 };
+      const { low, high } = range;
+      const hyst = HP_HYST[key] ?? 0.5;
+      const minOffMs = HP_MIN_OFF_MS[key] ?? 0;
+
+      let newCmd: "ON" | "OFF";
+      if (sensorValue === null) {
+        newCmd = "OFF";
+      } else if (hpDeviceLastCmd.current[key] === "ON") {
+        // 히스테리시스: ON 상태에서는 범위 ± hyst 벗어날 때만 OFF
+        newCmd = (sensorValue < low - hyst || sensorValue > high + hyst) ? "OFF" : "ON";
+      } else {
+        // OFF 상태에서는 최소 정지시간 확인 후 범위 내 진입 시 ON
+        const elapsed = Date.now() - (hpLastOffTime.current[key] ?? 0);
+        if (elapsed < minOffMs) return; // 아직 대기 중
+        newCmd = (sensorValue >= low && sensorValue <= high) ? "ON" : "OFF";
+      }
+
       if (hpDeviceLastCmd.current[key] !== newCmd) {
+        if (newCmd === "OFF") hpLastOffTime.current[key] = Date.now();
         hpDeviceLastCmd.current[key] = newCmd;
         setHpDeviceStates(prev => ({ ...prev, [key]: newCmd }));
-        const deviceName = { hp_pump: "냉각순환펌프", hp_heater: "냉각기", hp_fan: "장치실 팬" }[key];
         sendDeviceCommand(HP, mqttId, newCmd).then(result => {
-          if (result.success) console.log(`[API SUCCESS] ${deviceName} - ${newCmd}`);
-          else console.error(`[API ERROR] ${deviceName} - ${newCmd}: ${result.message}`);
+          if (result.success) console.log(`[API SUCCESS] ${name} - ${newCmd}`);
+          else console.error(`[API ERROR] ${name} - ${newCmd}: ${result.message}`);
         });
       }
     });
-  }, [farmSensors, hpSensors, hpDeviceRanges, hpAutoActive, hpMode]);
+  }, [farmSensors, hpSensors, hpDeviceRanges, hpAutoActive, hpMode, hpDayNightConfig, currentMinute]);
 
-  // 팬 AUTO 모드 제어 로직 — 선택된 센서(온도/습도) 범위 안에 있으면 ON, 벗어나면 OFF
+  // 팬 AUTO 모드 제어 로직 — 주야간 모드 or 일반 온도/습도 범위 기준 ON/OFF
   // 히스테리시스: 경계값 근처 진동 방지 (온도 0.5°C, 습도 2%RH)
   useEffect(() => {
     if (fanModeRef.current !== "AUTO") return;
     if (!fanAutoActive) return;
-    const useHumi = fanAutoSensorRef.current === "humi";
-    const values = useHumi
-      ? [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[]
-      : [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
-    if (values.length === 0) return;
-    const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
-    // 히스테리시스 대역: ON→OFF 전환을 위해 경계값보다 더 벗어나야 함
+
+    let useHumi: boolean;
+    let avgValue: number | null;
+    let getRangeForFan: (fanId: string) => { low: number; high: number };
+
+    if (fanDayNightConfig.enabled) {
+      // 주야간 모드: 현재 시각으로 주간/야간 판단
+      const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const dayMin = toMin(fanDayNightConfig.dayStart);
+      const nightMin = toMin(fanDayNightConfig.nightStart);
+      const isDay = dayMin < nightMin
+        ? (nowMin >= dayMin && nowMin < nightMin)
+        : (nowMin >= dayMin || nowMin < nightMin);
+      const period = isDay ? "day" : "night";
+      const cfg = fanDayNightConfig[period];
+      useHumi = cfg.sensor === "humi";
+      const vals = useHumi
+        ? [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[]
+        : [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+      if (vals.length === 0) return;
+      avgValue = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const rangeKey = useHumi ? "humRanges" : "ranges";
+      const defRange = useHumi ? { low: 60, high: 80 } : { low: 15, high: 22 };
+      getRangeForFan = (fanId) => (cfg[rangeKey][fanId] ?? defRange);
+    } else {
+      // 일반 모드
+      useHumi = fanAutoSensorRef.current === "humi";
+      const vals = useHumi
+        ? [farmSensors.frontHum, farmSensors.backHum, farmSensors.topHum].filter(h => h !== null) as number[]
+        : [farmSensors.front, farmSensors.back, farmSensors.top].filter(t => t !== null) as number[];
+      if (vals.length === 0) return;
+      avgValue = vals.reduce((a, b) => a + b, 0) / vals.length;
+      getRangeForFan = (fanId) => useHumi
+        ? (fanHumRanges[fanId] ?? { low: 60, high: 80 })
+        : (fanDeviceRanges[fanId] ?? { low: 15, high: 22 });
+    }
+
     const hyst = useHumi ? 2 : 0.5;
     fans.forEach((fan) => {
-      const range = useHumi
-        ? (fanHumRanges[fan.id] ?? { low: 60, high: 80 })
-        : (fanDeviceRanges[fan.id] ?? { low: 15, high: 22 });
+      const range = getRangeForFan(fan.id);
       const lastCmd = fanDeviceLastCmd.current[fan.id];
       let newCmd: "ON" | "OFF";
       if (lastCmd === "ON") {
-        // 현재 ON: 범위 밖으로 히스테리시스만큼 더 벗어나야 OFF
-        const shouldOff = avgValue < range.low - hyst || avgValue > range.high + hyst;
+        const shouldOff = avgValue! < range.low - hyst || avgValue! > range.high + hyst;
         newCmd = shouldOff ? "OFF" : "ON";
       } else {
-        // 현재 OFF(또는 초기): 범위 안에 들어오면 ON
-        const inRange = avgValue >= range.low && avgValue <= range.high;
-        newCmd = inRange ? "ON" : "OFF";
+        newCmd = (avgValue! >= range.low && avgValue! <= range.high) ? "ON" : "OFF";
       }
       if (lastCmd !== newCmd) {
         fanDeviceLastCmd.current[fan.id] = newCmd;
@@ -616,7 +682,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
         sendDeviceCommand(fan.esp32Id, mqttDeviceId, newCmd);
       }
     });
-  }, [farmSensors, fanDeviceRanges, fanHumRanges, fanAutoActive, fanAutoSensor]);
+  }, [farmSensors, fanDeviceRanges, fanHumRanges, fanAutoActive, fanAutoSensor, fanDayNightConfig, currentMinute]);
 
   // 팬 온도 범위 변경 시 MQTT retain 발행 (MQTT 복원에서 온 변경은 재발행 안함)
   useEffect(() => {
@@ -639,13 +705,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     getMqttClient().publish("tansaeng/hp-control/ranges", JSON.stringify(hpDeviceRanges), { qos: 1, retain: true });
   }, [hpDeviceRanges]);
 
-  // 측창 습도 포인트 변경 시 MQTT retain 발행
-  useEffect(() => {
-    if (sideHumPointsFirstRunRef.current) { sideHumPointsFirstRunRef.current = false; return; }
-    if (sideHumPointsFromMqttRef.current) { sideHumPointsFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/side-control/humPoints", JSON.stringify(sideHumPoints), { qos: 1, retain: true });
-  }, [sideHumPoints]);
-
   // 천창 MQTT 상태 구독 (retain으로 다른 브라우저 동기화)
   useEffect(() => {
     const unsubs = [
@@ -664,16 +723,25 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           if (Array.isArray(parsed) && parsed.length > 0) {
             skyTempPointsFromMqttRef.current = true;
             setSkyTempPoints(parsed);
+            setSkyPointsReady(true);
           }
         } catch {}
       }),
       subscribeToTopic("tansaeng/sky-control/windowL/currentPos", (v) => {
         const n = Number(v);
-        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, skylight_left: n }));
+        if (!isNaN(n)) {
+          setCurrentPosition(prev => ({ ...prev, skylight_left: n }));
+          setDisplayPosition(prev => ({ ...prev, skylight_left: n }));
+          setTransitionDuration(prev => ({ ...prev, skylight_left: 0.3 }));
+        }
       }),
       subscribeToTopic("tansaeng/sky-control/windowR/currentPos", (v) => {
         const n = Number(v);
-        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, skylight_right: n }));
+        if (!isNaN(n)) {
+          setCurrentPosition(prev => ({ ...prev, skylight_right: n }));
+          setDisplayPosition(prev => ({ ...prev, skylight_right: n }));
+          setTransitionDuration(prev => ({ ...prev, skylight_right: 0.3 }));
+        }
       }),
       subscribeToTopic("tansaeng/sky-control/autoType", (v) => {
         if (v === "temp" || v === "time" || v === "combined") {
@@ -688,6 +756,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           if (Array.isArray(parsed) && parsed.length > 0) {
             skyTimePointsFromMqttRef.current = true;
             setSkyTimePoints(parsed);
+            setSkyPointsReady(true);
           }
         } catch {}
       }),
@@ -695,12 +764,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => unsubs.forEach(u => u());
   }, []);
 
-  // 천창 온도 포인트 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
+  // MQTT retain 미수신 시 5초 후 저장 허용 (첫 설치 — broker에 retain 없는 경우)
   useEffect(() => {
-    if (skyTempPointsFirstRunRef.current) { skyTempPointsFirstRunRef.current = false; return; }
-    if (skyTempPointsFromMqttRef.current) { skyTempPointsFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/sky-control/tempPoints", JSON.stringify(skyTempPoints), { qos: 1, retain: true });
-  }, [skyTempPoints]);
+    const t = setTimeout(() => {
+      setSkyPointsReady(true);
+      setSidePointsReady(true);
+    }, 5000);
+    return () => clearTimeout(t);
+  }, []);
 
   // 천창 autoType 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
   useEffect(() => {
@@ -708,13 +779,6 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     if (skyAutoTypeFromMqttRef.current) { skyAutoTypeFromMqttRef.current = false; return; }
     getMqttClient().publish("tansaeng/sky-control/autoType", skyAutoType, { qos: 1, retain: true });
   }, [skyAutoType]);
-
-  // 천창 시간 포인트 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
-  useEffect(() => {
-    if (skyTimePointsFirstRunRef.current) { skyTimePointsFirstRunRef.current = false; return; }
-    if (skyTimePointsFromMqttRef.current) { skyTimePointsFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/sky-control/timePoints", JSON.stringify(skyTimePoints), { qos: 1, retain: true });
-  }, [skyTimePoints]);
 
   // 천창 AUTO 제어 로직 — 평균온도→개도율 계산 후 자동 이동
   useEffect(() => {
@@ -818,11 +882,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
       console.log(`[SKY AUTO] ${skylight.name} (${skyAutoTypeRef.current}) →${targetRate}% (현재:${currentPos}%, ${targetTimeSeconds.toFixed(1)}초 ${command})`);
 
+      setDisplayPosition(prev => ({ ...prev, [skylight.id]: targetRate }));
+      setTransitionDuration(prev => ({ ...prev, [skylight.id]: targetTimeSeconds }));
       sendDeviceCommand(skylight.esp32Id, mqttDeviceId, command).then(() => {
         percentageTimers.current[skylight.id] = setTimeout(async () => {
           await sendDeviceCommand(skylight.esp32Id, mqttDeviceId, "STOP");
           delete percentageTimers.current[skylight.id];
           setCurrentPosition(prev => ({ ...prev, [skylight.id]: targetRate }));
+          setTransitionDuration(prev => ({ ...prev, [skylight.id]: 0.3 }));
           setOperationStatus(prev => ({ ...prev, [skylight.id]: 'completed' }));
           console.log(`[SKY AUTO] ${skylight.name} → ${targetRate}% 완료`);
         }, targetTimeSeconds * 1000);
@@ -848,16 +915,25 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           if (Array.isArray(parsed) && parsed.length > 0) {
             sideTempPointsFromMqttRef.current = true;
             setSideTempPoints(parsed);
+            setSidePointsReady(true);
           }
         } catch {}
       }),
       subscribeToTopic("tansaeng/side-control/sideL/currentPos", (v) => {
         const n = Number(v);
-        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, sidescreen_left: n }));
+        if (!isNaN(n)) {
+          setCurrentPosition(prev => ({ ...prev, sidescreen_left: n }));
+          setDisplayPosition(prev => ({ ...prev, sidescreen_left: n }));
+          setTransitionDuration(prev => ({ ...prev, sidescreen_left: 0.3 }));
+        }
       }),
       subscribeToTopic("tansaeng/side-control/sideR/currentPos", (v) => {
         const n = Number(v);
-        if (!isNaN(n)) setCurrentPosition(prev => ({ ...prev, sidescreen_right: n }));
+        if (!isNaN(n)) {
+          setCurrentPosition(prev => ({ ...prev, sidescreen_right: n }));
+          setDisplayPosition(prev => ({ ...prev, sidescreen_right: n }));
+          setTransitionDuration(prev => ({ ...prev, sidescreen_right: 0.3 }));
+        }
       }),
       subscribeToTopic("tansaeng/side-control/autoSensor", (v) => {
         if (v === "temp" || v === "humi") { sideAutoSensorRef.current = v; setSideAutoSensor(v); }
@@ -865,7 +941,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       subscribeToTopic("tansaeng/side-control/humPoints", (v) => {
         try {
           const parsed = JSON.parse(v);
-          if (Array.isArray(parsed) && parsed.length > 0) { sideHumPointsFromMqttRef.current = true; setSideHumPoints(parsed); }
+          if (Array.isArray(parsed) && parsed.length > 0) { sideHumPointsFromMqttRef.current = true; setSideHumPoints(parsed); setSidePointsReady(true); }
         } catch {}
       }),
       subscribeToTopic("tansaeng/side-control/autoType", (v) => {
@@ -881,13 +957,14 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           if (Array.isArray(parsed) && parsed.length > 0) {
             sideTimePointsFromMqttRef.current = true;
             setSideTimePoints(parsed);
+            setSidePointsReady(true);
           }
         } catch {}
       }),
       subscribeToTopic("tansaeng/side-control/dayNightConfig", (v) => {
         try {
           const parsed = JSON.parse(v);
-          if (parsed && typeof parsed === "object") { sideDayNightFromMqttRef.current = true; setSideDayNightConfig(parsed); }
+          if (parsed && typeof parsed === "object") { sideDayNightFromMqttRef.current = true; setSideDayNightConfig(parsed); setSidePointsReady(true); }
         } catch {}
       }),
       subscribeToTopic("tansaeng/fan-control/dayNightConfig", (v) => {
@@ -906,26 +983,12 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     return () => unsubs.forEach(u => u());
   }, []);
 
-  // 측창 온도 포인트 변경 시 MQTT retain 발행 (첫 렌더 기본값으로 덮어쓰기 방지)
-  useEffect(() => {
-    if (sideTempPointsFirstRunRef.current) { sideTempPointsFirstRunRef.current = false; return; }
-    if (sideTempPointsFromMqttRef.current) { sideTempPointsFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/side-control/tempPoints", JSON.stringify(sideTempPoints), { qos: 1, retain: true });
-  }, [sideTempPoints]);
-
   // 측창 autoType 변경 시 MQTT retain 발행
   useEffect(() => {
     if (sideAutoTypeFirstRunRef.current) { sideAutoTypeFirstRunRef.current = false; return; }
     if (sideAutoTypeFromMqttRef.current) { sideAutoTypeFromMqttRef.current = false; return; }
     getMqttClient().publish("tansaeng/side-control/autoType", sideAutoType, { qos: 1, retain: true });
   }, [sideAutoType]);
-
-  // 측창 시간 포인트 변경 시 MQTT retain 발행
-  useEffect(() => {
-    if (sideTimePointsFirstRunRef.current) { sideTimePointsFirstRunRef.current = false; return; }
-    if (sideTimePointsFromMqttRef.current) { sideTimePointsFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/side-control/timePoints", JSON.stringify(sideTimePoints), { qos: 1, retain: true });
-  }, [sideTimePoints]);
 
   // 측창 AUTO 제어 로직 — 시간/온도/습도 기준 개도율 계산 후 자동 이동
   useEffect(() => {
@@ -1047,24 +1110,20 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
       console.log(`[SIDE AUTO] ${sidescreen.name} ${sensorLabel}→${targetRate}% (현재:${currentPos}%, ${targetTimeSeconds.toFixed(1)}초 ${command})`);
 
+      setDisplayPosition(prev => ({ ...prev, [sidescreen.id]: targetRate }));
+      setTransitionDuration(prev => ({ ...prev, [sidescreen.id]: targetTimeSeconds }));
       sendDeviceCommand(sidescreen.esp32Id, mqttDeviceId, command).then(() => {
         percentageTimers.current[sidescreen.id] = setTimeout(async () => {
           await sendDeviceCommand(sidescreen.esp32Id, mqttDeviceId, "STOP");
           delete percentageTimers.current[sidescreen.id];
           setCurrentPosition(prev => ({ ...prev, [sidescreen.id]: targetRate }));
+          setTransitionDuration(prev => ({ ...prev, [sidescreen.id]: 0.3 }));
           setOperationStatus(prev => ({ ...prev, [sidescreen.id]: 'completed' }));
           console.log(`[SIDE AUTO] ${sidescreen.name} → ${targetRate}% 완료`);
         }, targetTimeSeconds * 1000);
       });
     });
   }, [farmSensors, sideTempPoints, sideHumPoints, sideTimePoints, sideDayNightConfig, sideAutoActive, sideAutoSensor, sideAutoType, currentMinute, sideLeftFullTime, sideRightFullTime]);
-
-  // 측창 주야간 설정 변경 시 MQTT retain 발행
-  useEffect(() => {
-    if (sideDayNightFirstRunRef.current) { sideDayNightFirstRunRef.current = false; return; }
-    if (sideDayNightFromMqttRef.current) { sideDayNightFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/side-control/dayNightConfig", JSON.stringify(sideDayNightConfig), { qos: 1, retain: true });
-  }, [sideDayNightConfig]);
 
   // 팬 주야간 설정 변경 시 MQTT retain 발행
   useEffect(() => {
@@ -1194,6 +1253,24 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     }
   };
 
+  const handleSkyPointsSave = () => {
+    if (!skyPointsReady) return;
+    getMqttClient().publish("tansaeng/sky-control/tempPoints", JSON.stringify(skyTempPoints), { qos: 1, retain: true });
+    getMqttClient().publish("tansaeng/sky-control/timePoints", JSON.stringify(skyTimePoints), { qos: 1, retain: true });
+    setSkySaveStatus("saved");
+    setTimeout(() => setSkySaveStatus("idle"), 2000);
+  };
+
+  const handleSidePointsSave = () => {
+    if (!sidePointsReady) return;
+    getMqttClient().publish("tansaeng/side-control/tempPoints", JSON.stringify(sideTempPoints), { qos: 1, retain: true });
+    getMqttClient().publish("tansaeng/side-control/timePoints", JSON.stringify(sideTimePoints), { qos: 1, retain: true });
+    getMqttClient().publish("tansaeng/side-control/humPoints", JSON.stringify(sideHumPoints), { qos: 1, retain: true });
+    getMqttClient().publish("tansaeng/side-control/dayNightConfig", JSON.stringify(sideDayNightConfig), { qos: 1, retain: true });
+    setSideSaveStatus("saved");
+    setTimeout(() => setSideSaveStatus("idle"), 2000);
+  };
+
   // 천창/측창 퍼센트 저장 핸들러
   const handleSavePercentage = (deviceId: string) => {
     const inputValue = percentageInputs[deviceId];
@@ -1270,23 +1347,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       await sendDeviceCommand(device.esp32Id, mqttDeviceId, command);
       console.log(`[EXECUTE] ${device.name} - ${targetTimeSeconds.toFixed(1)}초 동안 ${action} 시작`);
 
+      setDisplayPosition(prev => ({ ...prev, [deviceId]: targetPercentage }));
+      setTransitionDuration(prev => ({ ...prev, [deviceId]: targetTimeSeconds }));
+
       // 목표 시간만큼 작동 후 자동 정지
       percentageTimers.current[deviceId] = setTimeout(async () => {
         await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
         console.log(`[EXECUTE] ${device.name} - ${targetPercentage}% 위치에서 정지`);
         delete percentageTimers.current[deviceId];
 
-        // 현재 위치를 목표 위치로 업데이트
-        setCurrentPosition(prev => ({
-          ...prev,
-          [deviceId]: targetPercentage
-        }));
-
-        // 작동 완료 - 상태를 "완료"로 변경
-        setOperationStatus(prev => ({
-          ...prev,
-          [deviceId]: 'completed'
-        }));
+        setCurrentPosition(prev => ({ ...prev, [deviceId]: targetPercentage }));
+        setTransitionDuration(prev => ({ ...prev, [deviceId]: 0.3 }));
+        setOperationStatus(prev => ({ ...prev, [deviceId]: 'completed' }));
       }, targetTimeSeconds * 1000);
     } catch (error) {
       console.error(`[EXECUTE ERROR] ${device.name}:`, error);
@@ -1322,10 +1394,13 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     try {
       await sendDeviceCommand(device.esp32Id, mqttDeviceId, "CLOSE");
+      setDisplayPosition(prev => ({ ...prev, [deviceId]: 0 }));
+      setTransitionDuration(prev => ({ ...prev, [deviceId]: fullTimeSeconds }));
       percentageTimers.current[deviceId] = setTimeout(async () => {
         await sendDeviceCommand(device.esp32Id, mqttDeviceId, "STOP");
         delete percentageTimers.current[deviceId];
         setCurrentPosition(prev => ({ ...prev, [deviceId]: 0 }));
+        setTransitionDuration(prev => ({ ...prev, [deviceId]: 0.3 }));
         getMqttClient().publish(
           `tansaeng/${groupPrefix}/${mqttDeviceId}/currentPos`,
           "0",
@@ -1605,6 +1680,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 </button>
                 <button
                   onClick={() => {
+                    if (skyMode === "AUTO" && !window.confirm("천창 AUTO 모드를 종료하고 수동(MANUAL)으로 전환합니다.\n계속하시겠습니까?")) return;
                     skyModeRef.current = "MANUAL";
                     setSkyMode("MANUAL");
                     setSkyAutoActive(false);
@@ -1707,6 +1783,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </button>
                     <button
                       onClick={() => {
+                        if (!window.confirm("천창 AUTO 작동을 멈춥니다.\n계속하시겠습니까?")) return;
                         setSkyAutoActive(false);
                         getMqttClient().publish("tansaeng/sky-control/autoActive", "false", { qos: 1, retain: true });
                         skylights.forEach((skylight) => {
@@ -1919,6 +1996,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                   ))}
                 </div>
+                <div className="flex justify-end mt-2">
+                  <button onClick={handleSkyPointsSave} disabled={!skyPointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${skyPointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
+                    {!skyPointsReady ? "로딩 중..." : skySaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1988,6 +2070,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       )}
                     </div>
                   ))}
+                </div>
+                <div className="flex justify-end mt-2">
+                  <button onClick={handleSkyPointsSave} disabled={!skyPointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${skyPointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
+                    {!skyPointsReady ? "로딩 중..." : skySaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                  </button>
                 </div>
               </div>
             )}
@@ -2093,6 +2180,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     ))}
                   </div>
                 </div>
+                <div className="flex justify-end">
+                  <button onClick={handleSkyPointsSave} disabled={!skyPointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${skyPointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
+                    {!skyPointsReady ? "로딩 중..." : skySaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -2129,7 +2221,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     <div className="flex items-center justify-between text-[10px] sm:text-xs text-gray-600 mb-1">
                       <span>현재 위치</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-amber-600 text-sm">{currentPosition[skylight.id] ?? 0}%</span>
+                        <span className="font-bold text-amber-600 text-sm">{Math.round(displayPosition[skylight.id] ?? currentPosition[skylight.id] ?? 0)}%</span>
                         <button
                           onClick={() => handleResetPosition(skylight.id)}
                           disabled={resetStatus[skylight.id] === 'resetting' || operationStatus[skylight.id] === 'running'}
@@ -2145,8 +2237,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className="bg-amber-500 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${currentPosition[skylight.id] ?? 0}%` }}
+                        className="bg-amber-500 h-2 rounded-full"
+                        style={{
+                          width: `${displayPosition[skylight.id] ?? currentPosition[skylight.id] ?? 0}%`,
+                          transition: `width ${transitionDuration[skylight.id] ?? 0.5}s linear`
+                        }}
                       />
                     </div>
                   </div>
@@ -2270,6 +2365,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                 </button>
                 <button
                   onClick={() => {
+                    if (sideMode === "AUTO" && !window.confirm("측창 AUTO 모드를 종료하고 수동(MANUAL)으로 전환합니다.\n계속하시겠습니까?")) return;
                     sideModeRef.current = "MANUAL";
                     setSideMode("MANUAL");
                     setSideAutoActive(false);
@@ -2305,6 +2401,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </button>
                   <button
                     onClick={() => {
+                      if (!window.confirm("측창 AUTO 작동을 멈춥니다.\n계속하시겠습니까?")) return;
                       setSideAutoActive(false);
                       getMqttClient().publish("tansaeng/side-control/autoActive", "false", { qos: 1, retain: true });
                       // 진행 중인 모터 타이머 취소 + STOP 명령 즉시 전송
@@ -2492,6 +2589,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         </div>
                       ))}
                     </div>
+                    <div className="flex justify-end mt-2">
+                      <button onClick={handleSidePointsSave} disabled={!sidePointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${sidePointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
+                        {!sidePointsReady ? "로딩 중..." : sideSaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                      </button>
+                    </div>
                   </>
                 )}
 
@@ -2582,6 +2684,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </div>
                       {mkPeriodEditor("day", "☀️ 주간 설정")}
                       {mkPeriodEditor("night", "🌙 야간 설정")}
+                      <div className="flex justify-end mt-1">
+                        <button onClick={handleSidePointsSave} disabled={!sidePointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${sidePointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
+                          {!sidePointsReady ? "로딩 중..." : sideSaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                        </button>
+                      </div>
                     </div>
                   );
                 })()}
@@ -2733,6 +2840,13 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                   </>
                 )}
+                {sideAutoType === "temp" && (
+                  <div className="flex justify-end mt-2">
+                    <button onClick={handleSidePointsSave} disabled={!sidePointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${sidePointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
+                      {!sidePointsReady ? "로딩 중..." : sideSaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2769,7 +2883,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     <div className="flex items-center justify-between text-[10px] sm:text-xs text-gray-600 mb-1">
                       <span>현재 위치</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-blue-600 text-sm">{currentPosition[sidescreen.id] ?? 0}%</span>
+                        <span className="font-bold text-blue-600 text-sm">{Math.round(displayPosition[sidescreen.id] ?? currentPosition[sidescreen.id] ?? 0)}%</span>
                         <button
                           onClick={() => handleResetPosition(sidescreen.id)}
                           disabled={resetStatus[sidescreen.id] === 'resetting' || operationStatus[sidescreen.id] === 'running'}
@@ -2785,8 +2899,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${currentPosition[sidescreen.id] ?? 0}%` }}
+                        className="bg-blue-500 h-2 rounded-full"
+                        style={{
+                          width: `${displayPosition[sidescreen.id] ?? currentPosition[sidescreen.id] ?? 0}%`,
+                          transition: `width ${transitionDuration[sidescreen.id] ?? 0.5}s linear`
+                        }}
                       />
                     </div>
                   </div>
@@ -2960,9 +3077,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </button>
                   <button
                     onClick={() => {
+                      if (fanMode === "AUTO" && !window.confirm("팬 AUTO 모드를 종료하고 수동(MANUAL)으로 전환합니다.\n계속하시겠습니까?")) return;
                       fanModeRef.current = "MANUAL";
                       setFanMode("MANUAL");
+                      setFanAutoActive(false);
+                      fanDeviceLastCmd.current = {};
                       getMqttClient().publish("tansaeng/fan-control/mode", "MANUAL", { qos: 1, retain: true });
+                      getMqttClient().publish("tansaeng/fan-control/autoActive", "false", { qos: 1, retain: true });
+                      fans.forEach((fan) => {
+                        const mqttDeviceId = fan.commandTopic.split('/')[2];
+                        setDeviceState(prev => ({ ...prev, [fan.id]: { ...prev[fan.id], power: "off" } }));
+                        sendDeviceCommand(fan.esp32Id, mqttDeviceId, "OFF");
+                      });
                     }}
                     className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
                       fanMode === "MANUAL"
@@ -3013,7 +3139,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </div>
 
                   {fanDayNightConfig.enabled ? (
-                    /* 주야간 모드 설정 UI */
+                    <>
+                    {/* 주야간 모드 설정 UI */}
                     <div className="space-y-2">
                       {/* 시간 설정 */}
                       <div className="flex items-center gap-3 text-xs bg-white border border-indigo-100 rounded-lg px-3 py-2">
@@ -3078,6 +3205,49 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         );
                       })}
                     </div>
+                    {/* 현재값 + 작동시작/멈춤 버튼 (주야간 모드) */}
+                    <div className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2 gap-2 mt-2">
+                      <div className="text-xs text-gray-600">
+                        평균온도: <span className="font-bold text-gray-800">{avgTemp !== null ? `${avgTemp.toFixed(1)}°C` : "—"}</span>
+                        {" / "}습도: <span className="font-bold text-gray-800">{avgHumi !== null ? `${avgHumi.toFixed(0)}%` : "—"}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            fanDeviceLastCmd.current = {};
+                            setFanAutoActive(true);
+                            getMqttClient().publish("tansaeng/fan-control/autoActive", "true", { qos: 1, retain: true });
+                          }}
+                          className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                            fanAutoActive ? "bg-green-500 text-white shadow" : "bg-white border border-green-400 text-green-600 hover:bg-green-50"
+                          }`}
+                        >
+                          ▶ 작동시작
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!fanAutoActive || !window.confirm("팬 AUTO 작동을 멈춥니다.\n계속하시겠습니까?")) return;
+                            setFanAutoActive(false);
+                            getMqttClient().publish("tansaeng/fan-control/autoActive", "false", { qos: 1, retain: true });
+                            fans.forEach((fan) => {
+                              fanDeviceLastCmd.current[fan.id] = "OFF";
+                              setDeviceState(prev => ({
+                                ...prev,
+                                [fan.id]: { ...prev[fan.id], power: "off", lastSavedAt: new Date().toISOString() }
+                              }));
+                              const mqttDeviceId = fan.commandTopic.split('/')[2];
+                              sendDeviceCommand(fan.esp32Id, mqttDeviceId, "OFF");
+                            });
+                          }}
+                          className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                            !fanAutoActive ? "bg-gray-500 text-white shadow" : "bg-white border border-gray-400 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          ■ 작동멈춤
+                        </button>
+                      </div>
+                    </div>
+                    </>
                   ) : (
                   <>
                   {/* 제어 센서 선택 */}
@@ -3127,6 +3297,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </button>
                       <button
                         onClick={() => {
+                          if (!fanAutoActive || !window.confirm("팬 AUTO 작동을 멈춥니다.\n계속하시겠습니까?")) return;
                           setFanAutoActive(false);
                           getMqttClient().publish("tansaeng/fan-control/autoActive", "false", { qos: 1, retain: true });
                           fans.forEach((fan) => {
@@ -3344,6 +3515,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   </button>
                   <button
                     onClick={() => {
+                      if (hpMode === "AUTO" && !window.confirm("히트펌프 AUTO 모드를 종료하고 수동(MANUAL)으로 전환합니다.\n계속하시겠습니까?")) return;
                       hpModeRef.current = "MANUAL";
                       setHpMode("MANUAL");
                       setHpAutoActive(false);
@@ -3352,6 +3524,13 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/hp-control/mode", "MANUAL", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
+                      // 수동 전환 시 모든 HP 장치 OFF (AUTO 상태 초기화)
+                      const HP = "ctlr-heat-001";
+                      (["hp_pump", "hp_heater", "hp_fan"] as const).forEach((k, i) => {
+                        const mqttId = ["pump", "heater", "fan"][i];
+                        setHpDeviceStates(prev => ({ ...prev, [k]: "OFF" }));
+                        sendDeviceCommand(HP, mqttId, "OFF");
+                      });
                     }}
                     className={`w-full py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${
                       hpMode === "MANUAL"
@@ -3504,6 +3683,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       </button>
                       <button
                         onClick={() => {
+                          if (!hpAutoActive || !window.confirm("히트펌프 AUTO 작동을 멈춥니다.\n계속하시겠습니까?")) return;
                           setHpAutoActive(false);
                           getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
                           // 모든 HP 장치 정지
