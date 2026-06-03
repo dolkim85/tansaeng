@@ -3628,7 +3628,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         return (
                           <div key={period} className="bg-white border border-indigo-200 rounded-lg p-2.5 space-y-2">
                             <p className="text-xs font-bold text-indigo-700">{pLabel} — 작동 온도 범위</p>
-                            {gaugeItems.map(({ key, label, icon }) => {
+                            {gaugeItems.map(({ key, label, icon, sensorVal }) => {
                               const range = pRanges[key] ?? { low: 8, high: 15 };
                               return (
                                 <div key={key} className="space-y-1">
@@ -3647,7 +3647,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                                       const def = {low:8,high:15};
                                       setHpDayNightConfig(prev => ({ ...prev, [period]: { ranges: { ...prev[period].ranges, [key]: { ...(prev[period].ranges[key] ?? def), high: v } } } }));
                                     }}
-                                    markerPct={toMarkerPct(avgTemp)} isActive={avgTemp !== null && avgTemp >= range.low && avgTemp <= range.high}
+                                    markerPct={toMarkerPct(sensorVal)} isActive={sensorVal !== null && sensorVal >= range.low && sensorVal <= range.high}
                                   />
                                 </div>
                               );
@@ -3706,8 +3706,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                   </div>
 
-                  {/* 장치별 게이지 */}
-                  {gaugeItems.map(({ key, label, icon, sensorVal, sensorLabel }) => {
+                  {/* 장치별 게이지 — 주간/야간 모드 OFF일 때만 표시 */}
+                  {!hpDayNightConfig.enabled && gaugeItems.map(({ key, label, icon, sensorVal, sensorLabel }) => {
                     const range = hpDeviceRanges[key] ?? { low: 15, high: 22 };
                     const isOn = hpDeviceStates[key] === "ON";
                     const markerPct = toMarkerPct(sensorVal);
