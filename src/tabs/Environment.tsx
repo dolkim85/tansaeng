@@ -267,7 +267,8 @@ export default function Environment() {
       });
     });
 
-    return result.reverse();
+    // DB가 ASC 정렬이므로 result는 이미 오래된 순 (차트 x축: 왼쪽=과거, 오른쪽=현재)
+    return result;
   };
 
   // 시간 단위에 따른 데이터 로드 (period와 chartInterval에 따라)
@@ -312,23 +313,20 @@ export default function Environment() {
           startDate.setMonth(startDate.getMonth() - 1);
         }
 
-        const startStr = startDate.toISOString().split('T')[0];
-        const endStr = endDate.toISOString().split('T')[0];
+        // 로컬 타임존 기준 datetime 문자열 (KST 기준 DB와 일치)
+        const toLocalDT = (d: Date) => {
+          const pad = (n: number) => String(n).padStart(2, '0');
+          return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        };
 
         const response = await fetch(
-          `/api/smartfarm/get_sensor_data.php?start_date=${startStr}&end_date=${endStr}`
+          `/api/smartfarm/get_sensor_data.php?start_datetime=${encodeURIComponent(toLocalDT(startDate))}&end_datetime=${encodeURIComponent(toLocalDT(endDate))}`
         );
         const result = await response.json();
 
         if (result.success && result.data) {
-          // 시작 시간 이후의 데이터만 필터링 (더 정확한 범위)
-          const filteredData = result.data.filter((record: any) => {
-            const recordTime = new Date(record.recorded_at);
-            return recordTime >= startDate;
-          });
-
           // 시간 단위에 따라 데이터 집계
-          const aggregatedData = aggregateDataByInterval(filteredData, chartInterval);
+          const aggregatedData = aggregateDataByInterval(result.data, chartInterval);
           setChartData(aggregatedData);
         }
       } catch (error) {
@@ -405,8 +403,10 @@ export default function Environment() {
     setIsLoadingHistory(true);
     setCurrentPage(1); // 조회 시 첫 페이지로 이동
     try {
-      const startStr = selectedStartDate.toISOString().split('T')[0];
-      const endStr = selectedEndDate.toISOString().split('T')[0];
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const toLocalDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      const startStr = toLocalDate(selectedStartDate);
+      const endStr = toLocalDate(selectedEndDate);
 
       const response = await fetch(
         `/api/smartfarm/get_sensor_data.php?start_date=${startStr}&end_date=${endStr}`
@@ -1145,7 +1145,7 @@ export default function Environment() {
                     <YAxis
                       tick={{ fontSize: 10 }}
                       domain={['dataMin - 2', 'dataMax + 2']}
-                      tickFormatter={(value) => `${value}°`}
+                      tickFormatter={(value) => `${Number(value).toFixed(1)}°`}
                       label={{ value: '온도(°C)', angle: -90, position: 'insideLeft', fontSize: 11 }}
                     />
                     <Tooltip
@@ -1303,7 +1303,7 @@ export default function Environment() {
                     <YAxis
                       tick={{ fontSize: 10 }}
                       domain={['dataMin - 5', 'dataMax + 5']}
-                      tickFormatter={(value) => `${value}%`}
+                      tickFormatter={(value) => `${Number(value).toFixed(1)}%`}
                       label={{ value: '습도(%)', angle: -90, position: 'insideLeft', fontSize: 11 }}
                     />
                     <Tooltip

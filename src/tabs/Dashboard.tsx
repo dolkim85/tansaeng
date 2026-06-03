@@ -134,6 +134,233 @@ function LineChart({ points, color }: { points: ChartPoint[]; color: string }) {
 
 const LOCATION_LABELS: Record<string, string> = { front: "앞쪽", back: "뒤쪽", top: "천장" };
 
+interface MistLog {
+  id: number;
+  zone_id: string;
+  zone_name: string;
+  event_type: "start" | "stop";
+  mode: string;
+  created_at: string;
+}
+
+interface MistLogData {
+  logs: MistLog[];
+  total_count: number;
+  total_pages: number;
+  page: number;
+  summary: { start_count: number; total_minutes: number };
+  zones: { zone_id: string; zone_name: string }[];
+}
+
+// ── 분무 로그 검색/삭제 컴포넌트 ──
+function MistLogPanel() {
+  const today = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const toDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+  const [date,        setDate]        = useState(toDateStr(today));
+  const [zoneFilter,  setZoneFilter]  = useState("");
+  const [data,        setData]        = useState<MistLogData | null>(null);
+  const [page,        setPage]        = useState(1);
+  const [loading,     setLoading]     = useState(false);
+  const [selected,    setSelected]    = useState<Set<number>>(new Set());
+  const [deleting,    setDeleting]    = useState(false);
+
+  const load = async (p = 1) => {
+    setLoading(true);
+    setSelected(new Set());
+    try {
+      const params = new URLSearchParams({ date, page: String(p), per_page: "20" });
+      if (zoneFilter) params.set("zone_id", zoneFilter);
+      const r = await fetch(`/api/smartfarm/get_mist_logs.php?${params}`);
+      const d = await r.json();
+      if (d.success) { setData(d); setPage(p); }
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { load(1); }, [date, zoneFilter]);
+
+  const toggleSelect = (id: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (!data) return;
+    const ids = data.logs.map(l => l.id);
+    const allSel = ids.every(id => selected.has(id));
+    setSelected(allSel ? new Set() : new Set(ids));
+  };
+
+  const deleteSelected = async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return;
+    setDeleting(true);
+    await Promise.all([...selected].map(id =>
+      fetch("/api/smartfarm/delete_mist_log.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+    ));
+    setDeleting(false);
+    load(page);
+  };
+
+  const deleteByDate = async () => {
+    const msg = zoneFilter
+      ? `${date} / ${zoneFilter} 의 로그를 전부 삭제하시겠습니까?`
+      : `${date} 의 모든 로그를 삭제하시겠습니까?`;
+    if (!confirm(msg)) return;
+    setDeleting(true);
+    const body: any = { date };
+    if (zoneFilter) body.zone_id = zoneFilter;
+    await fetch("/api/smartfarm/delete_mist_log.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setDeleting(false);
+    load(1);
+  };
+
+  const allSelected = data ? data.logs.length > 0 && data.logs.every(l => selected.has(l.id)) : false;
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+      {/* 필터 행 */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <input
+          type="date"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+          className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs"
+        />
+        <select
+          value={zoneFilter}
+          onChange={e => setZoneFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs"
+        >
+          <option value="">전체 구역</option>
+          {data?.zones.map(z => (
+            <option key={z.zone_id} value={z.zone_id}>{z.zone_name}</option>
+          ))}
+        </select>
+        <div className="flex-1" />
+        {selected.size > 0 && (
+          <button
+            onClick={deleteSelected}
+            disabled={deleting}
+            className="px-3 py-1.5 text-xs font-semibold bg-red-500 hover:bg-red-600 text-white rounded-lg disabled:opacity-50"
+          >
+            선택 삭제 ({selected.size})
+          </button>
+        )}
+        <button
+          onClick={deleteByDate}
+          disabled={deleting}
+          className="px-3 py-1.5 text-xs font-semibold bg-gray-500 hover:bg-gray-600 text-white rounded-lg disabled:opacity-50"
+        >
+          날짜 전체 삭제
+        </button>
+      </div>
+
+      {/* 요약 */}
+      {data && (
+        <div className="flex gap-3 mb-2 text-xs text-gray-500">
+          <span>총 <b className="text-gray-700">{data.total_count}</b>건</span>
+          <span>분무 <b className="text-blue-600">{data.summary.start_count}</b>회</span>
+          <span>누적 <b className="text-blue-600">{data.summary.total_minutes}</b>분</span>
+        </div>
+      )}
+
+      {/* 테이블 */}
+      {loading ? (
+        <div className="text-center py-6 text-xs text-gray-400">로딩 중...</div>
+      ) : !data || data.logs.length === 0 ? (
+        <div className="text-center py-6 text-xs text-gray-400">해당 날짜에 기록이 없습니다</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-100 text-gray-400">
+                <th className="py-1.5 pr-2 text-left w-6">
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+                </th>
+                <th className="py-1.5 px-2 text-left">시각</th>
+                <th className="py-1.5 px-2 text-left">구역</th>
+                <th className="py-1.5 px-2 text-left">이벤트</th>
+                <th className="py-1.5 px-2 text-left">모드</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.logs.map(log => (
+                <tr key={log.id} className={`border-b border-gray-50 last:border-0 ${selected.has(log.id) ? "bg-red-50" : ""}`}>
+                  <td className="py-2 pr-2">
+                    <input type="checkbox" checked={selected.has(log.id)} onChange={() => toggleSelect(log.id)} />
+                  </td>
+                  <td className="py-2 px-2 font-mono text-gray-400 whitespace-nowrap">
+                    {log.created_at.slice(5, 16).replace("T", " ")}
+                  </td>
+                  <td className="py-2 px-2 text-gray-700">{log.zone_name}</td>
+                  <td className="py-2 px-2">
+                    {log.event_type === "start"
+                      ? <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">🟢 시작</span>
+                      : <span className="px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">🔴 정지</span>}
+                  </td>
+                  <td className="py-2 px-2">
+                    <span className={`px-1.5 py-0.5 rounded-full ${log.mode === "AUTO" ? "bg-blue-100 text-blue-700" : "bg-yellow-100 text-yellow-700"}`}>
+                      {log.mode}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* 페이징 */}
+      {data && (
+        <div className="flex items-center justify-between mt-3">
+          <span className="text-xs text-gray-400">{data.total_count}건 · {page}/{data.total_pages} 페이지</span>
+          <div className="flex gap-1">
+            <button onClick={() => load(1)} disabled={page === 1} className="px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-30">«</button>
+            <button onClick={() => load(page - 1)} disabled={page === 1} className="px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-30">‹</button>
+            {/* 페이지 번호 버튼 */}
+            {Array.from({ length: data.total_pages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === data.total_pages || Math.abs(p - page) <= 2)
+              .reduce<(number | "...")[]>((acc, p, i, arr) => {
+                if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === "..." ? (
+                  <span key={`dot-${i}`} className="px-2 py-1 text-xs text-gray-400">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => load(p as number)}
+                    className={`px-2.5 py-1 text-xs rounded border ${page === p ? "bg-blue-500 text-white border-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+            <button onClick={() => load(page + 1)} disabled={page === data.total_pages} className="px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-30">›</button>
+            <button onClick={() => load(data.total_pages)} disabled={page === data.total_pages} className="px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-30">»</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard({ mistZones }: DashboardProps) {
   const [dashData,    setDashData]    = useState<DashboardData | null>(null);
   const [sensorData,  setSensorData]  = useState<RealtimeSensorData | null>(null);
@@ -351,42 +578,13 @@ export default function Dashboard({ mistZones }: DashboardProps) {
         </div>
       </div>
 
-      {/* ── 최근 분무 이벤트 ── */}
-      {dashData && dashData.recent_mist.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
-            🕐 최근 분무 이벤트
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <table className="w-full text-sm">
-              <tbody>
-                {dashData.recent_mist.map((e, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0">
-                    <td className="px-4 py-2.5 font-mono text-xs text-gray-400 w-28">
-                      {e.date_str} {e.time_str}
-                    </td>
-                    <td className="px-2 py-2.5 text-xs text-gray-700">{e.zone_name}</td>
-                    <td className="px-2 py-2.5">
-                      {e.event_type === "start" ? (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">🟢 시작</span>
-                      ) : (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">🔴 정지</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-2.5">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${
-                        e.mode === "AUTO" ? "bg-blue-100 text-blue-700" : "bg-yellow-100 text-yellow-700"
-                      }`}>
-                        {e.mode}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {/* ── 분무 이벤트 로그 ── */}
+      <div>
+        <div className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+          🕐 분무 이벤트 로그
         </div>
-      )}
+        <MistLogPanel />
+      </div>
 
       {/* ── 24h 차트 ── */}
       <div>
