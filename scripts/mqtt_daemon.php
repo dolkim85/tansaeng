@@ -542,7 +542,8 @@ try {
         }
 
         // ========== 환기팬 자동 제어 ==========
-        if (isset($cachedSettings['fans'])) {
+        // Node.js smartfarm_auto_control_daemon.cjs 가 전담 — PHP 데몬은 개입하지 않음
+        if (false && isset($cachedSettings['fans'])) {
             foreach ($cachedSettings['fans'] as $fanId => $fanConfig) {
                 $mode = $fanConfig['mode'] ?? 'OFF';
                 $controllerId = $fanConfig['controllerId'] ?? null;
