@@ -1125,19 +1125,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     });
   }, [farmSensors, sideTempPoints, sideHumPoints, sideTimePoints, sideDayNightConfig, sideAutoActive, sideAutoSensor, sideAutoType, currentMinute, sideLeftFullTime, sideRightFullTime]);
 
-  // 팬 주야간 설정 변경 시 MQTT retain 발행
-  useEffect(() => {
-    if (fanDayNightFirstRunRef.current) { fanDayNightFirstRunRef.current = false; return; }
-    if (fanDayNightFromMqttRef.current) { fanDayNightFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/fan-control/dayNightConfig", JSON.stringify(fanDayNightConfig), { qos: 1, retain: true });
-  }, [fanDayNightConfig]);
-
-  // HP 주야간 설정 변경 시 MQTT retain 발행
-  useEffect(() => {
-    if (hpDayNightFirstRunRef.current) { hpDayNightFirstRunRef.current = false; return; }
-    if (hpDayNightFromMqttRef.current) { hpDayNightFromMqttRef.current = false; return; }
-    getMqttClient().publish("tansaeng/hp-control/dayNightConfig", JSON.stringify(hpDayNightConfig), { qos: 1, retain: true });
-  }, [hpDayNightConfig]);
+  // 팬/HP 주야간 설정은 "데몬에 저장" 버튼 클릭 시에만 발행 (슬라이더 중간값 방지)
 
   // ESP32 상태 API 폴링 (데몬이 수집한 상태 조회)
   useEffect(() => {
@@ -3205,6 +3193,15 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         );
                       })}
                     </div>
+                    {/* 데몬에 저장 버튼 */}
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => getMqttClient().publish("tansaeng/fan-control/dayNightConfig", JSON.stringify(fanDayNightConfig), { qos: 1, retain: true })}
+                        className="px-3 py-1.5 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white rounded-md transition-colors"
+                      >
+                        💾 데몬에 저장
+                      </button>
+                    </div>
                     {/* 현재값 + 작동시작/멈춤 버튼 (주야간 모드) */}
                     <div className="flex items-center justify-between bg-gray-100 rounded-lg px-3 py-2 gap-2 mt-2">
                       <div className="text-xs text-gray-600">
@@ -3655,6 +3652,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+
+                  {/* HP 주야간 데몬에 저장 버튼 */}
+                  {hpDayNightConfig.enabled && (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => getMqttClient().publish("tansaeng/hp-control/dayNightConfig", JSON.stringify(hpDayNightConfig), { qos: 1, retain: true })}
+                        className="px-3 py-1.5 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white rounded-md transition-colors"
+                      >
+                        💾 데몬에 저장
+                      </button>
                     </div>
                   )}
 
