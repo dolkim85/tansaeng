@@ -4,14 +4,31 @@
 function searchProducts() {
     const searchTerm = document.getElementById('productSearch').value.trim();
     if (searchTerm) {
-        alert(`"${searchTerm}" 검색 기능은 준비 중입니다.`);
-        // 실제 구현시 AJAX로 검색 결과 가져오기
+        // URL에 검색어 매개변수 추가하여 페이지 새로고침
+        const currentUrl = new URL(window.location);
+        currentUrl.searchParams.set('search', searchTerm);
+        // 검색 시 첫 페이지로 리셋
+        currentUrl.searchParams.delete('page');
+        window.location.href = currentUrl.toString();
+    } else {
+        // 검색어가 비어있으면 검색 매개변수 제거
+        const currentUrl = new URL(window.location);
+        currentUrl.searchParams.delete('search');
+        window.location.href = currentUrl.toString();
     }
 }
 
 function searchKeyword(keyword) {
     document.getElementById('productSearch').value = keyword;
     searchProducts();
+}
+
+function clearSearch() {
+    document.getElementById('productSearch').value = '';
+    const currentUrl = new URL(window.location);
+    currentUrl.searchParams.delete('search');
+    currentUrl.searchParams.delete('page');
+    window.location.href = currentUrl.toString();
 }
 
 // Product search on Enter key
@@ -30,9 +47,13 @@ document.addEventListener('DOMContentLoaded', function() {
 function sortProducts() {
     const sortValue = document.getElementById('sortSelect').value;
     console.log('Sorting by:', sortValue);
-    
-    // 실제 구현시 AJAX로 정렬된 결과 가져오기
-    alert(`${getSortLabel(sortValue)} 정렬 기능은 준비 중입니다.`);
+
+    // 현재 카테고리 유지하면서 정렬 매개변수 추가
+    const currentUrl = new URL(window.location);
+    currentUrl.searchParams.set('sort', sortValue);
+    // 정렬 변경 시 첫 페이지로 리셋
+    currentUrl.searchParams.delete('page');
+    window.location.href = currentUrl.toString();
 }
 
 function getSortLabel(value) {
@@ -65,46 +86,48 @@ function toggleView(viewType) {
 // Category filter
 function filterByCategory(categoryId) {
     console.log('Filtering by category:', categoryId);
-    // 실제 구현시 AJAX로 해당 카테고리 제품 가져오기
-    alert(`카테고리 필터 기능은 준비 중입니다. (카테고리 ID: ${categoryId})`);
+
+    // URL에 카테고리 매개변수 추가하여 페이지 새로고침
+    const currentUrl = new URL(window.location);
+    if (categoryId && categoryId !== 'all') {
+        currentUrl.searchParams.set('category', categoryId);
+    } else {
+        currentUrl.searchParams.delete('category');
+    }
+    // 카테고리 변경 시 첫 페이지로 리셋
+    currentUrl.searchParams.delete('page');
+    window.location.href = currentUrl.toString();
 }
 
 // Product navigation
 function showProducts(type) {
-    // Remove active class from all nav buttons
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
-    // Add active class to clicked button
-    event.target.classList.add('active');
-    
     console.log('Showing products:', type);
-    
-    const labels = {
-        'featured': '추천 제품',
-        'new': '신상품',
-        'bestseller': '베스트셀러',
-        'sale': '할인 상품'
-    };
-    
-    // 실제 구현시 AJAX로 해당 타입의 제품 가져오기
-    alert(`${labels[type]} 보기 기능은 준비 중입니다.`);
+
+    // URL에 제품 타입 매개변수 추가하여 페이지 새로고침
+    const currentUrl = new URL(window.location);
+    if (type && type !== 'new') {
+        currentUrl.searchParams.set('type', type);
+    } else {
+        currentUrl.searchParams.delete('type');
+    }
+    // 제품 타입 변경 시 첫 페이지로 리셋
+    currentUrl.searchParams.delete('page');
+    window.location.href = currentUrl.toString();
 }
 
 // Product actions
 function addToCart(productId) {
     console.log('Adding to cart:', productId);
-    
+
     // 간단한 시각적 피드백
     const button = event.target;
     const originalText = button.textContent;
-    
+
     button.textContent = '추가 중...';
     button.disabled = true;
-    
+
     // AJAX로 장바구니에 추가
-    fetch('/api/cart.php', {
+    fetch('../../api/cart.php?action=add', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -114,11 +137,28 @@ function addToCart(productId) {
             quantity: 1
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('HTTP 상태:', response.status);
+        console.log('응답 객체:', response);
+        // HTTP 400도 JSON으로 파싱 (로그인 필요 등의 경우)
+        return response.json();
+    })
     .then(data => {
+        console.log('파싱된 데이터:', data);
+        console.log('장바구니 추가 응답:', data);
+        console.log('Response details:', JSON.stringify(data, null, 2));
+
         if (data.success) {
             button.textContent = '완료!';
-            updateCartCount();
+            console.log('Cart summary in response:', data.cart);
+
+            // 전역 함수 확인 후 호출
+            if (typeof window.updateCartCount === 'function') {
+                window.updateCartCount();
+            } else {
+                console.log('updateCartCount 함수를 찾을 수 없습니다');
+            }
+
             setTimeout(() => {
                 button.textContent = originalText;
                 button.disabled = false;
@@ -126,22 +166,40 @@ function addToCart(productId) {
         } else {
             button.textContent = originalText;
             button.disabled = false;
-            alert(data.message || '장바구니 추가에 실패했습니다');
+
+            // 로그인이 필요한 경우 팝업 표시
+            if (data.require_login) {
+                if (confirm(data.message + '\n로그인 페이지로 이동하시겠습니까?')) {
+                    // 현재 페이지를 기억하고 로그인 페이지로 이동
+                    window.location.href = '/pages/auth/login.php?redirect=' + encodeURIComponent(window.location.pathname);
+                }
+            } else {
+                alert(data.message || '장바구니 추가에 실패했습니다');
+            }
         }
     })
     .catch(error => {
         console.error('Error:', error);
         button.textContent = originalText;
         button.disabled = false;
-        alert('오류가 발생했습니다');
+
+        // 에러 메시지에서 로그인 필요 여부 확인
+        const errorStr = error.toString();
+        if (errorStr.includes('로그인') || errorStr.includes('require_login')) {
+            if (confirm('로그인이 필요한 기능입니다.\n로그인 페이지로 이동하시겠습니까?')) {
+                window.location.href = '/pages/auth/login.php?redirect=' + encodeURIComponent(window.location.pathname);
+            }
+        } else {
+            alert('오류가 발생했습니다');
+        }
     });
 }
 
 function buyNow(productId) {
     console.log('Buying now:', productId);
-    
+
     // 장바구니에 추가 후 장바구니 페이지로 이동
-    fetch('/api/cart.php', {
+    fetch('../../api/cart.php?action=add', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -151,12 +209,28 @@ function buyNow(productId) {
             quantity: 1
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        // HTTP 400도 JSON으로 파싱 (로그인 필요 등의 경우)
+        return response.json();
+    })
     .then(data => {
+        console.log('바로구매 응답:', data);
         if (data.success) {
-            location.href = '/pages/store/cart.php';
+            // 장바구니 카운트 업데이트 후 이동
+            if (typeof window.updateCartCount === 'function') {
+                window.updateCartCount();
+            }
+            location.href = './cart.php';
         } else {
-            alert(data.message || '구매 처리에 실패했습니다');
+            // 로그인이 필요한 경우 팝업 표시
+            if (data.require_login) {
+                if (confirm(data.message + '\n로그인 페이지로 이동하시겠습니까?')) {
+                    // 현재 페이지를 기억하고 로그인 페이지로 이동
+                    window.location.href = '/pages/auth/login.php?redirect=' + encodeURIComponent(window.location.pathname);
+                }
+            } else {
+                alert(data.message || '구매 처리에 실패했습니다');
+            }
         }
     })
     .catch(error => {
@@ -165,128 +239,6 @@ function buyNow(productId) {
     });
 }
 
-function quickView(productId) {
-    console.log('Quick view:', productId);
-    
-    // 모달 생성 및 표시
-    showQuickViewModal(productId);
-}
-
-function showQuickViewModal(productId) {
-    // 모달 HTML 생성
-    const modalHTML = `
-        <div id="quickViewModal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>제품 미리보기</h3>
-                    <span class="close-modal" onclick="closeQuickViewModal()">&times;</span>
-                </div>
-                <div class="modal-body">
-                    <div class="quick-view-content">
-                        <div class="quick-view-image">
-                            <img src="/assets/images/products/placeholder.jpg" alt="제품 이미지">
-                        </div>
-                        <div class="quick-view-info">
-                            <h3>제품명</h3>
-                            <div class="quick-view-rating">
-                                <span class="stars">⭐⭐⭐⭐⭐</span>
-                                <span>(24 리뷰)</span>
-                            </div>
-                            <div class="quick-view-price">
-                                <span class="price">25,000원</span>
-                            </div>
-                            <p class="quick-view-description">
-                                이 제품의 상세한 설명이 들어갑니다. 
-                                미리보기에서는 기본 정보만 제공됩니다.
-                            </p>
-                            <div class="quick-view-actions">
-                                <button onclick="addToCart(${productId})" class="btn btn-primary">
-                                    장바구니 담기
-                                </button>
-                                <button onclick="buyNow(${productId})" class="btn btn-outline">
-                                    바로 구매
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <style>
-            #quickViewModal .quick-view-content {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 2rem;
-            }
-            #quickViewModal .quick-view-image {
-                width: 100%;
-                height: 300px;
-                background: #f8f9fa;
-                border-radius: 8px;
-                overflow: hidden;
-            }
-            #quickViewModal .quick-view-image img {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-            }
-            #quickViewModal .quick-view-rating {
-                margin: 0.5rem 0;
-                color: #666;
-            }
-            #quickViewModal .quick-view-price {
-                font-size: 1.5rem;
-                font-weight: bold;
-                color: #4CAF50;
-                margin: 1rem 0;
-            }
-            #quickViewModal .quick-view-description {
-                color: #666;
-                line-height: 1.6;
-                margin-bottom: 2rem;
-            }
-            #quickViewModal .quick-view-actions {
-                display: flex;
-                gap: 1rem;
-            }
-            @media (max-width: 768px) {
-                #quickViewModal .quick-view-content {
-                    grid-template-columns: 1fr;
-                    gap: 1rem;
-                }
-                #quickViewModal .quick-view-image {
-                    height: 200px;
-                }
-            }
-        </style>
-    `;
-    
-    // 기존 모달 제거
-    const existingModal = document.getElementById('quickViewModal');
-    if (existingModal) {
-        existingModal.remove();
-    }
-    
-    // 새 모달 추가
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // 모달 표시
-    document.getElementById('quickViewModal').style.display = 'block';
-    
-    // 모달 외부 클릭시 닫기
-    document.getElementById('quickViewModal').onclick = function(event) {
-        if (event.target.classList.contains('modal')) {
-            closeQuickViewModal();
-        }
-    };
-}
-
-function closeQuickViewModal() {
-    const modal = document.getElementById('quickViewModal');
-    if (modal) {
-        modal.remove();
-    }
-}
 
 function toggleWishlist(productId) {
     const button = event.target;
@@ -303,14 +255,16 @@ function toggleWishlist(productId) {
 // Utility functions
 function updateCartCount() {
     // 서버에서 장바구니 개수 가져와서 업데이트
-    fetch('/api/cart.php')
+    fetch('../../api/cart.php')
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             const cartCount = document.querySelector('.cart-count');
             if (cartCount) {
-                cartCount.textContent = data.summary.total_items;
-                
+                // summary 정보 활용하여 정확한 아이템 수 표시
+                const itemCount = data.summary ? data.summary.item_count : data.count;
+                cartCount.textContent = itemCount;
+
                 // 간단한 애니메이션
                 cartCount.style.transform = 'scale(1.3)';
                 setTimeout(() => {

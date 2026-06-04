@@ -21,8 +21,15 @@ class Auth {
     private function initSession() {
         if (session_status() === PHP_SESSION_NONE) {
             if (!headers_sent()) {
-                ini_set('session.cookie_httponly', 1);
-                ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
+                $lifetime = (SESSION_TIMEOUT === 0) ? 30 * 24 * 3600 : SESSION_TIMEOUT;
+                ini_set('session.gc_maxlifetime', $lifetime);
+                session_set_cookie_params([
+                    'lifetime' => $lifetime,
+                    'path'     => '/',
+                    'httponly' => true,
+                    'secure'   => false,
+                    'samesite' => 'Lax',
+                ]);
                 ini_set('session.use_only_cookies', 1);
             }
             session_start();
@@ -34,9 +41,15 @@ class Auth {
     }
 
     private function checkSessionExpiry() {
+        if (SESSION_TIMEOUT === 0) {
+            // 로그아웃하기 전까지 유지 (무제한)
+            $_SESSION['last_activity'] = time();
+            return;
+        }
+
         $timeout = SESSION_TIMEOUT;
-        
-        if (isset($_SESSION['last_activity']) && 
+
+        if (isset($_SESSION['last_activity']) &&
             (time() - $_SESSION['last_activity'] > $timeout)) {
             $this->logout();
             throw new Exception('세션이 만료되었습니다. 다시 로그인해주세요.');
@@ -93,13 +106,26 @@ class Auth {
             return null;
         }
 
+        // 데이터베이스에서 최신 사용자 정보 가져오기
+        try {
+            $userData = $this->user->getUserById($_SESSION['user_id']);
+            if ($userData) {
+                return $userData;
+            }
+        } catch (Exception $e) {
+            error_log('getCurrentUser DB Error: ' . $e->getMessage());
+        }
+
+        // DB 오류시 세션 정보로 fallback
         return [
             'id' => $_SESSION['user_id'],
-            'email' => $_SESSION['user_email'],
-            'name' => $_SESSION['user_name'],
+            'email' => $_SESSION['user_email'] ?? $_SESSION['email'] ?? null,
+            'name' => $_SESSION['user_name'] ?? $_SESSION['name'] ?? null,
             'user_level' => $_SESSION['user_level'] ?? null,
             'role' => $_SESSION['role'] ?? null,
-            'plant_analysis_permission' => $_SESSION['plant_analysis_permission'] ?? 0
+            'plant_analysis_permission' => $_SESSION['plant_analysis_permission'] ?? 0,
+            'phone' => null,
+            'address' => null
         ];
     }
 
@@ -108,7 +134,31 @@ class Auth {
     }
 
     public function hasPlantAnalysisPermission() {
-        return $this->isLoggedIn() && $_SESSION['plant_analysis_permission'] == 1;
+        if (!$this->isLoggedIn()) {
+            return false;
+        }
+
+        // 먼저 세션에서 확인
+        if (isset($_SESSION['plant_analysis_permission']) && $_SESSION['plant_analysis_permission'] == 1) {
+            return true;
+        }
+
+        // 세션에 없으면 데이터베이스에서 직접 확인
+        try {
+            $userId = $_SESSION['user_id'];
+            $userData = $this->user->getUserById($userId);
+
+            if ($userData && isset($userData['plant_analysis_permission']) && $userData['plant_analysis_permission'] == 1) {
+                // 세션에도 저장하여 다음 요청에서는 DB 조회 생략
+                $_SESSION['plant_analysis_permission'] = 1;
+                return true;
+            }
+        } catch (Exception $e) {
+            // 데이터베이스 오류시 false 반환
+            error_log('hasPlantAnalysisPermission DB Error: ' . $e->getMessage());
+        }
+
+        return false;
     }
 
     public function isAdmin() {
@@ -251,8 +301,90 @@ class Auth {
         return [
             'login_time' => $_SESSION['login_time'] ?? null,
             'last_activity' => $_SESSION['last_activity'] ?? null,
-            'remaining_time' => SESSION_TIMEOUT - (time() - ($_SESSION['last_activity'] ?? time()))
+            'remaining_time' => SESSION_TIMEOUT === 0 ? null : SESSION_TIMEOUT - (time() - ($_SESSION['last_activity'] ?? time()))
         ];
+    }
+
+    /**
+     * 소셜 로그인 사용자 찾기 또는 생성
+     *
+     * @param array $oauthData 소셜 로그인 데이터
+     *   - oauth_provider: 'kakao', 'google', 'naver'
+     *   - oauth_id: 소셜 서비스 고유 ID
+     *   - email: 이메일 주소
+     *   - name: 사용자 이름
+     * @return array|null 사용자 정보
+     */
+    public function findOrCreateOAuthUser($oauthData) {
+        try {
+            $db = Database::getInstance();
+            $pdo = $db->getConnection();
+
+            // 1. 소셜 ID로 기존 사용자 찾기
+            $stmt = $pdo->prepare("
+                SELECT * FROM users
+                WHERE oauth_provider = ? AND oauth_id = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$oauthData['oauth_provider'], $oauthData['oauth_id']]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($user) {
+                // 기존 사용자 로그인
+                return $user;
+            }
+
+            // 2. 이메일로 기존 사용자 찾기 (이메일 연동)
+            $stmt = $pdo->prepare("
+                SELECT * FROM users
+                WHERE email = ? AND oauth_provider = 'email'
+                LIMIT 1
+            ");
+            $stmt->execute([$oauthData['email']]);
+            $existingUser = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($existingUser) {
+                // 기존 이메일 계정에 소셜 로그인 연동
+                $stmt = $pdo->prepare("
+                    UPDATE users
+                    SET oauth_provider = ?, oauth_id = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([
+                    $oauthData['oauth_provider'],
+                    $oauthData['oauth_id'],
+                    $existingUser['id']
+                ]);
+
+                return $existingUser;
+            }
+
+            // 3. 새 사용자 생성
+            $stmt = $pdo->prepare("
+                INSERT INTO users (
+                    email, name, oauth_provider, oauth_id,
+                    user_level, plant_analysis_permission, created_at
+                ) VALUES (?, ?, ?, ?, 1, 0, NOW())
+            ");
+
+            $stmt->execute([
+                $oauthData['email'],
+                $oauthData['name'],
+                $oauthData['oauth_provider'],
+                $oauthData['oauth_id']
+            ]);
+
+            $newUserId = $pdo->lastInsertId();
+
+            // 생성된 사용자 정보 반환
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+            $stmt->execute([$newUserId]);
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+
+        } catch (Exception $e) {
+            error_log('OAuth User Creation Error: ' . $e->getMessage());
+            return null;
+        }
     }
 }
 ?>

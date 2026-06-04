@@ -49,13 +49,16 @@ class KoreanEditor {
     }
     
     createEditor() {
+        // CSS 스타일 주입 (정렬 클래스가 없는 경우)
+        this.injectAlignmentStyles();
+
         // 기존 textarea 숨기기
         const textarea = this.container.querySelector('textarea');
         if (textarea) {
             textarea.style.display = 'none';
             this.originalTextarea = textarea;
         }
-        
+
         // 에디터 컨테이너 생성
         this.editorContainer = document.createElement('div');
         this.editorContainer.className = 'korean-editor-container';
@@ -79,7 +82,45 @@ class KoreanEditor {
         // 폼 제출시 원본 textarea에 내용 복사
         this.setupFormSubmit();
     }
-    
+
+    injectAlignmentStyles() {
+        // 이미 스타일이 주입되었는지 확인
+        if (document.getElementById('korean-editor-alignment-styles')) {
+            return;
+        }
+
+        const style = document.createElement('style');
+        style.id = 'korean-editor-alignment-styles';
+        style.textContent = `
+            .text-align-left {
+                text-align: left !important;
+            }
+            .text-align-center {
+                text-align: center !important;
+            }
+            .text-align-right {
+                text-align: right !important;
+            }
+            .text-align-justify {
+                text-align: justify !important;
+            }
+            /* 에디터 내부에서만 적용되도록 범위 제한 */
+            .korean-editor-container .edit-area .text-align-left {
+                text-align: left !important;
+            }
+            .korean-editor-container .edit-area .text-align-center {
+                text-align: center !important;
+            }
+            .korean-editor-container .edit-area .text-align-right {
+                text-align: right !important;
+            }
+            .korean-editor-container .edit-area .text-align-justify {
+                text-align: justify !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     createToolbar() {
         this.toolbar = document.createElement('div');
         this.toolbar.className = 'korean-editor-toolbar';
@@ -531,37 +572,84 @@ class KoreanEditor {
     handleTextAlignment(command) {
         const selection = window.getSelection();
         if (selection.rangeCount === 0) return;
-        
+
+        let element = null;
+        let range = selection.getRangeAt(0);
+
         // 현재 선택된 요소 또는 부모 블록 요소 찾기
-        let element = selection.anchorNode;
-        if (element.nodeType === Node.TEXT_NODE) {
-            element = element.parentElement;
+        if (selection.anchorNode) {
+            element = selection.anchorNode;
+            if (element.nodeType === Node.TEXT_NODE) {
+                element = element.parentElement;
+            }
         }
-        
+
         // 블록 요소까지 올라가기
         while (element && !this.isBlockElement(element) && element !== this.editArea) {
             element = element.parentElement;
         }
-        
+
+        // 첫 번째 줄에서 블록 요소가 없는 경우 또는 editArea 자체인 경우
         if (!element || element === this.editArea) {
-            // 선택된 텍스트를 div로 감싸기
-            const range = selection.getRangeAt(0);
-            const content = range.extractContents();
+            // 현재 커서 위치에서 새 div 생성
             const div = document.createElement('div');
-            div.appendChild(content);
-            range.insertNode(div);
+
+            // 선택 영역이 있는 경우
+            if (!range.collapsed) {
+                const content = range.extractContents();
+                div.appendChild(content);
+                range.insertNode(div);
+            } else {
+                // 커서만 있는 경우 - 현재 줄의 내용을 찾아서 처리
+                const startContainer = range.startContainer;
+
+                if (startContainer === this.editArea) {
+                    // editArea 바로 안에 커서가 있는 경우
+                    div.innerHTML = '<br>';
+                    this.editArea.insertBefore(div, this.editArea.firstChild);
+                } else if (startContainer.nodeType === Node.TEXT_NODE) {
+                    // 텍스트 노드 안에 커서가 있는 경우
+                    const textNode = startContainer;
+                    const parent = textNode.parentNode;
+
+                    if (parent === this.editArea) {
+                        // 텍스트가 직접 editArea 안에 있는 경우
+                        div.appendChild(textNode.cloneNode(true));
+                        parent.replaceChild(div, textNode);
+                    } else {
+                        // 다른 요소 안에 있는 경우
+                        while (parent && parent !== this.editArea && !this.isBlockElement(parent)) {
+                            element = parent;
+                            break;
+                        }
+                        if (!element) {
+                            div.innerHTML = '<br>';
+                            range.insertNode(div);
+                        }
+                    }
+                } else {
+                    // 다른 요소 내에서 커서가 있는 경우
+                    div.innerHTML = '<br>';
+                    range.insertNode(div);
+                }
+            }
+
             element = div;
-            
+
             // 선택 영역 복원
             selection.removeAllRanges();
             const newRange = document.createRange();
             newRange.selectNodeContents(div);
+            if (div.firstChild && div.firstChild.nodeType === Node.TEXT_NODE) {
+                newRange.setStart(div.firstChild, 0);
+                newRange.setEnd(div.firstChild, div.firstChild.textContent.length);
+            }
             selection.addRange(newRange);
         }
-        
+
         // 기존 정렬 클래스 제거
         element.classList.remove('text-align-left', 'text-align-center', 'text-align-right', 'text-align-justify');
-        
+
         // 새 정렬 클래스 추가
         switch (command) {
             case 'justifyLeft':
@@ -577,7 +665,7 @@ class KoreanEditor {
                 element.classList.add('text-align-justify');
                 break;
         }
-        
+
         this.updateToolbarState();
         this.updateOriginalTextarea();
     }
@@ -687,17 +775,41 @@ class KoreanEditor {
     }
     
     showImageDialog() {
+        console.log('이미지 다이얼로그 열기');
+
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
         input.multiple = true;
-        
+
         input.onchange = (e) => {
             const files = Array.from(e.target.files);
-            files.forEach(file => this.uploadImage(file));
+            console.log('파일 선택됨:', files.length, '개');
+
+            if (files.length === 0) {
+                console.log('선택된 파일이 없습니다.');
+                return;
+            }
+
+            files.forEach((file, index) => {
+                console.log(`선택된 파일 ${index + 1}:`, file.name, file.type, file.size, 'bytes');
+                this.uploadImage(file);
+            });
         };
-        
-        input.click();
+
+        input.onerror = (e) => {
+            console.error('파일 선택 오류:', e);
+            alert('파일 선택 중 오류가 발생했습니다.');
+        };
+
+        // 파일 선택 다이얼로그 열기
+        try {
+            input.click();
+            console.log('파일 선택 다이얼로그 열림');
+        } catch (error) {
+            console.error('파일 다이얼로그 열기 실패:', error);
+            alert('파일 선택 다이얼로그를 열 수 없습니다.');
+        }
     }
     
     async uploadImage(file) {
@@ -705,53 +817,163 @@ class KoreanEditor {
             alert('이미지 파일만 업로드 가능합니다.');
             return;
         }
-        
+
+        console.log('이미지 업로드 시작:', file.name, file.size, 'bytes');
+
+        // 이미지 리사이즈 (파일 크기가 1.5MB 이상인 경우)
+        if (file.size > 1.5 * 1024 * 1024 && window.defaultImageResizer) {
+            try {
+                console.log('파일 크기가 큽니다. 리사이즈를 시도합니다...');
+                file = await window.defaultImageResizer.resizeImage(file);
+                console.log('리사이즈 완료:', file.size, 'bytes');
+            } catch (error) {
+                console.warn('이미지 리사이즈 실패, 원본 사용:', error);
+            }
+        }
+
         const formData = new FormData();
         formData.append('image', file);
-        
+
         try {
             this.setLoading(true);
-            
+
+            console.log('업로드 URL:', this.options.imageUploadUrl);
+
             const response = await fetch(this.options.imageUploadUrl, {
                 method: 'POST',
-                body: formData
+                body: formData,
+                credentials: 'same-origin' // 쿠키 포함하여 인증 유지
             });
-            
+
+            console.log('응답 상태:', response.status, response.statusText);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
             const result = await response.json();
-            
-            if (result.success) {
-                this.insertImage(result.url);
+            console.log('업로드 결과:', result);
+
+            if (result.success || result.uploaded === 1) {
+                // 다양한 응답 형식 지원
+                const imageUrl = result.url || result.location || result.src;
+                if (imageUrl) {
+                    this.insertImage(imageUrl);
+                    console.log('이미지 삽입 완료:', imageUrl);
+                } else {
+                    throw new Error('업로드는 성공했지만 이미지 URL이 없습니다.');
+                }
             } else {
-                alert('이미지 업로드에 실패했습니다: ' + result.message);
+                const errorMsg = result.error || result.message || '알 수 없는 오류가 발생했습니다.';
+                throw new Error(errorMsg);
             }
         } catch (error) {
-            console.error('Image upload error:', error);
-            alert('이미지 업로드 중 오류가 발생했습니다.');
+            console.error('이미지 업로드 오류:', error);
+
+            // 개발자 모드에서는 자세한 정보 표시
+            if (console.table && error.response) {
+                console.table(error.response);
+            }
+
+            // 사용자에게 친화적인 오류 메시지
+            let userMessage = '이미지 업로드에 실패했습니다.';
+            if (error.message.includes('인증') || error.message.includes('권한')) {
+                userMessage += '\n관리자 권한으로 로그인해 주세요.';
+            } else if (error.message.includes('크기') || error.message.includes('너무 큽니다')) {
+                userMessage += '\n파일 크기가 너무 큽니다. (최대 2MB)\n다음 방법을 시도해보세요:\n• 이미지 크기를 줄여주세요\n• JPG 형식으로 저장해보세요\n• 이미지 압축 도구를 사용해보세요';
+            } else if (error.message.includes('형식')) {
+                userMessage += '\n지원하지 않는 파일 형식입니다.\nJPG, PNG, GIF, WebP 형식만 지원됩니다.';
+            } else {
+                userMessage += '\n' + error.message;
+            }
+
+            alert(userMessage);
         } finally {
             this.setLoading(false);
         }
     }
     
     insertImage(src) {
+        console.log('이미지 삽입 시작:', src);
+
         const img = document.createElement('img');
         img.src = src;
         img.alt = '';
         img.style.maxWidth = '100%';
         img.style.height = 'auto';
         img.style.cursor = 'pointer';
-        
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            range.insertNode(img);
-            
+
+        // 이미지 로드 에러 처리
+        img.onerror = () => {
+            console.error('이미지 로드 실패:', src);
+            img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuydtOuvuOyngCDroZzrk5zsmKTrpZw8L3RleHQ+PC9zdmc+';
+            img.alt = '이미지 로드 실패';
+        };
+
+        try {
+            const selection = window.getSelection();
+
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+
+                // 이미지를 별도의 div로 감싸서 독립적인 블록으로 처리
+                const imageWrapper = document.createElement('div');
+                imageWrapper.style.margin = '10px 0';
+                imageWrapper.appendChild(img);
+
+                // 새로운 문단을 위한 div 생성
+                const newParagraph = document.createElement('div');
+                newParagraph.innerHTML = '<br>'; // 빈 문단 표시용
+
+                range.insertNode(imageWrapper);
+
+                // 이미지 다음에 새 문단 삽입
+                range.setStartAfter(imageWrapper);
+                range.insertNode(newParagraph);
+
+                // 커서를 새 문단으로 이동
+                range.setStart(newParagraph, 0);
+                range.setEnd(newParagraph, 0);
+                selection.removeAllRanges();
+                selection.addRange(range);
+
+                console.log('이미지가 블록으로 삽입되고 새 문단이 생성되었습니다.');
+            } else {
+                // 선택 영역이 없는 경우 에디터 끝에 추가
+                const imageWrapper = document.createElement('div');
+                imageWrapper.style.margin = '10px 0';
+                imageWrapper.appendChild(img);
+
+                const newParagraph = document.createElement('div');
+                newParagraph.innerHTML = '<br>';
+
+                this.editArea.appendChild(imageWrapper);
+                this.editArea.appendChild(newParagraph);
+
+                // 커서를 새 문단으로 이동
+                const range = document.createRange();
+                range.setStart(newParagraph, 0);
+                range.setEnd(newParagraph, 0);
+                selection.removeAllRanges();
+                selection.addRange(range);
+
+                console.log('이미지와 새 문단이 에디터 끝에 추가되었습니다.');
+            }
+
             // 이미지 로드 후 자동 선택
             img.onload = () => {
+                console.log('이미지 로드 완료, 선택 상태로 설정');
                 this.selectImage(img);
             };
+
+            // 즉시 업데이트
+            this.updateOriginalTextarea();
+            this.updateCharCount();
+
+        } catch (error) {
+            console.error('이미지 삽입 중 오류:', error);
+            alert('이미지를 에디터에 삽입하는데 실패했습니다.');
         }
-        
-        this.updateOriginalTextarea();
     }
     
     insertTable() {
@@ -816,10 +1038,18 @@ class KoreanEditor {
     }
     
     handleFileDrop(e) {
+        console.log('파일 드롭 이벤트 발생');
         const files = Array.from(e.dataTransfer.files);
-        files.forEach(file => {
+        console.log('드롭된 파일 개수:', files.length);
+
+        files.forEach((file, index) => {
+            console.log(`파일 ${index + 1}:`, file.name, file.type, file.size, 'bytes');
             if (file.type.startsWith('image/')) {
+                console.log('이미지 파일 감지, 업로드 시작');
                 this.uploadImage(file);
+            } else {
+                console.log('이미지가 아닌 파일 무시:', file.type);
+                alert(`${file.name}은(는) 이미지 파일이 아닙니다.`);
             }
         });
     }

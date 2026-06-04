@@ -412,5 +412,97 @@ class Order {
             return [];
         }
     }
+
+    /**
+     * 결제 정보 저장 (나이스페이먼츠)
+     *
+     * @param int $orderId 주문 ID
+     * @param array $paymentData 결제 데이터
+     * @return array 저장 결과
+     */
+    public function savePayment($orderId, $paymentData) {
+        try {
+            $stmt = $this->db->prepare("
+                INSERT INTO payments (
+                    order_id, tid, method, amount, status,
+                    result_code, result_message, card_company, card_number,
+                    installment, approve_no, paid_at, pg_raw_data
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+
+            $result = $stmt->execute([
+                $orderId,
+                $paymentData['tid'] ?? null,
+                $paymentData['method'] ?? null,
+                $paymentData['amount'],
+                $paymentData['status'],
+                $paymentData['result_code'] ?? null,
+                $paymentData['result_message'] ?? null,
+                $paymentData['card_company'] ?? null,
+                $paymentData['card_number'] ?? null,
+                $paymentData['installment'] ?? 0,
+                $paymentData['approve_no'] ?? null,
+                $paymentData['paid_at'] ?? date('Y-m-d H:i:s'),
+                $paymentData['pg_raw_data'] ?? null
+            ]);
+
+            if ($result) {
+                return ['success' => true, 'payment_id' => $this->db->lastInsertId()];
+            } else {
+                return ['success' => false, 'message' => '결제 정보 저장에 실패했습니다.'];
+            }
+
+        } catch (PDOException $e) {
+            error_log('Save payment error: ' . $e->getMessage());
+            return ['success' => false, 'message' => '결제 정보 저장 중 오류가 발생했습니다.'];
+        }
+    }
+
+    /**
+     * 결제 정보 조회
+     *
+     * @param int $orderId 주문 ID
+     * @return array|null 결제 정보
+     */
+    public function getPayment($orderId) {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT * FROM payments
+                WHERE order_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$orderId]);
+            return $stmt->fetch();
+
+        } catch (PDOException $e) {
+            error_log('Get payment error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 결제 취소 정보 저장
+     *
+     * @param int $paymentId 결제 ID
+     * @param string $cancelReason 취소 사유
+     * @return bool 성공 여부
+     */
+    public function cancelPayment($paymentId, $cancelReason = '고객 요청') {
+        try {
+            $stmt = $this->db->prepare("
+                UPDATE payments
+                SET status = 'cancelled',
+                    cancelled_at = NOW(),
+                    cancel_reason = ?
+                WHERE id = ?
+            ");
+            return $stmt->execute([$cancelReason, $paymentId]);
+
+        } catch (PDOException $e) {
+            error_log('Cancel payment error: ' . $e->getMessage());
+            return false;
+        }
+    }
 }
 ?>
