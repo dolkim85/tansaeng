@@ -1,20 +1,16 @@
 // 탄생 - 메인 JavaScript 파일
 
-console.log('=== MAIN.JS LOADED ===', new Date().toLocaleTimeString());
-
 // Global Variables
 let isLoading = false;
 let cartCount = 0;
 
 // DOM Ready
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('=== DOM CONTENT LOADED ===', new Date().toLocaleTimeString());
     initializeApp();
 });
 
 // Initialize App
 function initializeApp() {
-    console.log('=== INITIALIZING APP ===');
     initMobileMenu();
     initMobileMenuSingleSelect();
     initScrollToTop();
@@ -23,8 +19,7 @@ function initializeApp() {
     initFormValidation();
     initTooltips();
     initSmoothScroll();
-    initProductCarousel();
-    console.log('=== APP INITIALIZATION COMPLETE ===');
+    
 }
 
 // Mobile Menu Single Selection
@@ -75,115 +70,36 @@ function initMobileMenuSingleSelect() {
 
 // Mobile Menu
 function initMobileMenu() {
-    console.log('Main.js initMobileMenu called');
-
-    // 약간의 지연을 주어 DOM이 완전히 로드되도록 함
-    setTimeout(function() {
-        const mobileToggle = document.querySelector('.mobile-menu-toggle');
-        const navigation = document.querySelector('.nav-menu');
-
-        console.log('Main.js elements (delayed):', {
-            mobileToggle,
-            navigation,
-            toggleExists: !!mobileToggle,
-            navExists: !!navigation
+    const mobileToggle = document.querySelector('.mobile-menu-toggle');
+    const navigation = document.querySelector('.main-navigation');
+    
+    if (mobileToggle && navigation) {
+        mobileToggle.addEventListener('click', toggleMobileMenu);
+        
+        // Close menu when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!navigation.contains(e.target) && !mobileToggle.contains(e.target)) {
+                navigation.classList.remove('active');
+            }
         });
-
-        if (mobileToggle && navigation) {
-            console.log('Main.js toggle display:', window.getComputedStyle(mobileToggle).display);
-            console.log('Main.js nav display:', window.getComputedStyle(navigation).display);
-
-            // 기존 이벤트 리스너를 완전히 제거하고 새로 만들기
-            const newToggle = mobileToggle.cloneNode(true);
-            mobileToggle.parentNode.replaceChild(newToggle, mobileToggle);
-
-            // 새로운 요소에 이벤트 리스너 추가
-            const finalToggle = document.querySelector('.mobile-menu-toggle');
-
-            // 강력한 이벤트 리스너 추가
-            finalToggle.addEventListener('click', function(e) {
-                console.log('=== HAMBURGER CLICKED ===');
-                e.preventDefault();
-                e.stopPropagation();
-
-                const isActive = navigation.classList.contains('active');
-                console.log('Current menu state:', isActive ? 'OPEN' : 'CLOSED');
-
-                navigation.classList.toggle('active');
-                finalToggle.classList.toggle('active');
-
-                console.log('New menu state:', navigation.classList.contains('active') ? 'OPEN' : 'CLOSED');
-                console.log('Navigation classes:', navigation.className);
-                console.log('Toggle classes:', finalToggle.className);
-
-                // 햄버거 아이콘 애니메이션
-                const spans = finalToggle.querySelectorAll('span');
-                spans.forEach((span, index) => {
-                    if (finalToggle.classList.contains('active')) {
-                        if (index === 0) span.style.transform = 'rotate(45deg) translate(5px, 5px)';
-                        if (index === 1) span.style.opacity = '0';
-                        if (index === 2) span.style.transform = 'rotate(-45deg) translate(7px, -6px)';
-                    } else {
-                        span.style.transform = '';
-                        span.style.opacity = '';
-                    }
-                });
-            });
-
-            // 터치 이벤트도 추가 (모바일 대응)
-            finalToggle.addEventListener('touchstart', function(e) {
-                console.log('HAMBURGER TOUCHED');
-            });
-
-            // Close menu when clicking outside
-            document.addEventListener('click', function(e) {
-                if (!navigation.contains(e.target) && !finalToggle.contains(e.target)) {
-                    navigation.classList.remove('active');
-                    finalToggle.classList.remove('active');
-
-                    // 햄버거 아이콘 리셋
-                    const spans = finalToggle.querySelectorAll('span');
-                    spans.forEach(span => {
-                        span.style.transform = '';
-                        span.style.opacity = '';
-                    });
-                }
-            });
-
-            // Close menu when window resizes
-            window.addEventListener('resize', function() {
-                if (window.innerWidth > 768) {
-                    navigation.classList.remove('active');
-                    finalToggle.classList.remove('active');
-                    const spans = finalToggle.querySelectorAll('span');
-                    spans.forEach(span => {
-                        span.style.transform = '';
-                        span.style.opacity = '';
-                    });
-                }
-            });
-
-            console.log('Mobile menu initialization COMPLETED');
-        } else {
-            console.log('Mobile menu elements not found on this page - skipping initialization');
-        }
-    }, 200); // 200ms 지연
+        
+        // Close menu when window resizes
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                navigation.classList.remove('active');
+            }
+        });
+    }
 }
 
-// toggleMobileMenu 함수는 header.php에서 정의됨
-// 중복 방지를 위해 주석 처리
-/*
-function toggleMobileMenu(e) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const navigation = document.querySelector('.nav-menu');
+function toggleMobileMenu() {
+    const navigation = document.querySelector('.main-navigation');
     const toggle = document.querySelector('.mobile-menu-toggle');
-
+    
     if (navigation && toggle) {
         navigation.classList.toggle('active');
         toggle.classList.toggle('active');
-
+        
         // Animate hamburger icon
         const spans = toggle.querySelectorAll('span');
         spans.forEach((span, index) => {
@@ -198,7 +114,6 @@ function toggleMobileMenu(e) {
         });
     }
 }
-*/
 
 // Scroll to Top
 function initScrollToTop() {
@@ -429,20 +344,12 @@ function hideTooltip(e) {
 // Smooth Scroll
 function initSmoothScroll() {
     const smoothScrollLinks = document.querySelectorAll('a[href^="#"]');
-
+    
     smoothScrollLinks.forEach(link => {
         link.addEventListener('click', function(e) {
-            const href = this.getAttribute('href');
-
-            // # 하나만 있는 링크는 무시 (푸터 메뉴 등)
-            if (href === '#') {
-                e.preventDefault();
-                return;
-            }
-
             e.preventDefault();
-
-            const target = document.querySelector(href);
+            
+            const target = document.querySelector(this.getAttribute('href'));
             if (target) {
                 target.scrollIntoView({
                     behavior: 'smooth',
@@ -633,100 +540,3 @@ window.TangsaengApp = {
     validateForm,
     validateField
 };
-
-// Product Carousel Function - Fade in/out carousel like hero slider
-function initProductCarousel() {
-    const carousel = document.getElementById('productCarousel');
-
-    if (!carousel) {
-        console.log('Product carousel element not found');
-        return;
-    }
-
-    // Hide controls
-    const controls = document.querySelector('.product-carousel-controls');
-    if (controls) {
-        controls.style.display = 'none';
-    }
-
-    const cards = Array.from(carousel.children);
-    if (cards.length === 0) return;
-
-    let currentIndex = 0;
-    let autoplayInterval;
-
-    // Setup: 모든 카드를 절대 위치로 변경하고 숨김
-    carousel.style.position = 'relative';
-    carousel.style.minHeight = '200px'; // 최소 높이 설정
-
-    cards.forEach((card, index) => {
-        card.style.position = 'absolute';
-        card.style.top = '0';
-        card.style.left = '50%';
-        card.style.transform = 'translateX(-50%)';
-        card.style.opacity = '0';
-        card.style.transition = 'opacity 0.8s ease-in-out';
-        card.style.zIndex = '1';
-        card.style.width = window.innerWidth <= 768 ? '260px' : '340px';
-
-        // 첫 번째 카드만 표시
-        if (index === 0) {
-            card.style.opacity = '1';
-            card.style.zIndex = '2';
-        }
-    });
-
-    function showCard(index) {
-        cards.forEach((card, i) => {
-            if (i === index) {
-                card.style.opacity = '1';
-                card.style.zIndex = '2';
-            } else {
-                card.style.opacity = '0';
-                card.style.zIndex = '1';
-            }
-        });
-    }
-
-    function slideNext() {
-        currentIndex = (currentIndex + 1) % cards.length;
-        showCard(currentIndex);
-    }
-
-    // 자동 재생 시작
-    function startAutoplay() {
-        autoplayInterval = setInterval(slideNext, 3000); // 3초마다 슬라이드
-    }
-
-    // 자동 재생 중지
-    function stopAutoplay() {
-        clearInterval(autoplayInterval);
-    }
-
-    // 마우스 호버 시 자동재생 멈춤
-    const carouselContainer = carousel.closest('.product-carousel-container');
-    if (carouselContainer) {
-        carouselContainer.addEventListener('mouseenter', stopAutoplay);
-        carouselContainer.addEventListener('mouseleave', startAutoplay);
-    }
-
-    // 터치 시작 시 자동재생 멈춤
-    carousel.addEventListener('touchstart', stopAutoplay);
-    carousel.addEventListener('touchend', () => {
-        setTimeout(startAutoplay, 3000); // 3초 후 재시작
-    });
-
-    // 자동 재생 시작
-    startAutoplay();
-
-    // Update on window resize
-    window.addEventListener('resize', debounce(() => {
-        stopAutoplay();
-        cards.forEach(card => {
-            card.style.width = window.innerWidth <= 768 ? '260px' : '340px';
-        });
-        startAutoplay();
-    }, 250));
-
-    console.log('Product carousel initialized - Fade mode');
-}
