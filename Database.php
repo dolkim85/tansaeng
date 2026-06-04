@@ -165,7 +165,7 @@ class Database {
     public function inTransaction() { return $this->pdo->inTransaction(); }
 
     public function createTables() {
-        $sqlFile = __DIR__ . "/../sql/install.sql";
+        $sqlFile = __DIR__ . "/sql/install.sql";
         if (!file_exists($sqlFile)) throw new Exception("SQL 설치 파일을 찾을 수 없습니다.");
         $sql = file_get_contents($sqlFile);
         $statements = explode(";", $sql);
