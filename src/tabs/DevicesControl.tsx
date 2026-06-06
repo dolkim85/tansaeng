@@ -1460,36 +1460,48 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1.5 sm:gap-2">
               {ESP32_CONTROLLERS.map((controller) => {
                 const isConnected = esp32Status[controller.controllerId] === true;
+                const restartTopic = `tansaeng/${controller.controllerId}/restart`;
 
                 return (
                   <div
                     key={controller.id}
-                    className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-md border transition-colors ${
+                    className={`flex flex-col gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-md border transition-colors ${
                       isConnected
                         ? "bg-green-50 border-green-300"
                         : "bg-gray-50 border-gray-300"
                     }`}
                   >
-                    <div
-                      className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full flex-shrink-0 ${
-                        isConnected ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                      }`}
-                    ></div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[10px] sm:text-xs font-medium text-gray-900 block truncate">
-                        {controller.name}
-                      </span>
-                      <span className="text-[10px] sm:text-xs text-gray-500 hidden sm:block">
-                        {controller.controllerId}
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <div
+                        className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full flex-shrink-0 ${
+                          isConnected ? "bg-green-500 animate-pulse" : "bg-gray-400"
+                        }`}
+                      ></div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] sm:text-xs font-medium text-gray-900 block truncate">
+                          {controller.name}
+                        </span>
+                        <span className="text-[10px] sm:text-xs text-gray-500 hidden sm:block">
+                          {controller.controllerId}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-[10px] sm:text-xs font-medium flex-shrink-0 ${
+                          isConnected ? "text-green-600" : "text-gray-500"
+                        }`}
+                      >
+                        {isConnected ? "ON" : "OFF"}
                       </span>
                     </div>
-                    <span
-                      className={`text-[10px] sm:text-xs font-medium flex-shrink-0 ${
-                        isConnected ? "text-green-600" : "text-gray-500"
-                      }`}
+                    <button
+                      onClick={() => {
+                        if (!window.confirm(`${controller.name}(${controller.controllerId})을 재시작합니다.\n계속하시겠습니까?`)) return;
+                        getMqttClient().publish(restartTopic, "restart", { qos: 1 });
+                      }}
+                      className="w-full text-[10px] sm:text-xs py-0.5 rounded bg-orange-100 hover:bg-orange-200 text-orange-700 font-semibold border border-orange-300 transition-colors"
                     >
-                      {isConnected ? "ON" : "OFF"}
-                    </span>
+                      🔄 재시작
+                    </button>
                   </div>
                 );
               })}
