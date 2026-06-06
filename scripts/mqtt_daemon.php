@@ -375,8 +375,8 @@ try {
             $sensorType = $parts[2];
             $dataType = $parts[3];
 
-            // 실시간 캐시 업데이트 (UI 표시용 - 매번 호출)
-            updateRealtimeSensorCache($controllerId, $dataType, $message);
+            // 실시간 캐시 업데이트는 Node.js 데몬에서 단독 처리 (race condition 방지)
+            // updateRealtimeSensorCache($controllerId, $dataType, $message);
 
             // 온도/습도 알림 체크
             if ($dataType === 'temperature') {
@@ -542,7 +542,8 @@ try {
         }
 
         // ========== 환기팬 자동 제어 ==========
-        if (isset($cachedSettings['fans'])) {
+        // Node.js smartfarm_auto_control_daemon.cjs 가 전담 — PHP 데몬은 개입하지 않음
+        if (false && isset($cachedSettings['fans'])) {
             foreach ($cachedSettings['fans'] as $fanId => $fanConfig) {
                 $mode = $fanConfig['mode'] ?? 'OFF';
                 $controllerId = $fanConfig['controllerId'] ?? null;
