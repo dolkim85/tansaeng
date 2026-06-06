@@ -27,23 +27,34 @@ const LOG_FILE      = path.join(__dirname, '../logs/mist_daemon.log');
 
 // ─── Zone 정의 ───────────────────────────────────────────────────────────────
 const ZONES = {
-  zone_a: { name: 'Zone A', controllerId: 'ctlr-0004' },
-  zone_b: { name: 'Zone B', controllerId: 'ctlr-0005' },
-  zone_c: { name: 'Zone C', controllerId: 'ctlr-0006' },
-  zone_d: { name: 'Zone D', controllerId: 'ctlr-0007' },
-  zone_e: { name: 'Zone E', controllerId: 'ctlr-0008' },
+  zone_a:  { name: '구역A', controllerId: 'ctlr-0004', deviceId: 'valve1' },
+  zone_b:  { name: '구역B', controllerId: 'ctlr-0005', deviceId: 'valve1' },
+  zone_c:  { name: '구역C', controllerId: 'ctlr-0006', deviceId: 'valve1' },
+  zone_d:  { name: '구역D', controllerId: 'ctlr-0007', deviceId: 'valve1' },
+  zone_e:  { name: '구역E', controllerId: 'ctlr-0008', deviceId: 'valve1' },
+  fogging: { name: '포깅',   controllerId: 'ctlr-0004', deviceId: 'valve2' },
 };
 
-// ─── 존별 상태 (isRunning / 스케줄 설정만 보관) ─────────────────────────────
+// ─── 존별 상태 (isRunning / 스케줄 / 습도 설정 보관) ────────────────────────
 const zoneState = {};
 Object.keys(ZONES).forEach(id => {
   zoneState[id] = {
-    isRunning:     false,
-    mode:          'OFF',
-    daySchedule:   null,
-    nightSchedule: null,
+    isRunning:       false,
+    mode:            'OFF',
+    daySchedule:     null,
+    nightSchedule:   null,
+    humidityControl: null,  // { enabled, threshold } — 포깅 등에서 사용
   };
 });
+
+// ─── 팜 습도 센서 (front/back/top 평균) ─────────────────────────────────────
+const humidity = { front: null, back: null, top: null };
+const HUMIDITY_CTRL_TO_LOC = { 'ctlr-0001': 'front', 'ctlr-0002': 'back', 'ctlr-0003': 'top' };
+
+function getAvgHumidity() {
+  const vals = [humidity.front, humidity.back, humidity.top].filter(v => v !== null);
+  return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+}
 
 // ─── 공유 사이클 상태 (모든 활성 존이 동시에 동작) ──────────────────────────
 const sharedCycle = {
@@ -171,10 +182,17 @@ function startSharedCycle(mqttClient) {
     if (sprayMs <= 0) { log('[CYCLE] sprayDurationSeconds 미설정 — 사이클 불가'); sharedCycle.cycling = false; return; }
 
     const ts = Date.now();
+    const avgH = getAvgHumidity();
     const zoneNames = zones.map(id => ZONES[id].name).join(', ');
-    log(`[CYCLE] OPEN → 존: [${zones.join(', ')}] / 분무 ${sprayMs/1000}s / 정지 ${stopMs/1000}s`);
+    log(`[CYCLE] OPEN → 존: [${zones.join(', ')}] / 분무 ${sprayMs/1000}s / 정지 ${stopMs/1000}s${avgH !== null ? ` / 습도 ${avgH.toFixed(1)}%` : ''}`);
     zones.forEach(zoneId => {
-      mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/valve1/cmd`, 'OPEN', { qos: 1 });
+      // 습도 조건 체크
+      const hCtrl = zoneState[zoneId].humidityControl;
+      if (hCtrl?.enabled && avgH !== null && avgH >= hCtrl.threshold) {
+        log(`[${ZONES[zoneId].name}] 습도 조건 미충족 (${avgH.toFixed(1)}% >= 기준 ${hCtrl.threshold}%) → 건너뜀`);
+        return;
+      }
+      mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'OPEN', { qos: 1 });
       mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'OPEN', timestamp: ts }), { qos: 1, retain: true });
       saveMistLog(zoneId, ZONES[zoneId].name, 'start', zoneState[zoneId].mode || 'AUTO');
     });
@@ -190,7 +208,7 @@ function startSharedCycle(mqttClient) {
     const ts = Date.now();
     log(`[CYCLE] CLOSE → 존: [${zones.join(', ')}] / 정지 ${stopMs/1000}s`);
     zones.forEach(zoneId => {
-      mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/valve1/cmd`, 'CLOSE', { qos: 1 });
+      mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 });
       mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'CLOSE', timestamp: ts }), { qos: 1, retain: true });
       saveMistLog(zoneId, ZONES[zoneId].name, 'stop', zoneState[zoneId].mode || 'AUTO');
     });
@@ -227,7 +245,12 @@ function main() {
     Object.keys(ZONES).forEach(zoneId => {
       topics.push(`tansaeng/mist-control/${zoneId}/isRunning`);
       topics.push(`tansaeng/mist-control/${zoneId}/schedule`);
+      topics.push(`tansaeng/mist-control/${zoneId}/humidityConfig`);
     });
+    // 팜 습도 센서 구독
+    topics.push('tansaeng/ctlr-0001/+/humidity');
+    topics.push('tansaeng/ctlr-0002/+/humidity');
+    topics.push('tansaeng/ctlr-0003/+/humidity');
 
     topics.forEach(t => client.subscribe(t, { qos: 1 }, err => {
       if (err) log(`구독 실패 ${t}: ${err.message}`);
@@ -256,7 +279,7 @@ function main() {
           } else if (!newRunning) {
             // 이 존의 밸브 닫기
             client.publish(
-              `tansaeng/${ZONES[zoneId].controllerId}/valve1/cmd`, 'CLOSE', { qos: 1 }
+              `tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 }
             );
             log(`[${ZONES[zoneId].name}] 중지 — 밸브 OFF`);
             // 남은 활성 존이 있으면 계속, 없으면 사이클 종료
@@ -284,7 +307,31 @@ function main() {
           log(`[${ZONES[zoneId].name}] 스케줄 파싱 오류: ${e.message}`);
         }
       }
+
+      if (topic === `tansaeng/mist-control/${zoneId}/humidityConfig`) {
+        try {
+          const parsed = JSON.parse(payload);
+          if (parsed && typeof parsed === 'object') {
+            zoneState[zoneId].humidityControl = { enabled: !!parsed.enabled, threshold: Number(parsed.threshold) || 70 };
+            log(`[${ZONES[zoneId].name}] 습도 조건 업데이트: enabled=${parsed.enabled}, threshold=${parsed.threshold}%`);
+          }
+        } catch (e) {
+          log(`[${ZONES[zoneId].name}] humidityConfig 파싱 오류: ${e.message}`);
+        }
+      }
     });
+
+    // 팜 습도 센서 수신
+    const parts = topic.split('/');
+    if (parts.length === 4 && parts[0] === 'tansaeng' && parts[3] === 'humidity') {
+      const loc = HUMIDITY_CTRL_TO_LOC[parts[1]];
+      if (loc) {
+        const val = parseFloat(payload);
+        if (!isNaN(val) && val >= 0 && val <= 100) {
+          humidity[loc] = val;
+        }
+      }
+    }
   });
 
   client.on('error',     e  => log(`[MQTT ERROR] ${e.message}`));
