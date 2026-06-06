@@ -1,5 +1,63 @@
 # 스마트팜 환경제어 시스템 - 변경 이력
 
+---
+
+## smartfarm-ui-2026-06-06 (2026-06-06)
+
+### 🔥 버그 수정
+- **히트펌프 주간/야간 모드**
+  - 주간/야간 ON 시 일반 범위 슬라이더 중복 표시 버그 수정 (숨김 처리)
+  - 냉각기(hp_heater) 기준 센서를 팜평균온도 → 물온도로 수정
+  - 주간/야간 범위 슬라이더 자동발행 useEffect 제거 → 저장 버튼 클릭 시에만 retain 발행
+- **팬 주간/야간 모드**
+  - 범위 저장 버튼 없던 문제 수정 → 데몬에 저장 버튼 추가
+  - 동일한 자동발행 useEffect 제거
+- **PHP mqtt 데몬 팬 제어 충돌**
+  - autocontrol Node.js 데몬과 PHP 데몬이 동시에 팬 명령 발행하던 충돌 해소
+  - PHP 데몬 팬 제어 코드 `if(false &&)` 비활성화
+
+### ✨ 새로운 기능
+- **ESP32 원격 재시작 버튼**
+  - 장치 제어 탭 ESP32 연결 상태 카드에 🔄 재시작 버튼 추가
+  - `tansaeng/{ctrlId}/restart` 토픽으로 `"restart"` 발행 → ESP32 재시작
+  - confirm 다이얼로그로 실수 방지
+
+### 🏷️ 태그
+- `smartfarm-ui-2026-06-06` (master 브랜치)
+
+---
+
+## stable-2026-06-06 (2026-06-06) — 서버 & 데몬
+
+### 🚨 장애 대응
+- **서버 자동 재부팅** (Ubuntu 커널 6.8.0-110 → 6.8.0-124 자동 업그레이드)
+  - 재부팅 후 데몬 3개 정상 재시작 확인
+  - 분무수경 retain 충돌로 isRunning 루프 발생 → 강제 false 발행으로 해소
+- **ctlr-0004 (분무밸브 ESP32) 오프라인**
+  - WiFi 끊김 시 재연결 로직 없는 펌웨어 버그 확인
+  - 수정된 ESP32 펌웨어 제공 (WiFi 재연결 + retain=true + 원격 재시작 토픽)
+- **www.tansaeng.com 접속 불가** (index.php 무한 리다이렉트)
+  - stable-2026-04-27 태그 기준으로 서버 전체 복구
+  - PHP require 경로 오류(`/../config/`) 근본 원인 해결
+
+### 🔧 데몬 수정
+- **분무수경 로그 zone name 한글화**
+  - `Zone A~E` → `구역A~E`
+  - `fogging` → `포깅` (기존 유지)
+  - `smartfarm_mist_daemon.cjs` 수정 후 재시작
+
+### ⚙️ 운영
+- **logrotate 설정** (`/etc/logrotate.d/tansaeng`)
+  - 대상: tansaeng 데몬 로그 10종
+  - 규칙: 100MB 초과 시 자동 회전, 5개 보관, gzip, copytruncate
+  - 매시간 자동 점검 (`/etc/cron.d/tansaeng-logrotate`)
+  - 즉시 효과: /var/log 7.2G → 4.9G 회수
+
+### 🏷️ 태그
+- `stable-2026-06-06` (main 브랜치)
+
+---
+
 ## v3.4.0 (2025-11-26) 📹 **Tapo 카메라 전용 페이지 추가**
 
 ### ✨ 새로운 기능
