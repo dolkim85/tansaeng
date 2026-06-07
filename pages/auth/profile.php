@@ -478,6 +478,12 @@ if ($dbConnected) {
                     document.getElementById('address').value = currentAddress;
                 }
             }
+
+            // URL 해시로 탭 자동 열기 (#orders 등)
+            const hash = window.location.hash.replace('#', '');
+            if (hash && document.getElementById(hash)) {
+                showTab(hash, null);
+            }
         });
 
         function showTab(tabId, element) {
@@ -492,8 +498,15 @@ if ($dbConnected) {
             });
             
             // Show selected tab and mark nav link as active
-            document.getElementById(tabId).classList.add('active');
-            element.classList.add('active');
+            const tabEl = document.getElementById(tabId);
+            if (tabEl) tabEl.classList.add('active');
+            // element가 없으면(해시 직접 진입) 해당 탭 nav-link를 찾아 활성화
+            if (element) {
+                element.classList.add('active');
+            } else {
+                const navLink = document.querySelector('.nav-link[href="#' + tabId + '"]');
+                if (navLink) navLink.classList.add('active');
+            }
         }
         
         // 폼 제출 후 메시지가 있으면 스크롤
