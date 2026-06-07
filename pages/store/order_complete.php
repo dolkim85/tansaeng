@@ -47,7 +47,7 @@ $orderId = $_GET['order_id'] ?? $orderInfo['order_id'];
             padding-top: 80px;
         }
 
-        .container {
+        .order-complete-wrap {
             max-width: 800px;
             margin: 0 auto;
             padding: 40px 15px;
@@ -253,7 +253,7 @@ $orderId = $_GET['order_id'] ?? $orderInfo['order_id'];
         }
 
         @media (max-width: 768px) {
-            .container {
+            .order-complete-wrap {
                 padding: 20px 10px;
             }
 
@@ -270,7 +270,7 @@ $orderId = $_GET['order_id'] ?? $orderInfo['order_id'];
 <body>
     <?php include '../../includes/header.php'; ?>
 
-    <div class="container">
+    <div class="order-complete-wrap">
         <!-- 성공 아이콘 -->
         <div class="success-icon">
             <div class="icon">✓</div>
