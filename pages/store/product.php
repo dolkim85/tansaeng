@@ -1102,7 +1102,9 @@ $shippingCost = $product['shipping_cost'] ?? 0;
             .then(naverpayData => {
                 if (naverpayData.success) {
                     // 네이버페이 결제창으로 이동
-                    window.location.href = naverpayData.payment_url;
+                    // 팝업으로 네이버페이 결제창 열기
+                    const popup = window.open(naverpayData.payment_url, 'NaverPay', 'width=500,height=700,scrollbars=yes,resizable=yes');
+                    if (!popup) alert('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.');
                 } else {
                     alert(naverpayData.message || '네이버페이 결제 요청에 실패했습니다.');
                 }

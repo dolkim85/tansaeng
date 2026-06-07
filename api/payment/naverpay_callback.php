@@ -28,7 +28,16 @@ try {
     if ($resultCode !== 'Success') {
         $message = $_GET['message'] ?? '결제가 취소되었습니다.';
         error_log("NaverPay Callback - Failed: $message");
-        header('Location: /pages/store/cart.php?error=' . urlencode($message));
+        $cartUrl = '/pages/store/cart.php?error=' . urlencode($message);
+        echo '<html><head><meta charset=UTF-8></head><body>';
+        echo '<script>';
+        echo 'if (window.opener && !window.opener.closed) {';
+        echo '  window.opener.location.href = "' . $cartUrl . '";';
+        echo '  window.close();';
+        echo '} else {';
+        echo '  window.location.href = "' . $cartUrl . '";';
+        echo '}';
+        echo '</script></body></html>';
         exit;
     }
 
@@ -165,8 +174,18 @@ try {
 
         error_log("NaverPay Callback - Success, redirecting to order_complete");
 
-        // 주문 완료 페이지로 이동
-        header('Location: /pages/store/order_complete.php?order_id=' . $orderId . '&payment=naverpay');
+        // 팝업에서 호출된 경우: 부모창을 주문완료 페이지로 이동하고 팝업 닫기
+        $completeUrl = '/pages/store/order_complete.php?order_id=' . $orderId . '&payment=naverpay';
+        echo '<html><head><meta charset=UTF-8></head><body>';
+        echo '<script>';
+        echo 'if (window.opener && !window.opener.closed) {';
+        echo '  window.opener.location.href = "' . $completeUrl . '";';
+        echo '  window.close();';
+        echo '} else {';
+        echo '  window.location.href = "' . $completeUrl . '";';
+        echo '}';
+        echo '</script>';
+        echo '</body></html>';
         exit;
 
     } catch (Exception $e) {
@@ -177,6 +196,15 @@ try {
 
 } catch (Exception $e) {
     error_log('NaverPay Callback Error: ' . $e->getMessage());
-    header('Location: /pages/store/cart.php?error=' . urlencode($e->getMessage()));
+    $cartUrl = '/pages/store/cart.php?error=' . urlencode($e->getMessage());
+    echo '<html><head><meta charset=UTF-8></head><body>';
+    echo '<script>';
+    echo 'if (window.opener && !window.opener.closed) {';
+    echo '  window.opener.location.href = "' . $cartUrl . '";';
+    echo '  window.close();';
+    echo '} else {';
+    echo '  window.location.href = "' . $cartUrl . '";';
+    echo '}';
+    echo '</script></body></html>';
     exit;
 }

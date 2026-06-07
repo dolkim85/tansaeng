@@ -720,7 +720,9 @@ try {
             .then(data => {
                 if (data.success) {
                     // 네이버페이 결제창으로 이동
-                    window.location.href = data.payment_url;
+                    // 팝업으로 네이버페이 결제창 열기
+                    const popup = window.open(data.payment_url, 'NaverPay', 'width=500,height=700,scrollbars=yes,resizable=yes');
+                    if (!popup) alert('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.');
                 } else {
                     alert('네이버페이 결제 요청 실패: ' + data.message);
                     btn.disabled = false;
