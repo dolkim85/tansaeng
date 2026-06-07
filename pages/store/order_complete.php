@@ -363,7 +363,7 @@ $orderId = $_GET['order_id'] ?? $orderInfo['order_id'];
         <div class="action-buttons">
             <a href="/pages/store/" class="btn btn-secondary">쇼핑 계속하기</a>
             <?php if ($currentUser): ?>
-                <a href="/pages/store/order.php" class="btn btn-primary">📋 주문 내역 확인</a>
+                <a href="/pages/auth/profile.php#orders" class="btn btn-primary">📋 주문 내역 확인</a>
             <?php else: ?>
                 <a href="/pages/store/order_lookup.php" class="btn btn-primary">📋 주문 내역 확인</a>
             <?php endif; ?>

@@ -22,7 +22,7 @@ try {
 
 $orderId = (int)($_GET['id'] ?? 0);
 if ($orderId <= 0) {
-    header('Location: /pages/store/order.php');
+    header('Location: /pages/auth/profile.php#orders');
     exit;
 }
 
@@ -120,7 +120,7 @@ $orderStatusNames = [
             <div class="error-box">
                 <p><?= htmlspecialchars($errorMessage) ?></p>
                 <div class="action-buttons" style="max-width:400px;margin:24px auto 0;">
-                    <a href="/pages/store/order.php" class="btn btn-primary">주문 내역으로</a>
+                    <a href="/pages/auth/profile.php#orders" class="btn btn-primary">주문 내역으로</a>
                 </div>
             </div>
         <?php else: ?>
@@ -185,7 +185,7 @@ $orderStatusNames = [
 
             <!-- 액션 버튼 -->
             <div class="action-buttons">
-                <a href="/pages/store/order.php" class="btn btn-secondary">주문 내역</a>
+                <a href="/pages/auth/profile.php#orders" class="btn btn-secondary">주문 내역</a>
                 <a href="/pages/store/" class="btn btn-primary">쇼핑 계속하기</a>
             </div>
         <?php endif; ?>
