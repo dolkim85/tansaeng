@@ -102,69 +102,54 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
 <body>
     <?php include 'includes/header.php'; ?>
 
-    <!-- Hero Section -->
-    <section class="hero-section"<?= !empty($siteSettings['hero_background']) ? ' style="background-image: url(\'' . htmlspecialchars($siteSettings['hero_background']) . '\')"' : '' ?>>
-        <div class="hero-container">
-            <div class="hero-content">
-                <h1 class="hero-title"><?= htmlspecialchars($siteSettings['hero_title'] ?? '스마트팜의 미래를 선도하는 탄생') ?></h1>
-                <?php if (!empty($siteSettings['hero_subtitle'])): ?>
-                    <p class="hero-subtitle"><?= htmlspecialchars($siteSettings['hero_subtitle']) ?></p>
-                <?php endif; ?>
-                <p class="hero-description">
-                    <?= nl2br(htmlspecialchars($siteSettings['hero_description'] ?? '고품질 수경재배 배지와 AI 기반 식물분석 서비스로 여러분의 스마트팜을 더욱 스마트하게 만들어드립니다.')) ?>
-                </p>
-                <div class="hero-links">
-                    <a href="/pages/store/" class="hero-link">제품 보기</a>
-                    <a href="/pages/plant-analysis/" class="hero-link">AI 식물분석</a>
-                </div>
-            </div>
-            <div class="hero-image">
-                <div class="hero-slider">
-                    <?php
-                    // 여러 미디어 파일 지원 (콤마로 구분)
-                    $heroMediaList = $siteSettings['hero_media_list'] ?? $siteSettings['hero_background'] ?? '/assets/images/hero-smart-farm.jpg';
-                    // 줄바꿈으로 구분된 이미지 URL 처리
-                    $mediaFiles = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $heroMediaList))));
-
-                    // 만약 배열이 비어있다면 기본 이미지 사용
-                    if (empty($mediaFiles)) {
-                        $mediaFiles = ['/assets/images/hero-smart-farm.jpg'];
-                    }
-                    $totalSlides = count($mediaFiles);
-
-                    foreach ($mediaFiles as $index => $heroMedia):
-                        $fileExt = strtolower(pathinfo($heroMedia, PATHINFO_EXTENSION));
-                        $isActive = $index === 0 ? 'active' : '';
-                    ?>
-                        <div class="hero-slide <?= $isActive ?>" data-slide="<?= $index ?>">
-                            <?php if (in_array($fileExt, ['mp4', 'webm', 'ogg'])): ?>
-                                <video autoplay muted loop playsinline>
-                                    <source src="<?= htmlspecialchars($heroMedia) ?>" type="video/<?= $fileExt ?>">
-                                    <!-- 비디오 지원하지 않는 브라우저용 대체 이미지 -->
-                                    <img src="/assets/images/hero-smart-farm.jpg" alt="스마트팜 이미지" loading="lazy">
-                                </video>
-                            <?php else: ?>
-                                <img src="<?= htmlspecialchars($heroMedia) ?>" alt="스마트팜 이미지 <?= $index + 1 ?>" loading="<?= $index === 0 ? 'eager' : 'lazy' ?>">
-                            <?php endif; ?>
-                        </div>
-                    <?php endforeach; ?>
-
-                    <?php if ($totalSlides > 1): ?>
-                        <!-- 슬라이더 컨트롤 -->
-                        <div class="hero-slider-controls">
-                            <button class="slider-prev" onclick="heroSlider.prev()">‹</button>
-                            <button class="slider-next" onclick="heroSlider.next()">›</button>
-                        </div>
-
-                        <!-- 슬라이더 인디케이터 -->
-                        <div class="hero-slider-indicators">
-                            <?php for ($i = 0; $i < $totalSlides; $i++): ?>
-                                <button class="slider-indicator <?= $i === 0 ? 'active' : '' ?>" onclick="heroSlider.goTo(<?= $i ?>)"></button>
-                            <?php endfor; ?>
-                        </div>
+    <!-- Hero Section (풀너비 슬라이더 + 텍스트 오버레이) -->
+    <section class="hero-section hero-fullwidth">
+        <div class="hero-slider">
+            <?php
+            $heroMediaList = $siteSettings['hero_media_list'] ?? $siteSettings['hero_background'] ?? '/assets/images/hero-smart-farm.jpg';
+            $mediaFiles = array_filter(array_map('trim', explode("\n", str_replace("\r", "", $heroMediaList))));
+            if (empty($mediaFiles)) { $mediaFiles = ['/assets/images/hero-smart-farm.jpg']; }
+            $totalSlides = count($mediaFiles);
+            foreach ($mediaFiles as $index => $heroMedia):
+                $fileExt = strtolower(pathinfo($heroMedia, PATHINFO_EXTENSION));
+                $isActive = $index === 0 ? 'active' : '';
+            ?>
+                <div class="hero-slide <?= $isActive ?>" data-slide="<?= $index ?>">
+                    <?php if (in_array($fileExt, ['mp4', 'webm', 'ogg'])): ?>
+                        <video autoplay muted loop playsinline>
+                            <source src="<?= htmlspecialchars($heroMedia) ?>" type="video/<?= $fileExt ?>">
+                        </video>
+                    <?php else: ?>
+                        <img src="<?= htmlspecialchars($heroMedia) ?>" alt="스마트팜 이미지 <?= $index + 1 ?>" loading="<?= $index === 0 ? 'eager' : 'lazy' ?>">
                     <?php endif; ?>
                 </div>
+            <?php endforeach; ?>
+
+            <!-- 텍스트 오버레이 -->
+            <div class="hero-overlay">
+                <div class="hero-overlay-content">
+                    <h1 class="hero-title"><?= htmlspecialchars($siteSettings['hero_title'] ?? '스마트팜의 미래를 여는 탄생') ?></h1>
+                    <?php if (!empty($siteSettings['hero_subtitle'])): ?>
+                        <p class="hero-subtitle"><?= htmlspecialchars($siteSettings['hero_subtitle']) ?></p>
+                    <?php endif; ?>
+                    <div class="hero-links">
+                        <a href="/pages/store/" class="hero-link">제품 보기</a>
+                        <a href="/pages/plant-analysis/" class="hero-link">AI 식물분석</a>
+                    </div>
+                </div>
             </div>
+
+            <?php if ($totalSlides > 1): ?>
+                <div class="hero-slider-controls">
+                    <button class="slider-prev" onclick="heroSlider.prev()">‹</button>
+                    <button class="slider-next" onclick="heroSlider.next()">›</button>
+                </div>
+                <div class="hero-slider-indicators">
+                    <?php for ($i = 0; $i < $totalSlides; $i++): ?>
+                        <button class="slider-indicator <?= $i === 0 ? 'active' : '' ?>" onclick="heroSlider.goTo(<?= $i ?>)"></button>
+                    <?php endfor; ?>
+                </div>
+            <?php endif; ?>
         </div>
     </section>
 

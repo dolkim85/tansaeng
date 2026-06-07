@@ -530,6 +530,94 @@ p {
     width: 100%;
 }
 
+
+
+/* ── 풀너비 슬라이더 히어로 ── */
+.hero-fullwidth {
+    padding: 0 !important;
+    margin: 0 !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-fullwidth .hero-slider {
+    width: 100%;
+    height: 500px;
+    position: relative;
+    border-radius: 0;
+    min-height: unset;
+}
+
+.hero-fullwidth .hero-slide img,
+.hero-fullwidth .hero-slide video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0;
+}
+
+.hero-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.2) 60%, transparent 100%);
+    padding: 40px 60px;
+    z-index: 10;
+}
+
+.hero-overlay-content {
+    max-width: 700px;
+}
+
+.hero-fullwidth .hero-title {
+    color: #ffffff;
+    font-size: 2.4rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.hero-fullwidth .hero-subtitle {
+    color: rgba(255,255,255,0.9);
+    font-size: 1.1rem;
+    margin-bottom: 20px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+
+.hero-fullwidth .hero-link {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    border: 2px solid rgba(255,255,255,0.7);
+    backdrop-filter: blur(4px);
+    padding: 10px 24px;
+    border-radius: 25px;
+    text-decoration: none;
+    font-weight: 600;
+    margin-right: 12px;
+    display: inline-block;
+    transition: all 0.2s;
+}
+
+.hero-fullwidth .hero-link:hover {
+    background: rgba(255,255,255,0.35);
+}
+
+@media (max-width: 768px) {
+    .hero-fullwidth .hero-slider {
+        height: 280px;
+    }
+    .hero-overlay {
+        padding: 20px 20px;
+    }
+    .hero-fullwidth .hero-title {
+        font-size: 1.4rem;
+    }
+    .hero-fullwidth .hero-subtitle {
+        font-size: 0.9rem;
+    }
+}
+
 .hero-image {
     position: relative;
     overflow: hidden;
