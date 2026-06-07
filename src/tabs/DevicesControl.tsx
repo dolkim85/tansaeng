@@ -174,6 +174,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const [screenTimeSavedMsg, setScreenTimeSavedMsg] = useState("");
   const [skySaveStatus, setSkySaveStatus] = useState<"idle" | "saved">("idle");
   const [sideSaveStatus, setSideSaveStatus] = useState<"idle" | "saved">("idle");
+  // 마지막 저장값 스냅샷
+  const [skySavedSnapshot, setSkySavedSnapshot] = useState<{tempPoints: any[], timePoints: any[], savedAt: string} | null>(null);
+  const [sideSavedSnapshot, setSideSavedSnapshot] = useState<{tempPoints: any[], humPoints: any[], timePoints: any[], savedAt: string} | null>(null);
+  const [fanDNSavedAt, setFanDNSavedAt] = useState<string>("");
+  const [hpDNSavedAt, setHpDNSavedAt] = useState<string>("");
   // MQTT retain 수신 완료 여부 — false인 동안 저장 버튼 비활성화(기본값 덮어씌움 방지)
   const [skyPointsReady, setSkyPointsReady] = useState(false);
   const [sidePointsReady, setSidePointsReady] = useState(false);
@@ -1245,6 +1250,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     if (!skyPointsReady) return;
     getMqttClient().publish("tansaeng/sky-control/tempPoints", JSON.stringify(skyTempPoints), { qos: 1, retain: true });
     getMqttClient().publish("tansaeng/sky-control/timePoints", JSON.stringify(skyTimePoints), { qos: 1, retain: true });
+    const now = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+    setSkySavedSnapshot({ tempPoints: [...skyTempPoints], timePoints: [...skyTimePoints], savedAt: now });
     setSkySaveStatus("saved");
     setTimeout(() => setSkySaveStatus("idle"), 2000);
   };
@@ -1255,6 +1262,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
     getMqttClient().publish("tansaeng/side-control/timePoints", JSON.stringify(sideTimePoints), { qos: 1, retain: true });
     getMqttClient().publish("tansaeng/side-control/humPoints", JSON.stringify(sideHumPoints), { qos: 1, retain: true });
     getMqttClient().publish("tansaeng/side-control/dayNightConfig", JSON.stringify(sideDayNightConfig), { qos: 1, retain: true });
+    const now = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+    setSideSavedSnapshot({ tempPoints: [...sideTempPoints], humPoints: [...sideHumPoints], timePoints: [...sideTimePoints], savedAt: now });
     setSideSaveStatus("saved");
     setTimeout(() => setSideSaveStatus("idle"), 2000);
   };
@@ -1996,10 +2005,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-end mt-2">
-                  <button onClick={handleSkyPointsSave} disabled={!skyPointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${skyPointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
-                    {!skyPointsReady ? "로딩 중..." : skySaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
-                  </button>
+                <div className="mt-2 space-y-1">
+                  {skySavedSnapshot && (
+                    <div className="text-[10px] text-gray-400 bg-gray-50 rounded px-2 py-1">
+                      ✅ {skySavedSnapshot.savedAt} 저장 — {
+                        (skyAutoType as string) === "time"
+                          ? skySavedSnapshot.timePoints.map((p: any) => `${p.time}→${p.rate}%`).join(", ")
+                          : skySavedSnapshot.tempPoints.map((p: any) => `${p.temp}°C→${p.rate}%`).join(", ")
+                      }
+                    </div>
+                  )}
+                  <div className="flex justify-end">
+                    <button onClick={handleSkyPointsSave} disabled={!skyPointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${skyPointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
+                      {!skyPointsReady ? "로딩 중..." : skySaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -2071,10 +2091,21 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-end mt-2">
-                  <button onClick={handleSkyPointsSave} disabled={!skyPointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${skyPointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
-                    {!skyPointsReady ? "로딩 중..." : skySaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
-                  </button>
+                <div className="mt-2 space-y-1">
+                  {skySavedSnapshot && (
+                    <div className="text-[10px] text-gray-400 bg-gray-50 rounded px-2 py-1">
+                      ✅ {skySavedSnapshot.savedAt} 저장 — {
+                        (skyAutoType as string) === "time"
+                          ? skySavedSnapshot.timePoints.map((p: any) => `${p.time}→${p.rate}%`).join(", ")
+                          : skySavedSnapshot.tempPoints.map((p: any) => `${p.temp}°C→${p.rate}%`).join(", ")
+                      }
+                    </div>
+                  )}
+                  <div className="flex justify-end">
+                    <button onClick={handleSkyPointsSave} disabled={!skyPointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${skyPointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
+                      {!skyPointsReady ? "로딩 중..." : skySaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -2590,9 +2621,18 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       ))}
                     </div>
                     <div className="flex justify-end mt-2">
-                      <button onClick={handleSidePointsSave} disabled={!sidePointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${sidePointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
-                        {!sidePointsReady ? "로딩 중..." : sideSaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
-                      </button>
+                      <div className="space-y-1 w-full">
+                        {sideSavedSnapshot && (
+                          <div className="text-[10px] text-gray-400 bg-gray-50 rounded px-2 py-1">
+                            ✅ {sideSavedSnapshot.savedAt} 저장 — {
+                              sideSavedSnapshot.tempPoints.map(p => `${p.temp}°C→${p.rate}%`).join(", ")
+                            }
+                          </div>
+                        )}
+                        <button onClick={handleSidePointsSave} disabled={!sidePointsReady} className={`text-[10px] px-3 py-1.5 rounded font-semibold ${sidePointsReady ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-300 text-gray-400 cursor-not-allowed"}`}>
+                          {!sidePointsReady ? "로딩 중..." : sideSaveStatus === "saved" ? "저장됨 ✓" : "데몬에 저장"}
+                        </button>
+                      </div>
                     </div>
                   </>
                 )}
@@ -3206,9 +3246,16 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       })}
                     </div>
                     {/* 데몬에 저장 버튼 */}
-                    <div className="flex justify-end">
+                    <div className="flex items-center justify-between">
+                      {fanDNSavedAt
+                        ? <span className="text-[10px] text-gray-400">✅ 저장됨 {fanDNSavedAt}</span>
+                        : <span className="text-[10px] text-gray-400">미저장 (버튼을 눌러 저장하세요)</span>
+                      }
                       <button
-                        onClick={() => getMqttClient().publish("tansaeng/fan-control/dayNightConfig", JSON.stringify(fanDayNightConfig), { qos: 1, retain: true })}
+                        onClick={() => {
+                          getMqttClient().publish("tansaeng/fan-control/dayNightConfig", JSON.stringify(fanDayNightConfig), { qos: 1, retain: true });
+                          setFanDNSavedAt(new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }));
+                        }}
                         className="px-3 py-1.5 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white rounded-md transition-colors"
                       >
                         💾 데몬에 저장
@@ -3669,9 +3716,16 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
                   {/* HP 주야간 데몬에 저장 버튼 */}
                   {hpDayNightConfig.enabled && (
-                    <div className="flex justify-end">
+                    <div className="flex items-center justify-between">
+                      {hpDNSavedAt
+                        ? <span className="text-[10px] text-gray-400">✅ 저장됨 {hpDNSavedAt}</span>
+                        : <span className="text-[10px] text-gray-400">미저장 (버튼을 눌러 저장하세요)</span>
+                      }
                       <button
-                        onClick={() => getMqttClient().publish("tansaeng/hp-control/dayNightConfig", JSON.stringify(hpDayNightConfig), { qos: 1, retain: true })}
+                        onClick={() => {
+                          getMqttClient().publish("tansaeng/hp-control/dayNightConfig", JSON.stringify(hpDayNightConfig), { qos: 1, retain: true });
+                          setHpDNSavedAt(new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }));
+                        }}
                         className="px-3 py-1.5 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white rounded-md transition-colors"
                       >
                         💾 데몬에 저장
