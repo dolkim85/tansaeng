@@ -18,8 +18,5 @@
   "alert_on_daemon_restart": true,
   "alert_on_valve_stuck_minutes": 10,
   "temp_alert_low": 5,
-  "temp_alert_high": 28,
-  "humidity_alert_low": 30,
-  "humidity_alert_high": 95,
-  "sensors": {}
+  "temp_alert_high": 28
 }
