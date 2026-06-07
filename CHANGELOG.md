@@ -2,6 +2,46 @@
 
 ---
 
+## stable-2026-06-08 (2026-06-08) — 네이버페이 결제 흐름 전면 개선
+
+### 🛒 결제/주문
+- **NPay 결제창 팝업 방식** — `window.location.href` → `window.open()` (500×700)
+- **결제완료 후 주문 생성 실패 수정 (핵심 버그)**
+  - 콜백 INSERT가 실제 테이블에 없는 컬럼명 사용 → `Unknown column 'buyer_name'` 으로 실패
+  - orders.payment_method enum에 naverpay/kakao 추가, payment_id 컬럼 추가
+  - 콜백 컬럼명 실제 테이블에 맞춤 (buyer_* → customer_*, status → payment_status 등)
+  - `$_SESSION['last_order']` 연동 (order_complete.php가 세션에서 읽음)
+- **주문상세 페이지(order_detail.php) 신규 생성** — 404 해결, 권한 체크 포함
+- **주문완료 페이지 헤더 깨짐/여백 수정** — `.container` 클래스 충돌 분리, padding-top 제거
+- **주문내역 버튼 경로 수정** — order.php(체크아웃) → profile.php#orders(실제 주문내역)
+  - profile.php가 URL 해시 읽어 주문내역 탭 자동 열기
+- **비로그인 장바구니 JS 오류 수정** — checkoutBtn null 체크
+
+### 🏷️ 태그
+- `stable-2026-06-08` (main 브랜치) / 상세: docs/changelog-2026-06-08.md
+
+---
+
+## stable-2026-06-07 (2026-06-07) — 데몬 안정화 + 슬라이더 개선
+
+### 🔥 버그 수정
+- **텔레그램 알림 복구** — 6/4 복구 시 누락된 config/alert_config.json 복원
+- **데몬 재시작 시 예전 하드코딩 기본값으로 돌아가는 버그**
+  - 하드코딩 기본 timePoints → 0% 안전값
+  - initDelay 증가 (retain 수신 시간 확보), SIGTERM 시 설정 즉시 저장
+- **슬라이더 이미지 업로드 권한 오류** — uploads/ 소유권 www-data로 변경
+- **PHP upload_max_filesize** 2MB → 10MB
+- **AI 식물분석 링크 경로** — plant-analysis → plant_analysis
+
+### ✨ 기능 개선
+- 메인페이지 히어로 슬라이더 풀너비 + 텍스트 오버레이 레이아웃
+- 저장 버튼 옆 마지막 저장값 표시 UI (천창/측창/팬/HP)
+
+### 🏷️ 태그
+- `stable-2026-06-07` (main) / 상세: docs/changelog-2026-06-07.md
+
+---
+
 ## smartfarm-ui-2026-06-06 (2026-06-06)
 
 ### 🔥 버그 수정
