@@ -1071,8 +1071,37 @@ function main() {
   });
   client.on('reconnect', () => log('[MQTT] 재연결 시도...'));
 
-  process.on('SIGTERM', () => { log('SIGTERM — 종료'); client.end(); process.exit(0); });
-  process.on('SIGINT',  () => { log('SIGINT — 종료');  client.end(); process.exit(0); });
+  process.on('SIGTERM', () => {
+    log('SIGTERM — 종료 전 설정 저장');
+    // 종료 전 즉시 저장 (debounce 우회)
+    try {
+      const data = {
+        sky:  { mode: ctrl.sky.mode,  autoActive: ctrl.sky.autoActive,  autoType: ctrl.sky.autoType,  tempPoints: ctrl.sky.tempPoints,  timePoints: ctrl.sky.timePoints,  currentPos: ctrl.sky.currentPos,  fullTimeSMap: ctrl.sky.fullTimeSMap },
+        side: { mode: ctrl.side.mode, autoActive: ctrl.side.autoActive, autoType: ctrl.side.autoType, autoSensor: ctrl.side.autoSensor, tempPoints: ctrl.side.tempPoints, humPoints: ctrl.side.humPoints, timePoints: ctrl.side.timePoints, dayNightConfig: ctrl.side.dayNightConfig, currentPos: ctrl.side.currentPos, fullTimeSMap: ctrl.side.fullTimeSMap },
+        fan:  { mode: fan.mode,  autoActive: fan.autoActive,  autoSensor: fan.autoSensor, ranges: fan.ranges, humRanges: fan.humRanges, dayNight: fan.dayNight },
+        hp:   { mode: hp.mode,   autoActive: hp.autoActive,   ranges: hp.ranges, dayNight: hp.dayNight },
+      };
+      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data, null, 2), 'utf8');
+      log('SIGTERM — 설정 저장 완료');
+    } catch (e) { log(`SIGTERM — 설정 저장 실패: ${e.message}`); }
+    client.end();
+    process.exit(0);
+  });
+  process.on('SIGINT', () => {
+    log('SIGINT — 종료 전 설정 저장');
+    try {
+      const data = {
+        sky:  { mode: ctrl.sky.mode,  autoActive: ctrl.sky.autoActive,  autoType: ctrl.sky.autoType,  tempPoints: ctrl.sky.tempPoints,  timePoints: ctrl.sky.timePoints,  currentPos: ctrl.sky.currentPos,  fullTimeSMap: ctrl.sky.fullTimeSMap },
+        side: { mode: ctrl.side.mode, autoActive: ctrl.side.autoActive, autoType: ctrl.side.autoType, autoSensor: ctrl.side.autoSensor, tempPoints: ctrl.side.tempPoints, humPoints: ctrl.side.humPoints, timePoints: ctrl.side.timePoints, dayNightConfig: ctrl.side.dayNightConfig, currentPos: ctrl.side.currentPos, fullTimeSMap: ctrl.side.fullTimeSMap },
+        fan:  { mode: fan.mode,  autoActive: fan.autoActive,  autoSensor: fan.autoSensor, ranges: fan.ranges, humRanges: fan.humRanges, dayNight: fan.dayNight },
+        hp:   { mode: hp.mode,   autoActive: hp.autoActive,   ranges: hp.ranges, dayNight: hp.dayNight },
+      };
+      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data, null, 2), 'utf8');
+      log('SIGINT — 설정 저장 완료');
+    } catch (e) { log(`SIGINT — 설정 저장 실패: ${e.message}`); }
+    client.end();
+    process.exit(0);
+  });
 }
 
 main();
