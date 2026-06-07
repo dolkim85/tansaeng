@@ -75,7 +75,7 @@ $orderStatusNames = [
     <title>주문 상세 - 탄생</title>
     <link rel="stylesheet" href="../../assets/css/main.css?v=<?= date('YmdHis') ?>">
     <style>
-        body { font-family: 'Noto Sans KR', sans-serif; background: #f8f9fa; padding-top: 80px; }
+        body { font-family: 'Noto Sans KR', sans-serif; background: #f8f9fa; }
         .order-detail-wrap { max-width: 800px; margin: 0 auto; padding: 40px 15px; }
         .page-title { font-size: 1.6rem; font-weight: 700; color: #333; margin-bottom: 24px; }
         .order-number { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; text-align: center; margin-bottom: 20px; }

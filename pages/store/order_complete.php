@@ -44,7 +44,6 @@ $orderId = $_GET['order_id'] ?? $orderInfo['order_id'];
         body {
             font-family: 'Noto Sans KR', sans-serif;
             background: #f8f9fa;
-            padding-top: 80px;
         }
 
         .order-complete-wrap {
