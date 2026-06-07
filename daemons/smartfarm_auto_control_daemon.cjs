@@ -148,8 +148,8 @@ const ctrl = {
     mode:       'MANUAL',
     autoActive: false,
     autoType:   'temp',   // 'temp' | 'time'
-    tempPoints: [{ temp: 20, rate: 10 }, { temp: 23, rate: 30 }, { temp: 28, rate: 100 }],
-    timePoints: [{ time: '08:00', rate: 30 }, { time: '12:00', rate: 80 }, { time: '18:00', rate: 0 }],
+    tempPoints: [{ temp: 20, rate: 0 }, { temp: 28, rate: 0 }],
+    timePoints: [{ time: '00:00', rate: 0 }],
     currentPos: {},   // { deviceId: number }
     lastTarget: {},   // { deviceId: number | null }
     timers:     {},   // { deviceId: Timeout }
@@ -161,9 +161,9 @@ const ctrl = {
     autoActive: false,
     autoType:   'temp',   // 'temp' | 'time' | 'daynight'
     autoSensor: 'temp',   // 'temp' | 'humi' (autoType=temp 일 때)
-    tempPoints: [{ temp: 20, rate: 10 }, { temp: 23, rate: 30 }, { temp: 28, rate: 100 }],
-    humPoints:  [{ humi: 60, rate: 10 }, { humi: 70, rate: 30 }, { humi: 80, rate: 100 }],
-    timePoints: [{ time: '08:00', rate: 0 }, { time: '14:00', rate: 100 }, { time: '20:00', rate: 0 }],
+    tempPoints: [{ temp: 20, rate: 0 }, { temp: 28, rate: 0 }],
+    humPoints:  [{ humi: 60, rate: 0 }, { humi: 80, rate: 0 }],
+    timePoints: [{ time: '00:00', rate: 0 }],
     dayNightConfig: {
       dayStart: '06:00',
       nightStart: '20:00',
@@ -770,7 +770,8 @@ function main() {
     }));
 
     // settings.json 있으면 3초(MQTT retain 최신값 반영용), 없으면 10초 대기
-    const initDelay = settingsLoaded ? 3000 : 10000;
+    // retain 수신 대기: 파일 있어도 8초, 없으면 20초 (HiveMQ retain 늦게 도착 대비)
+    const initDelay = settingsLoaded ? 8000 : 20000;
     log(`[INIT] ${initDelay / 1000}초 후 첫 제어 실행 (settings.json: ${settingsLoaded ? '로드됨' : '없음'})`);
     setTimeout(() => {
       startupComplete = true;
