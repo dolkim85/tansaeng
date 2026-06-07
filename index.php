@@ -134,7 +134,7 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                     <?php endif; ?>
                     <div class="hero-links">
                         <a href="/pages/store/" class="hero-link">제품 보기</a>
-                        <a href="/pages/plant-analysis/" class="hero-link">AI 식물분석</a>
+                        <a href="/pages/plant_analysis/" class="hero-link">AI 식물분석</a>
                     </div>
                 </div>
             </div>
@@ -337,7 +337,7 @@ $pageKeywords = $siteSettings['site_keywords'] ?? "스마트팜, 배지, 수경�
                             <a href="/admin/" class="btn btn-admin">⚙️ 관리자 페이지</a>
                         <?php endif; ?>
                         <a href="/pages/store/" class="btn btn-primary">쇼핑하기</a>
-                        <a href="/pages/plant-analysis/" class="btn btn-secondary">식물분석</a>
+                        <a href="/pages/plant_analysis/" class="btn btn-secondary">식물분석</a>
                     <?php else: ?>
                         <a href="/pages/auth/register.php" class="btn btn-primary">회원가입</a>
                         <a href="/pages/auth/login.php" class="btn btn-secondary">로그인</a>
