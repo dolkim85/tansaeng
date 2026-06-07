@@ -929,14 +929,16 @@ try {
             document.getElementById('shippingAmount').textContent = formatPrice(selectedShippingCost) + '원';
             document.getElementById('finalAmount').textContent = formatPrice(finalTotal) + '원';
 
-            // 체크아웃 버튼 활성화/비활성화
+            // 체크아웃 버튼 활성화/비활성화 (로그인 회원만 존재)
             const checkoutBtn = document.getElementById('checkoutBtn');
-            if (selectedCount > 0) {
-                checkoutBtn.disabled = false;
-                checkoutBtn.textContent = `${selectedCount}개 상품 주문하기`;
-            } else {
-                checkoutBtn.disabled = true;
-                checkoutBtn.textContent = '상품을 선택해주세요';
+            if (checkoutBtn) {
+                if (selectedCount > 0) {
+                    checkoutBtn.disabled = false;
+                    checkoutBtn.textContent = `${selectedCount}개 상품 주문하기`;
+                } else {
+                    checkoutBtn.disabled = true;
+                    checkoutBtn.textContent = '상품을 선택해주세요';
+                }
             }
         }
 
