@@ -90,20 +90,25 @@ try {
     $db->beginTransaction();
 
     try {
-        // orders 테이블에 주문 생성
+        // 배송지 정보 (회원 주소 또는 네이버페이 구매자 정보)
+        $shippingAddress = $userInfo['address'] ?? ($paymentData['shippingAddress'] ?? '');
+
+        // orders 테이블에 주문 생성 (실제 컬럼명에 맞춤)
         $stmt = $db->prepare("
             INSERT INTO orders (
                 order_number,
                 user_id,
-                buyer_name,
-                buyer_email,
-                buyer_phone,
+                customer_name,
+                customer_email,
+                customer_phone,
+                shipping_address,
                 total_amount,
                 payment_method,
                 payment_id,
-                status,
+                payment_status,
+                order_status,
                 created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         ");
 
         $stmt->execute([
@@ -112,44 +117,38 @@ try {
             $buyerName,
             $buyerEmail,
             $buyerPhone,
+            $shippingAddress,
             $approvedAmount,
             'naverpay',
             $paymentId,
-            'paid'
+            'paid',
+            'confirmed'
         ]);
 
         $orderId = $db->lastInsertId();
         error_log("NaverPay Callback - Order created: $orderId");
 
-        // order_items 테이블에 주문 상품 추가
+        // order_items 테이블에 주문 상품 추가 (실제 컬럼명에 맞춤)
         $stmtItem = $db->prepare("
             INSERT INTO order_items (
                 order_id,
                 product_id,
                 product_name,
+                product_price,
                 quantity,
-                price,
-                shipping_cost
+                total_price
             ) VALUES (?, ?, ?, ?, ?, ?)
         ");
 
         foreach ($items as $item) {
-            $shippingCost = $item['shipping_cost'] ?? 0;
-            $shippingUnitCount = $item['shipping_unit_count'] ?? 1;
-            $itemShippingCost = 0;
-
-            if ($shippingCost > 0 && $shippingUnitCount > 0) {
-                $shippingTimes = ceil($item['quantity'] / $shippingUnitCount);
-                $itemShippingCost = $shippingCost * $shippingTimes;
-            }
-
+            $itemTotalPrice = $item['price'] * $item['quantity'];
             $stmtItem->execute([
                 $orderId,
                 $item['product_id'],
                 $item['name'],
-                $item['quantity'],
                 $item['price'],
-                $itemShippingCost
+                $item['quantity'],
+                $itemTotalPrice
             ]);
         }
 
@@ -167,6 +166,23 @@ try {
 
         // 트랜잭션 커밋
         $db->commit();
+
+        // order_complete.php가 읽을 주문 정보를 세션에 저장
+        $_SESSION['last_order'] = [
+            'order_id'       => $orderId,
+            'order_number'   => $orderNumber,
+            'items'          => $items,
+            'payment_method' => 'naver',
+            'total_amount'   => $approvedAmount,
+            'created_at'     => date('Y-m-d H:i:s'),
+            'delivery_address' => [
+                'name'          => $buyerName,
+                'phone'         => $buyerPhone,
+                'zipCode'       => $userInfo['zip_code'] ?? '',
+                'address'       => $shippingAddress,
+                'addressDetail' => $userInfo['address_detail'] ?? '',
+            ],
+        ];
 
         // 세션 정리
         unset($_SESSION['naverpay_temp_order']);
