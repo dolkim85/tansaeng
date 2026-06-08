@@ -2,6 +2,21 @@
 
 ---
 
+## smartfarm-ui-2026-06-08 (2026-06-08) — 히트펌프 명령 무시 버그 수정
+
+### 🔥 버그 수정
+- **냉각기/냉각순환펌프 명령이 전달 안 되던 문제**
+  - 근본 원인: ESP32 펌웨어가 `if (mode == MANUAL_MODE && systemOn) setPump(...)`로
+    게이트 처리하는데, UI가 `system/cmd`(시스템 전원)를 한 번도 발행하지 않음
+    → `systemOn=false` 상태에서 pump/heater 명령을 ESP32가 무시
+  - 수정: HP AUTO/MANUAL 모드 버튼에 `system/cmd=ON` 발행 추가(retain)
+  - 검증: 게이트 닫은 뒤 MANUAL 토글 → system ON → pump/state=ON 확인
+
+### 🏷️ 태그
+- `smartfarm-ui-2026-06-08` (master 브랜치)
+
+---
+
 ## stable-2026-06-08 (2026-06-08) — 네이버페이 결제 흐름 전면 개선
 
 ### 🛒 결제/주문
