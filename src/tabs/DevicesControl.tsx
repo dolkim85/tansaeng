@@ -3557,6 +3557,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       hpAutoDemandRef.current = false;
                       setHpAutoActive(false);
                       hpDeviceLastCmd.current = { hp_pump: null, hp_heater: null, hp_fan: null };
+                      // 시스템 전원 ON (ESP32 게이트 개방 — 없으면 pump/heater 명령 무시됨)
+                      getMqttClient().publish("tansaeng/ctlr-heat-001/system/cmd", "ON", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/hp-control/mode", "AUTO", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
@@ -3577,6 +3579,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                       setHpAutoActive(false);
                       hpAutoDemandRef.current = false;
                       hpDeviceLastCmd.current = { hp_pump: null, hp_heater: null, hp_fan: null };
+                      // 시스템 전원 ON (ESP32 게이트 개방 — 없으면 pump/heater 명령 무시됨)
+                      getMqttClient().publish("tansaeng/ctlr-heat-001/system/cmd", "ON", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/ctlr-heat-001/mode/cmd", "MANUAL", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/hp-control/mode", "MANUAL", { qos: 1, retain: true });
                       getMqttClient().publish("tansaeng/hp-control/autoActive", "false", { qos: 1, retain: true });
