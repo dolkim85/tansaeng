@@ -6,6 +6,11 @@ import DeviceCard from "../components/DeviceCard";
 import { getMqttClient, onConnectionChange, subscribeToTopic, publishCommand } from "../mqtt/mqttClient";
 import { sendDeviceCommand, saveDeviceSettings } from "../api/deviceControl";
 
+// 브라우저 자체 자동제어 ON/OFF
+// false = 데몬 단일 제어 (브라우저는 표시·수동조작만, 접속 시 깜빡임/압축기 급가동 방지)
+// 자동제어는 서버 데몬(smartfarm_auto_control_daemon.cjs)이 전담
+const BROWSER_AUTO_CONTROL = false;
+
 // 두 핸들을 한 바 위에서 독립적으로 드래그할 수 있는 슬라이더
 function DualRangeSlider({
   min, max, step, low, high, onLowChange, onHighChange, markerPct, isActive,
@@ -556,7 +561,9 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   }, []);
 
   // HP AUTO 모드 제어 로직 — 주야간 모드 or 일반 온도 범위 기준 ON/OFF
+  // ※ 데몬 단일 제어: 브라우저 자동제어 비활성화 (데몬이 전담)
   useEffect(() => {
+    if (!BROWSER_AUTO_CONTROL) return;
     if (hpMode !== "AUTO") return;
     if (hpModeRef.current !== "AUTO") return;
     if (!hpAutoActive) return;
@@ -625,6 +632,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 팬 AUTO 모드 제어 로직 — 주야간 모드 or 일반 온도/습도 범위 기준 ON/OFF
   // 히스테리시스: 경계값 근처 진동 방지 (온도 0.5°C, 습도 2%RH)
   useEffect(() => {
+    if (!BROWSER_AUTO_CONTROL) return;  // 데몬 단일 제어
     if (fanModeRef.current !== "AUTO") return;
     if (!fanAutoActive) return;
 
@@ -787,6 +795,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
   // 천창 AUTO 제어 로직 — 평균온도→개도율 계산 후 자동 이동
   useEffect(() => {
+    if (!BROWSER_AUTO_CONTROL) return;  // 데몬 단일 제어
     if (skyModeRef.current !== "AUTO") return;
     if (!skyAutoActive) return;
 
@@ -997,6 +1006,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
   // 측창 AUTO 제어 로직 — 시간/온도/습도 기준 개도율 계산 후 자동 이동
   useEffect(() => {
+    if (!BROWSER_AUTO_CONTROL) return;  // 데몬 단일 제어
     if (sideModeRef.current !== "AUTO") return;
     if (!sideAutoActive) return;
 
