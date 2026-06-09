@@ -56,12 +56,11 @@ function getAvgHumidity() {
   return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 }
 
-// ─── 공유 사이클 상태 (모든 활성 존이 동시에 동작) ──────────────────────────
-const sharedCycle = {
-  sprayTimer: null,
-  stopTimer:  null,
-  cycling:    false,
-};
+// ─── 구역별 독립 사이클 상태 (각 구역이 자기 스케줄대로 동작) ─────────────────
+const zoneCycle = {};
+Object.keys(ZONES).forEach(id => {
+  zoneCycle[id] = { sprayTimer: null, stopTimer: null, cycling: false };
+});
 
 // ─── 로그 ────────────────────────────────────────────────────────────────────
 function log(msg) {
@@ -142,85 +141,99 @@ function getActiveZones() {
   );
 }
 
-// ─── 공유 사이클 중지 ─────────────────────────────────────────────────────────
-function stopSharedCycle() {
-  if (sharedCycle.sprayTimer) { clearTimeout(sharedCycle.sprayTimer); sharedCycle.sprayTimer = null; }
-  if (sharedCycle.stopTimer)  { clearTimeout(sharedCycle.stopTimer);  sharedCycle.stopTimer  = null; }
-  sharedCycle.cycling = false;
+// ─── 특정 구역 사이클 중지 ───────────────────────────────────────────────────
+function stopZoneCycle(zoneId) {
+  const zc = zoneCycle[zoneId];
+  if (zc.sprayTimer) { clearTimeout(zc.sprayTimer); zc.sprayTimer = null; }
+  if (zc.stopTimer)  { clearTimeout(zc.stopTimer);  zc.stopTimer  = null; }
+  zc.cycling = false;
 }
 
-// ─── 공유 사이클 시작 (모든 활성 존 동시 제어) ───────────────────────────────
-function startSharedCycle(mqttClient) {
-  stopSharedCycle();
+// ─── 모든 구역 사이클 중지 ───────────────────────────────────────────────────
+function stopAllCycles() {
+  Object.keys(ZONES).forEach(stopZoneCycle);
+}
 
-  const activeZones = getActiveZones();
-  if (activeZones.length === 0) {
-    log('[CYCLE] 활성 존 없음 — 사이클 대기');
-    return;
-  }
+// ─── 특정 구역 독립 사이클 시작 (자기 스케줄대로 분무/정지 반복) ─────────────
+function startZoneCycle(mqttClient, zoneId) {
+  stopZoneCycle(zoneId);
 
-  sharedCycle.cycling = true;
-  log(`[CYCLE] 공유 사이클 시작 — 존: [${activeZones.join(', ')}]`);
+  const st = zoneState[zoneId];
+  if (!st.isRunning || st.mode !== 'AUTO') return;
 
-  // doSpray: 매 사이클마다 스케줄 재확인 (주간↔야간 전환 자동 적용)
+  const zc = zoneCycle[zoneId];
+  zc.cycling = true;
+  log(`[${ZONES[zoneId].name}] 사이클 시작`);
+
+  // 분무 단계 — 매번 현재 시각 기준 스케줄 재평가 (주간↔야간 자동 전환)
   const doSpray = () => {
-    if (!sharedCycle.cycling) return;
-    const zones = getActiveZones();
-    if (zones.length === 0) { sharedCycle.cycling = false; return; }
+    if (!zc.cycling) return;
+    if (!st.isRunning || st.mode !== 'AUTO') { zc.cycling = false; return; }
 
-    // 매번 현재 시각 기준 스케줄 재평가
-    const schedule = getCurrentSchedule(zoneState[zones[0]]);
+    const schedule = getCurrentSchedule(st);
     if (!schedule) {
-      log('[CYCLE] 현재 시간대 스케줄 없음 — 1분 후 재확인');
-      sharedCycle.cycling = false;
-      sharedCycle.stopTimer = setTimeout(() => startSharedCycle(mqttClient), 60 * 1000);
+      log(`[${ZONES[zoneId].name}] 현재 시간대 스케줄 없음 — 1분 후 재확인`);
+      zc.cycling = false;
+      zc.stopTimer = setTimeout(() => startZoneCycle(mqttClient, zoneId), 60 * 1000);
       return;
     }
 
     const sprayMs = (schedule.sprayDurationSeconds ?? 0) * 1000;
     const stopMs  = (schedule.stopDurationSeconds  ?? 0) * 1000;
-    if (sprayMs <= 0) { log('[CYCLE] sprayDurationSeconds 미설정 — 사이클 불가'); sharedCycle.cycling = false; return; }
+    if (sprayMs <= 0) {
+      log(`[${ZONES[zoneId].name}] sprayDurationSeconds 미설정 — 사이클 불가`);
+      zc.cycling = false;
+      return;
+    }
 
     const ts = Date.now();
     const avgH = getAvgHumidity();
-    const zoneNames = zones.map(id => ZONES[id].name).join(', ');
-    log(`[CYCLE] OPEN → 존: [${zones.join(', ')}] / 분무 ${sprayMs/1000}s / 정지 ${stopMs/1000}s${avgH !== null ? ` / 습도 ${avgH.toFixed(1)}%` : ''}`);
-    zones.forEach(zoneId => {
-      // 습도 조건 체크
-      const hCtrl = zoneState[zoneId].humidityControl;
-      if (hCtrl?.enabled && avgH !== null && avgH >= hCtrl.threshold) {
-        log(`[${ZONES[zoneId].name}] 습도 조건 미충족 (${avgH.toFixed(1)}% >= 기준 ${hCtrl.threshold}%) → 건너뜀`);
-        return;
-      }
-      mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'OPEN', { qos: 1 });
-      mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'OPEN', timestamp: ts }), { qos: 1, retain: true });
-      saveMistLog(zoneId, ZONES[zoneId].name, 'start', zoneState[zoneId].mode || 'AUTO');
-    });
-    sendTelegram(`💧 <b>분무수경 분무 시작</b>\n구역: ${zoneNames}\n지속: ${sprayMs/1000}초\n시각: ${seoulTime()}`);
 
-    sharedCycle.sprayTimer = setTimeout(() => doStop(stopMs, zoneNames), sprayMs);
+    // (a) 습도 조건 체크 — 미충족이면 이 구역만 건너뛰고 정지시간 후 재평가
+    const hCtrl = st.humidityControl;
+    if (hCtrl?.enabled && avgH !== null && avgH >= hCtrl.threshold) {
+      log(`[${ZONES[zoneId].name}] 습도 조건 미충족 (${avgH.toFixed(1)}% >= 기준 ${hCtrl.threshold}%) → 건너뜀`);
+      // 분무도 안 하고 텔레그램도 안 보냄 — 정지시간만큼 대기 후 다시 평가
+      zc.stopTimer = setTimeout(doSpray, Math.max(stopMs, 1000));
+      return;
+    }
+
+    // 실제 분무 실행
+    mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'OPEN', { qos: 1 });
+    mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'OPEN', timestamp: ts }), { qos: 1, retain: true });
+    saveMistLog(zoneId, ZONES[zoneId].name, 'start', st.mode || 'AUTO');
+    log(`[${ZONES[zoneId].name}] OPEN — 분무 ${sprayMs/1000}s / 정지 ${stopMs/1000}s${avgH !== null ? ` / 습도 ${avgH.toFixed(1)}%` : ''}`);
+    // (a) 실제 분무했을 때만 텔레그램 발송
+    sendTelegram(`💧 <b>분무수경 분무 시작</b>\n구역: ${ZONES[zoneId].name}\n지속: ${sprayMs/1000}초\n시각: ${seoulTime()}`);
+
+    zc.sprayTimer = setTimeout(() => doStop(stopMs), sprayMs);
   };
 
-  const doStop = (stopMs, zoneNames) => {
-    if (!sharedCycle.cycling) return;
-    const zones = getActiveZones();
+  // 정지 단계
+  const doStop = (stopMs) => {
+    if (!zc.cycling) return;
 
     const ts = Date.now();
-    log(`[CYCLE] CLOSE → 존: [${zones.join(', ')}] / 정지 ${stopMs/1000}s`);
-    zones.forEach(zoneId => {
-      mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 });
-      mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'CLOSE', timestamp: ts }), { qos: 1, retain: true });
-      saveMistLog(zoneId, ZONES[zoneId].name, 'stop', zoneState[zoneId].mode || 'AUTO');
-    });
-    sendTelegram(`⏸ <b>분무수경 대기 시작</b>\n구역: ${zoneNames}\n대기: ${stopMs/1000}초\n시각: ${seoulTime()}`);
+    mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 });
+    mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'CLOSE', timestamp: ts }), { qos: 1, retain: true });
+    saveMistLog(zoneId, ZONES[zoneId].name, 'stop', st.mode || 'AUTO');
+    log(`[${ZONES[zoneId].name}] CLOSE — 정지 ${stopMs/1000}s`);
+    sendTelegram(`⏸ <b>분무수경 대기 시작</b>\n구역: ${ZONES[zoneId].name}\n대기: ${stopMs/1000}초\n시각: ${seoulTime()}`);
 
-    sharedCycle.stopTimer = setTimeout(() => {
-      if (getActiveZones().length === 0) { log('[CYCLE] 활성 존 없음 — 사이클 종료'); sharedCycle.cycling = false; return; }
-      doSpray(); // 다음 사이클 시작 시 스케줄 재평가
-    }, Math.max(stopMs, 500));
+    zc.stopTimer = setTimeout(doSpray, Math.max(stopMs, 500));
   };
 
   doSpray();
+}
+
+// ─── 모든 활성 구역의 독립 사이클 시작 ───────────────────────────────────────
+function startActiveCycles(mqttClient) {
+  const active = getActiveZones();
+  if (active.length === 0) {
+    log('[CYCLE] 활성 구역 없음 — 대기');
+    return;
+  }
+  active.forEach(zoneId => startZoneCycle(mqttClient, zoneId));
 }
 
 // ─── MQTT 연결 및 구독 ────────────────────────────────────────────────────────
@@ -237,6 +250,8 @@ function main() {
     reconnectPeriod:    5000,
     rejectUnauthorized: false,
   });
+
+  let firstConnect = true;
 
   client.on('connect', () => {
     log('HiveMQ Cloud 연결 성공');
@@ -257,8 +272,16 @@ function main() {
       else     log(`구독: ${t}`);
     }));
 
-    // 서버 설정 파일에서 초기 상태 로드 (retain 도착 전 fallback)
-    setTimeout(() => loadSettingsFromFile(client), 3000);
+    if (firstConnect) {
+      firstConnect = false;
+      // 첫 연결: 서버 설정 파일에서 초기 상태 로드 (retain 도착 전 fallback)
+      setTimeout(() => loadSettingsFromFile(client), 3000);
+    } else {
+      // (c) 재연결: 진행 중이던 활성 구역 사이클을 재시작해 밸브 상태 재동기화
+      //     (연결 끊긴 동안 ESP32가 재부팅돼 밸브가 닫혔을 수 있으므로 다음 분무를 즉시 재개)
+      log('[CYCLE] 재연결 감지 — 활성 구역 사이클 재동기화');
+      setTimeout(() => startActiveCycles(client), 1000);
+    }
   });
 
   client.on('message', (topic, message) => {
@@ -272,21 +295,17 @@ function main() {
         log(`[${ZONES[zoneId].name}] isRunning: ${newRunning}`);
 
         if (running !== newRunning) {
-          // 상태 변경 → 공유 사이클 재시작
+          // (b) 해당 구역만 독립적으로 시작/중지 (다른 구역에 영향 없음)
           if (newRunning && zoneState[zoneId].mode === 'AUTO') {
-            log(`[${ZONES[zoneId].name}] 활성화 → 공유 사이클 재시작`);
-            startSharedCycle(client);
+            log(`[${ZONES[zoneId].name}] 활성화 → 독립 사이클 시작`);
+            startZoneCycle(client, zoneId);
           } else if (!newRunning) {
-            // 이 존의 밸브 닫기
+            // 이 구역만 사이클 중지 + 밸브 닫기
+            stopZoneCycle(zoneId);
             client.publish(
               `tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 }
             );
             log(`[${ZONES[zoneId].name}] 중지 — 밸브 OFF`);
-            // 남은 활성 존이 있으면 계속, 없으면 사이클 종료
-            if (getActiveZones().length === 0) {
-              stopSharedCycle();
-              log('[CYCLE] 모든 존 중지 — 사이클 종료');
-            }
           }
         }
       }
@@ -299,9 +318,9 @@ function main() {
           if (parsed.nightSchedule) zoneState[zoneId].nightSchedule = parsed.nightSchedule;
           log(`[${ZONES[zoneId].name}] 스케줄 업데이트: mode=${parsed.mode}`);
 
-          // 실행 중이었으면 새 스케줄로 재시작
+          // 실행 중이었으면 이 구역만 새 스케줄로 재시작
           if (zoneState[zoneId].isRunning && zoneState[zoneId].mode === 'AUTO') {
-            startSharedCycle(client);
+            startZoneCycle(client, zoneId);
           }
         } catch (e) {
           log(`[${ZONES[zoneId].name}] 스케줄 파싱 오류: ${e.message}`);
@@ -338,8 +357,8 @@ function main() {
   client.on('offline',   () => log('[MQTT] 연결 끊김 — 재연결 중...'));
   client.on('reconnect', () => log('[MQTT] 재연결 시도...'));
 
-  process.on('SIGTERM', () => { log('SIGTERM — 종료'); stopSharedCycle(); client.end(); process.exit(0); });
-  process.on('SIGINT',  () => { log('SIGINT — 종료');  stopSharedCycle(); client.end(); process.exit(0); });
+  process.on('SIGTERM', () => { log('SIGTERM — 종료'); stopAllCycles(); client.end(); process.exit(0); });
+  process.on('SIGINT',  () => { log('SIGINT — 종료');  stopAllCycles(); client.end(); process.exit(0); });
 }
 
 function loadSettingsFromFile(client) {
@@ -357,11 +376,11 @@ function loadSettingsFromFile(client) {
       log(`[${ZONES[zoneId].name}] 설정 로드: mode=${zoneState[zoneId].mode}`);
     });
 
-    // 설정 로드 후 활성 존이 있으면 공유 사이클 시작
+    // 설정 로드 후 활성 구역이 있으면 각 구역 독립 사이클 시작
     const active = getActiveZones();
     if (active.length > 0) {
-      log(`[CYCLE] 설정 로드 완료 — 활성 존: [${active.join(', ')}] → 공유 사이클 시작`);
-      startSharedCycle(client);
+      log(`[CYCLE] 설정 로드 완료 — 활성 구역: [${active.join(', ')}] → 독립 사이클 시작`);
+      startActiveCycles(client);
     }
   } catch (e) {
     log(`[ERROR] 설정 파일 로드 실패: ${e.message}`);
