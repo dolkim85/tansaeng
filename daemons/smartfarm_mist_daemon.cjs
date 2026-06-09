@@ -44,8 +44,13 @@ Object.keys(ZONES).forEach(id => {
     daySchedule:     null,
     nightSchedule:   null,
     humidityControl: null,  // { enabled, threshold } — 포깅 등에서 사용
+    humBlocked:      false,  // 습도 충족으로 분무 차단 중인지 (히스테리시스 상태)
   };
 });
+
+// 습도 히스테리시스(이력) — 임계값 근처 출렁임 방지
+// 분무 멈춤: 습도 >= threshold / 분무 재개: 습도 < threshold - HYST
+const HUMIDITY_HYSTERESIS = 5;  // % (기본 5%, 필요 시 조정)
 
 // ─── 팜 습도 센서 (front/back/top 평균) ─────────────────────────────────────
 const humidity = { front: null, back: null, top: null };
@@ -189,13 +194,31 @@ function startZoneCycle(mqttClient, zoneId) {
     const ts = Date.now();
     const avgH = getAvgHumidity();
 
-    // (a) 습도 조건 체크 — 미충족이면 이 구역만 건너뛰고 정지시간 후 재평가
+    // 습도 조건 체크 — 히스테리시스로 임계값 근처 출렁임 방지
     const hCtrl = st.humidityControl;
-    if (hCtrl?.enabled && avgH !== null && avgH >= hCtrl.threshold) {
-      log(`[${ZONES[zoneId].name}] 습도 조건 미충족 (${avgH.toFixed(1)}% >= 기준 ${hCtrl.threshold}%) → 건너뜀`);
-      // 분무도 안 하고 텔레그램도 안 보냄 — 정지시간만큼 대기 후 다시 평가
-      zc.stopTimer = setTimeout(doSpray, Math.max(stopMs, 1000));
-      return;
+    if (hCtrl?.enabled && avgH !== null) {
+      const hyst   = (hCtrl.hysteresis != null ? Number(hCtrl.hysteresis) : HUMIDITY_HYSTERESIS);
+      const stopAt = hCtrl.threshold;          // 이 이상이면 분무 멈춤
+      const startAt = hCtrl.threshold - hyst;  // 이 미만으로 떨어져야 다시 분무
+
+      if (st.humBlocked) {
+        // 차단 중 — startAt 미만으로 충분히 떨어졌을 때만 재개
+        if (avgH >= startAt) {
+          // 아직 데드밴드 안 — 계속 건너뜀 (로그/텔레그램 없이 조용히 대기)
+          zc.stopTimer = setTimeout(doSpray, Math.max(stopMs, 1000));
+          return;
+        }
+        st.humBlocked = false;  // 데드밴드 아래로 떨어짐 → 분무 재개
+        log(`[${ZONES[zoneId].name}] 습도 ${avgH.toFixed(1)}% < ${startAt}% → 분무 재개`);
+      } else {
+        // 분무 중 — threshold 도달 시 차단으로 전환
+        if (avgH >= stopAt) {
+          st.humBlocked = true;
+          log(`[${ZONES[zoneId].name}] 습도 ${avgH.toFixed(1)}% >= 기준 ${stopAt}% → 분무 멈춤 (재개 ${startAt}% 미만)`);
+          zc.stopTimer = setTimeout(doSpray, Math.max(stopMs, 1000));
+          return;
+        }
+      }
     }
 
     // 실제 분무 실행
@@ -331,8 +354,13 @@ function main() {
         try {
           const parsed = JSON.parse(payload);
           if (parsed && typeof parsed === 'object') {
-            zoneState[zoneId].humidityControl = { enabled: !!parsed.enabled, threshold: Number(parsed.threshold) || 70 };
-            log(`[${ZONES[zoneId].name}] 습도 조건 업데이트: enabled=${parsed.enabled}, threshold=${parsed.threshold}%`);
+            zoneState[zoneId].humidityControl = {
+              enabled:    !!parsed.enabled,
+              threshold:  Number(parsed.threshold) || 70,
+              // UI가 hysteresis를 보내면 사용, 없으면 기본값
+              hysteresis: parsed.hysteresis != null ? Number(parsed.hysteresis) : HUMIDITY_HYSTERESIS,
+            };
+            log(`[${ZONES[zoneId].name}] 습도 조건 업데이트: enabled=${parsed.enabled}, threshold=${parsed.threshold}%, 히스테리시스=${zoneState[zoneId].humidityControl.hysteresis}%`);
           }
         } catch (e) {
           log(`[${ZONES[zoneId].name}] humidityConfig 파싱 오류: ${e.message}`);
