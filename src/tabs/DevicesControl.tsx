@@ -156,6 +156,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const fanModeRef = useRef<"AUTO" | "MANUAL">("MANUAL");
   const [fanDeviceRanges, setFanDeviceRanges] = useState<Record<string, { low: number; high: number }>>({});
   const [fanAutoActive, setFanAutoActive] = useState(false);
+  // 데몬이 발행하는 팬 실제 작동상태 (AUTO 모드 LED 표시용 — 데몬 단일제어이므로 UI는 구독만)
+  const [fanAutoStates, setFanAutoStates] = useState<Record<string, "on" | "off">>({});
   const fanDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({});
   const fanRangesFromMqttRef = useRef(false);
   const [fanAutoSensor, setFanAutoSensor] = useState<"temp" | "humi">("temp");
@@ -496,6 +498,17 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
       }),
       subscribeToTopic("tansaeng/fan-control/autoActive", (v) => {
         setFanAutoActive(v === "true");
+      }),
+      // 데몬이 발행하는 팬 실제 작동상태 (AUTO LED 표시)
+      subscribeToTopic("tansaeng/fan-control/autoStates", (v) => {
+        try {
+          const parsed = JSON.parse(v) as Record<string, string>;
+          if (parsed && typeof parsed === "object") {
+            const next: Record<string, "on" | "off"> = {};
+            Object.entries(parsed).forEach(([id, p]) => { next[id] = p === "on" ? "on" : "off"; });
+            setFanAutoStates(next);
+          }
+        } catch {}
       }),
       subscribeToTopic("tansaeng/fan-control/ranges", (v) => {
         try {
@@ -3392,7 +3405,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                     const range = useHumi
                       ? (fanHumRanges[fan.id] ?? { low: 60, high: 80 })
                       : (fanDeviceRanges[fan.id] ?? { low: 15, high: 22 });
-                    const isOn = deviceState[fan.id]?.power === "on";
+                    // AUTO 모드 LED는 데몬이 발행하는 실제 작동상태를 따른다 (deviceState는 AUTO에서 미갱신)
+                    const isOn = fanAutoStates[fan.id] === "on";
                     const inRange = avgValue !== null && avgValue >= range.low && avgValue <= range.high;
                     const unit = useHumi ? "%" : "°C";
 
