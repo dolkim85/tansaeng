@@ -452,6 +452,41 @@ function publishFanConfigRetain(mqttClient) {
   }
 }
 
+// 천창(sky) 포인트 설정을 retain 재발행 — retain 유실/재시작 후에도 UI가 실제 포인트를 복원하도록.
+// (tempPoints/timePoints/fullTimeSeconds는 스크린을 움직이지 않는 표시용 설정이라 안전)
+function publishSkyConfigRetain(mqttClient) {
+  try {
+    const s = ctrl.sky;
+    mqttClient.publish('tansaeng/sky-control/tempPoints', JSON.stringify(s.tempPoints), { qos: 1, retain: true });
+    mqttClient.publish('tansaeng/sky-control/timePoints', JSON.stringify(s.timePoints), { qos: 1, retain: true });
+    if (s.fullTimeSMap) {
+      if (s.fullTimeSMap.skylight_left  != null) mqttClient.publish('tansaeng/sky-control/fullTimeSeconds/left',  String(s.fullTimeSMap.skylight_left),  { qos: 1, retain: true });
+      if (s.fullTimeSMap.skylight_right != null) mqttClient.publish('tansaeng/sky-control/fullTimeSeconds/right', String(s.fullTimeSMap.skylight_right), { qos: 1, retain: true });
+    }
+    log(`[천창] 포인트 retain 재발행 (timePoints ${s.timePoints.length}개, tempPoints ${s.tempPoints.length}개)`);
+  } catch (e) {
+    log(`[천창] 포인트 retain 재발행 실패: ${e.message}`);
+  }
+}
+
+// 측창(side) 포인트 설정을 retain 재발행 (같은 retain 부재 문제 예방)
+function publishSideConfigRetain(mqttClient) {
+  try {
+    const s = ctrl.side;
+    mqttClient.publish('tansaeng/side-control/tempPoints',     JSON.stringify(s.tempPoints),     { qos: 1, retain: true });
+    mqttClient.publish('tansaeng/side-control/humPoints',      JSON.stringify(s.humPoints),      { qos: 1, retain: true });
+    mqttClient.publish('tansaeng/side-control/timePoints',     JSON.stringify(s.timePoints),     { qos: 1, retain: true });
+    mqttClient.publish('tansaeng/side-control/dayNightConfig', JSON.stringify(s.dayNightConfig), { qos: 1, retain: true });
+    if (s.fullTimeSMap) {
+      if (s.fullTimeSMap.sidescreen_left  != null) mqttClient.publish('tansaeng/side-control/fullTimeSeconds/left',  String(s.fullTimeSMap.sidescreen_left),  { qos: 1, retain: true });
+      if (s.fullTimeSMap.sidescreen_right != null) mqttClient.publish('tansaeng/side-control/fullTimeSeconds/right', String(s.fullTimeSMap.sidescreen_right), { qos: 1, retain: true });
+    }
+    log(`[측창] 포인트 retain 재발행`);
+  } catch (e) {
+    log(`[측창] 포인트 retain 재발행 실패: ${e.message}`);
+  }
+}
+
 function runFanAutoControl(mqttClient, avgTemp, avgHumi) {
   if (fan.mode !== 'AUTO' || !fan.autoActive) return;
 
@@ -807,8 +842,10 @@ function main() {
     log(`[INIT] ${initDelay / 1000}초 후 첫 제어 실행 (settings.json: ${settingsLoaded ? '로드됨' : '없음'})`);
     setTimeout(() => {
       startupComplete = true;
-      // 복원한 팬 설정을 retain으로 재발행 → 다른 기기 접속 시 동기화 보장
+      // 복원한 설정을 retain으로 재발행 → 재시작/retain유실 후에도 UI가 실제값 복원(하드코딩 복귀 방지)
       publishFanConfigRetain(client);
+      publishSkyConfigRetain(client);
+      publishSideConfigRetain(client);
       log('[INIT] 초기 AUTO 제어 실행');
       runAutoControl(client);
       // 이후 60초 주기
