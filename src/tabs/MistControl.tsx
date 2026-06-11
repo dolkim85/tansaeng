@@ -32,6 +32,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   const valveChangedAt = useRef<Record<string, number>>({});
   // 해당 구역에 대해 데몬 timerState를 받은 적 있는지 (받았으면 그게 카운트 기준, valve/state 로컬시각 fallback 비활성)
   const hasTimerState = useRef<Record<string, boolean>>({});
+  // 데몬이 서버 시계로 계산해 발행하는 경과초 (시계 오차 무관). receivedAt 기준 로컬 보간으로 부드럽게 표시.
+  const daemonElapsed = useRef<Record<string, { state: string; elapsed: number; duration: number; receivedAt: number }>>({});
 
   // 타이머 표시 강제 갱신
   const [, forceUpdate] = useState(0);
@@ -165,6 +167,21 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
           } catch {}
         })
       ),
+      // 데몬이 서버 시계로 계산한 경과초 — 시계 오차와 무관한 권위 값
+      ...zoneIds.map(zoneId =>
+        subscribeToTopic(`tansaeng/mist-control/${zoneId}/elapsed`, (v) => {
+          try {
+            const p = JSON.parse(v) as { state?: string; elapsed?: number; duration?: number };
+            if (!p || typeof p.elapsed !== "number") return;
+            daemonElapsed.current[zoneId] = {
+              state: p.state ?? "",
+              elapsed: p.elapsed,
+              duration: typeof p.duration === "number" ? p.duration : 0,
+              receivedAt: Date.now(),
+            };
+          } catch {}
+        })
+      ),
     ];
     return () => unsubs.forEach(u => u());
   }, [setZones]);
@@ -285,10 +302,18 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   const ZoneTimer = ({ zoneId, stopDuration }: { zoneId: string; stopDuration?: number | null }) => {
     const state = valveState[zoneId];
     if (!state || state === "UNKNOWN") return null;
-    const changedAt = valveChangedAt.current[zoneId];
-    if (!changedAt) return null;
 
-    const elapsed = Math.floor((Date.now() - changedAt) / 1000);
+    // 1순위: 데몬이 서버 시계로 보낸 경과초 (시계 오차 무관). 수신 후 경과분은 로컬 델타로 보간.
+    //        단 5초 이상 갱신 끊기면(구역 정지 등) 구버전 fallback으로 전환.
+    let elapsed: number;
+    const de = daemonElapsed.current[zoneId];
+    if (de && Date.now() - de.receivedAt < 5000) {
+      elapsed = de.elapsed + Math.floor((Date.now() - de.receivedAt) / 1000);
+    } else {
+      const changedAt = valveChangedAt.current[zoneId];
+      if (!changedAt) return null;
+      elapsed = Math.floor((Date.now() - changedAt) / 1000);
+    }
 
     if (state === "OPEN") {
       return (

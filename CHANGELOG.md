@@ -40,6 +40,12 @@
 - **수정**: 데몬이 전환마다 발행하는 `tansaeng/mist-control/{zone}/timerState`(`{state,timestamp}`, retain, 절대 epoch ms)를 UI가 구독 → `elapsed = now - timestamp`. 언제·어느 기기로 접속해도 동일·정확. timerState 못 받은 구역만 기존 로컬시각 fallback(구버전 데몬 대비).
 - 📌 데몬은 원래부터 timerState retain을 발행하고 있었음(설계는 됐는데 UI 연결만 빠진 상태) → **데몬 수정 없이 UI만 수정**.
 
+### 🔧 분무수경 카운트 — 데몬 경과초 직접 발행 (시계 오차 무관)
+- **배경**: timerState(절대 timestamp) 방식은 서버-브라우저 **시계(NTP) 오차**에 영향받음.
+- **수정**: 데몬이 **서버 시계로 계산한 경과초**를 1초 주기로 `tansaeng/mist-control/{zone}/elapsed`(`{state,elapsed,duration}`, qos0, 활성 구역만) 발행 → UI는 그 값을 그대로 표시(수신 후 경과분만 브라우저 로컬 델타로 보간하여 부드럽게). 양쪽 시각 비교가 사라져 **시계 오차와 무관**.
+- **fallback**: elapsed 5초 이상 끊기면(구역 정지/구버전 데몬) timerState/로컬시각 방식으로 자동 전환. 3단계 안전망(elapsed → timerState → 로컬).
+- **검증**: zone_a `{state:OPEN, elapsed:11→12→13→14→15, duration:30}` 매초 정상 수신.
+
 ### 🏷️ 커밋 (master)
 - `2026-06-11_0847` 팬 AUTO 작동중 LED 수정 (autoStates retain)
 - `2026-06-11_0900` 팬 dayNightConfig retain 보강 (publishFanConfigRetain)
