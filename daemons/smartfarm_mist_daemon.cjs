@@ -64,8 +64,45 @@ function getAvgHumidity() {
 // ─── 구역별 독립 사이클 상태 (각 구역이 자기 스케줄대로 동작) ─────────────────
 const zoneCycle = {};
 Object.keys(ZONES).forEach(id => {
-  zoneCycle[id] = { sprayTimer: null, stopTimer: null, cycling: false };
+  zoneCycle[id] = { sprayTimer: null, stopTimer: null, cycling: false, valveOpen: false };
 });
+
+// 전역 MQTT 클라이언트 참조 (밸브 강제 닫기/워치독에서 사용)
+let gClient = null;
+
+// 열린 밸브를 강제로 닫음 — 사이클 중단/습도차단/재시작 시 밸브가 열린 채 방치되는 것 방지
+function closeZoneValveIfOpen(zoneId) {
+  const zc = zoneCycle[zoneId];
+  if (!zc.valveOpen || !gClient) return;
+  zc.valveOpen = false;
+  const ts = Date.now();
+  gClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 });
+  gClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'CLOSE', timestamp: ts }), { qos: 1, retain: true });
+  log(`[${ZONES[zoneId].name}] 밸브 강제 CLOSE (방치 방지)`);
+}
+
+// 안전 워치독 — 60초마다 이상 상태 점검 (이상시에만 동작, 주기 발행 없음)
+let _watchdogTimer = null;
+function startWatchdog() {
+  if (_watchdogTimer) return;
+  _watchdogTimer = setInterval(() => {
+    Object.keys(ZONES).forEach(zoneId => {
+      const zc = zoneCycle[zoneId];
+      const st = zoneState[zoneId];
+      // (1) 사이클 비활성인데 밸브가 열려 있음 → 강제 닫기
+      if (zc.valveOpen && !zc.cycling) {
+        log(`[${ZONES[zoneId].name}] [WATCHDOG] 비활성인데 밸브 OPEN → 강제 CLOSE`);
+        closeZoneValveIfOpen(zoneId);
+      }
+      // (2) 실행 중이어야 하는데 사이클이 멈춰있음(타이머 없음) → 재시작
+      if (st.isRunning && st.mode === 'AUTO' && zc.cycling && !zc.sprayTimer && !zc.stopTimer) {
+        log(`[${ZONES[zoneId].name}] [WATCHDOG] 사이클 정지 감지 → 재시작`);
+        zc.cycling = false;
+        if (gClient) startZoneCycle(gClient, zoneId);
+      }
+    });
+  }, 60000);
+}
 
 // ─── 로그 ────────────────────────────────────────────────────────────────────
 function log(msg) {
@@ -152,6 +189,7 @@ function stopZoneCycle(zoneId) {
   if (zc.sprayTimer) { clearTimeout(zc.sprayTimer); zc.sprayTimer = null; }
   if (zc.stopTimer)  { clearTimeout(zc.stopTimer);  zc.stopTimer  = null; }
   zc.cycling = false;
+  closeZoneValveIfOpen(zoneId);   // 사이클 중단 시 열린 밸브 반드시 닫기
 }
 
 // ─── 모든 구역 사이클 중지 ───────────────────────────────────────────────────
@@ -161,23 +199,24 @@ function stopAllCycles() {
 
 // ─── 특정 구역 독립 사이클 시작 (자기 스케줄대로 분무/정지 반복) ─────────────
 function startZoneCycle(mqttClient, zoneId) {
-  stopZoneCycle(zoneId);
-
   const st = zoneState[zoneId];
-  if (!st.isRunning || st.mode !== 'AUTO') return;
+  if (!st.isRunning || st.mode !== 'AUTO') { stopZoneCycle(zoneId); return; }
 
   const zc = zoneCycle[zoneId];
+  if (zc.cycling) return;        // 이미 사이클 진행 중 — 중복 시작 방지 (닫기 타이머 유실 차단)
+  stopZoneCycle(zoneId);         // 남은 타이머/열린 밸브 정리 후 새로 시작
   zc.cycling = true;
   log(`[${ZONES[zoneId].name}] 사이클 시작`);
 
   // 분무 단계 — 매번 현재 시각 기준 스케줄 재평가 (주간↔야간 자동 전환)
   const doSpray = () => {
     if (!zc.cycling) return;
-    if (!st.isRunning || st.mode !== 'AUTO') { zc.cycling = false; return; }
+    if (!st.isRunning || st.mode !== 'AUTO') { zc.cycling = false; closeZoneValveIfOpen(zoneId); return; }
 
     const schedule = getCurrentSchedule(st);
     if (!schedule) {
       log(`[${ZONES[zoneId].name}] 현재 시간대 스케줄 없음 — 1분 후 재확인`);
+      closeZoneValveIfOpen(zoneId);          // 분무 안 함 → 열린 밸브 닫기
       zc.cycling = false;
       zc.stopTimer = setTimeout(() => startZoneCycle(mqttClient, zoneId), 60 * 1000);
       return;
@@ -187,6 +226,7 @@ function startZoneCycle(mqttClient, zoneId) {
     const stopMs  = (schedule.stopDurationSeconds  ?? 0) * 1000;
     if (sprayMs <= 0) {
       log(`[${ZONES[zoneId].name}] sprayDurationSeconds 미설정 — 사이클 불가`);
+      closeZoneValveIfOpen(zoneId);
       zc.cycling = false;
       return;
     }
@@ -205,6 +245,7 @@ function startZoneCycle(mqttClient, zoneId) {
         // 차단 중 — startAt 미만으로 충분히 떨어졌을 때만 재개
         if (avgH >= startAt) {
           // 아직 데드밴드 안 — 계속 건너뜀 (로그/텔레그램 없이 조용히 대기)
+          closeZoneValveIfOpen(zoneId);   // 차단 중 — 혹시 열려 있으면 닫기
           zc.stopTimer = setTimeout(doSpray, Math.max(stopMs, 1000));
           return;
         }
@@ -215,6 +256,7 @@ function startZoneCycle(mqttClient, zoneId) {
         if (avgH >= stopAt) {
           st.humBlocked = true;
           log(`[${ZONES[zoneId].name}] 습도 ${avgH.toFixed(1)}% >= 기준 ${stopAt}% → 분무 멈춤 (재개 ${startAt}% 미만)`);
+          closeZoneValveIfOpen(zoneId);   // 차단 전환 — 분무 중이던 밸브 즉시 닫기
           zc.stopTimer = setTimeout(doSpray, Math.max(stopMs, 1000));
           return;
         }
@@ -224,6 +266,7 @@ function startZoneCycle(mqttClient, zoneId) {
     // 실제 분무 실행
     mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'OPEN', { qos: 1 });
     mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'OPEN', timestamp: ts }), { qos: 1, retain: true });
+    zc.valveOpen = true;
     saveMistLog(zoneId, ZONES[zoneId].name, 'start', st.mode || 'AUTO');
     log(`[${ZONES[zoneId].name}] OPEN — 분무 ${sprayMs/1000}s / 정지 ${stopMs/1000}s${avgH !== null ? ` / 습도 ${avgH.toFixed(1)}%` : ''}`);
     // (a) 실제 분무했을 때만 텔레그램 발송
@@ -232,17 +275,17 @@ function startZoneCycle(mqttClient, zoneId) {
     zc.sprayTimer = setTimeout(() => doStop(stopMs), sprayMs);
   };
 
-  // 정지 단계
+  // 정지 단계 — 밸브는 항상 닫는다 (cycling=false여도 방치 금지). 다음 분무 예약만 cycling일 때.
   const doStop = (stopMs) => {
-    if (!zc.cycling) return;
-
     const ts = Date.now();
     mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 });
     mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'CLOSE', timestamp: ts }), { qos: 1, retain: true });
+    zc.valveOpen = false;
     saveMistLog(zoneId, ZONES[zoneId].name, 'stop', st.mode || 'AUTO');
     log(`[${ZONES[zoneId].name}] CLOSE — 정지 ${stopMs/1000}s`);
     sendTelegram(`⏸ <b>분무수경 대기 시작</b>\n구역: ${ZONES[zoneId].name}\n대기: ${stopMs/1000}초\n시각: ${seoulTime()}`);
 
+    if (!zc.cycling) return;   // 사이클 종료됐으면 다음 분무 예약 안 함 (밸브는 위에서 닫음)
     zc.stopTimer = setTimeout(doSpray, Math.max(stopMs, 500));
   };
 
@@ -273,11 +316,13 @@ function main() {
     reconnectPeriod:    5000,
     rejectUnauthorized: false,
   });
+  gClient = client;   // 전역 참조 (밸브 강제 닫기/워치독용)
 
   let firstConnect = true;
 
   client.on('connect', () => {
     log('HiveMQ Cloud 연결 성공');
+    startWatchdog();   // 안전 워치독 시작 (최초 1회)
 
     const topics = [];
     Object.keys(ZONES).forEach(zoneId => {
@@ -336,14 +381,23 @@ function main() {
       if (topic === `tansaeng/mist-control/${zoneId}/schedule`) {
         try {
           const parsed = JSON.parse(payload);
+          // 변경 감지 — retain 재수신(무변경)으로 인한 불필요한 재시작/churn 방지
+          const sigBefore = JSON.stringify([zoneState[zoneId].mode, zoneState[zoneId].daySchedule, zoneState[zoneId].nightSchedule]);
           if (parsed.mode)          zoneState[zoneId].mode          = parsed.mode;
           if (parsed.daySchedule)   zoneState[zoneId].daySchedule   = parsed.daySchedule;
           if (parsed.nightSchedule) zoneState[zoneId].nightSchedule = parsed.nightSchedule;
+          const sigAfter = JSON.stringify([zoneState[zoneId].mode, zoneState[zoneId].daySchedule, zoneState[zoneId].nightSchedule]);
           log(`[${ZONES[zoneId].name}] 스케줄 업데이트: mode=${parsed.mode}`);
 
-          // 실행 중이었으면 이 구역만 새 스케줄로 재시작
           if (zoneState[zoneId].isRunning && zoneState[zoneId].mode === 'AUTO') {
-            startZoneCycle(client, zoneId);
+            if (sigBefore !== sigAfter) {
+              // 실제로 스케줄이 바뀜 → 깨끗이 재시작해 즉시 적용
+              stopZoneCycle(zoneId);
+              startZoneCycle(client, zoneId);
+            } else {
+              // 무변경(retain 재수신) → 사이클 중이면 skip-if-cycling이 알아서 no-op
+              startZoneCycle(client, zoneId);
+            }
           }
         } catch (e) {
           log(`[${ZONES[zoneId].name}] 스케줄 파싱 오류: ${e.message}`);
