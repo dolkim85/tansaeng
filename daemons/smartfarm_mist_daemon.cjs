@@ -64,8 +64,7 @@ function getAvgHumidity() {
 // ─── 구역별 독립 사이클 상태 (각 구역이 자기 스케줄대로 동작) ─────────────────
 const zoneCycle = {};
 Object.keys(ZONES).forEach(id => {
-  zoneCycle[id] = { sprayTimer: null, stopTimer: null, cycling: false,
-                    state: null, transitionTs: 0, durationSec: 0 }; // 경과초 발행용
+  zoneCycle[id] = { sprayTimer: null, stopTimer: null, cycling: false };
 });
 
 // ─── 로그 ────────────────────────────────────────────────────────────────────
@@ -153,27 +152,6 @@ function stopZoneCycle(zoneId) {
   if (zc.sprayTimer) { clearTimeout(zc.sprayTimer); zc.sprayTimer = null; }
   if (zc.stopTimer)  { clearTimeout(zc.stopTimer);  zc.stopTimer  = null; }
   zc.cycling = false;
-  zc.state = null; // 경과초 발행 중단
-}
-
-// ─── 경과초 발행 (서버 시계로 계산 → 브라우저 시계 오차 무관) ──────────────────
-// 1초마다 활성 구역의 경과초를 발행. retain 불필요(열린 브라우저는 1초 내 수신,
-// 새 접속은 timerState retain으로 즉시 표시 후 1초 내 정밀값 수신).
-let _elapsedTimer = null;
-function startElapsedPublisher(mqttClient) {
-  if (_elapsedTimer) return; // 재연결 시 중복 생성 방지
-  _elapsedTimer = setInterval(() => {
-    Object.keys(ZONES).forEach(zoneId => {
-      const zc = zoneCycle[zoneId];
-      if (!zc || !zc.cycling || !zc.state || !zc.transitionTs) return;
-      const elapsed = Math.max(0, Math.floor((Date.now() - zc.transitionTs) / 1000));
-      mqttClient.publish(
-        `tansaeng/mist-control/${zoneId}/elapsed`,
-        JSON.stringify({ state: zc.state, elapsed, duration: zc.durationSec }),
-        { qos: 0 }
-      );
-    });
-  }, 1000);
 }
 
 // ─── 모든 구역 사이클 중지 ───────────────────────────────────────────────────
@@ -246,7 +224,6 @@ function startZoneCycle(mqttClient, zoneId) {
     // 실제 분무 실행
     mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'OPEN', { qos: 1 });
     mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'OPEN', timestamp: ts }), { qos: 1, retain: true });
-    zc.state = 'OPEN'; zc.transitionTs = ts; zc.durationSec = Math.round(sprayMs / 1000); // 경과초 기준
     saveMistLog(zoneId, ZONES[zoneId].name, 'start', st.mode || 'AUTO');
     log(`[${ZONES[zoneId].name}] OPEN — 분무 ${sprayMs/1000}s / 정지 ${stopMs/1000}s${avgH !== null ? ` / 습도 ${avgH.toFixed(1)}%` : ''}`);
     // (a) 실제 분무했을 때만 텔레그램 발송
@@ -262,7 +239,6 @@ function startZoneCycle(mqttClient, zoneId) {
     const ts = Date.now();
     mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 });
     mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'CLOSE', timestamp: ts }), { qos: 1, retain: true });
-    zc.state = 'CLOSE'; zc.transitionTs = ts; zc.durationSec = Math.round(stopMs / 1000); // 경과초 기준
     saveMistLog(zoneId, ZONES[zoneId].name, 'stop', st.mode || 'AUTO');
     log(`[${ZONES[zoneId].name}] CLOSE — 정지 ${stopMs/1000}s`);
     sendTelegram(`⏸ <b>분무수경 대기 시작</b>\n구역: ${ZONES[zoneId].name}\n대기: ${stopMs/1000}초\n시각: ${seoulTime()}`);
@@ -318,8 +294,6 @@ function main() {
       if (err) log(`구독 실패 ${t}: ${err.message}`);
       else     log(`구독: ${t}`);
     }));
-
-    startElapsedPublisher(client); // 경과초 1초 주기 발행 (서버 시계 기준)
 
     if (firstConnect) {
       firstConnect = false;

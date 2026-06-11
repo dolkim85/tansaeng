@@ -28,12 +28,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   // ESP32 온라인 상태
   const [esp32Online, setEsp32Online] = useState<Record<string, boolean>>({});
 
-  // 밸브 상태가 마지막으로 변경된 시각 (타이머용) — 데몬 timerState의 절대 timestamp가 권위
+  // 밸브 상태가 마지막으로 변경된 시각 (타이머용)
   const valveChangedAt = useRef<Record<string, number>>({});
-  // 해당 구역에 대해 데몬 timerState를 받은 적 있는지 (받았으면 그게 카운트 기준, valve/state 로컬시각 fallback 비활성)
-  const hasTimerState = useRef<Record<string, boolean>>({});
-  // 데몬이 서버 시계로 계산해 발행하는 경과초 (시계 오차 무관). receivedAt 기준 로컬 보간으로 부드럽게 표시.
-  const daemonElapsed = useRef<Record<string, { state: string; elapsed: number; duration: number; receivedAt: number }>>({});
 
   // 타이머 표시 강제 갱신
   const [, forceUpdate] = useState(0);
@@ -80,9 +76,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         const zoneId = ZONES_TOPICS[topic];
         const newState = msg === "OPEN" ? "OPEN" : "CLOSE";
         setValveState(prev => {
-          // 카운트 기준은 데몬의 timerState(절대 timestamp)가 권위.
-          // timerState를 한 번도 못 받은 구역만 로컬 시각으로 fallback (데몬 구버전 대비).
-          if (prev[zoneId] !== newState && !hasTimerState.current[zoneId]) {
+          // 상태가 변경됐을 때만 타이머 리셋
+          if (prev[zoneId] !== newState) {
             valveChangedAt.current[zoneId] = Date.now();
           }
           return { ...prev, [zoneId]: newState };
@@ -151,37 +146,6 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
           }
         } catch {}
       }),
-      // 데몬이 발행하는 전환 시각(timerState) 구독 — 카운트의 권위 있는 기준.
-      // 데몬 단독으로 도는 실제 사이클의 절대 timestamp라, 브라우저를 언제 열든/어느 기기든 동일·정확.
-      ...zoneIds.map(zoneId =>
-        subscribeToTopic(`tansaeng/mist-control/${zoneId}/timerState`, (v) => {
-          try {
-            const parsed = JSON.parse(v) as { state?: string; timestamp?: number };
-            if (!parsed || typeof parsed.timestamp !== "number") return;
-            hasTimerState.current[zoneId] = true;
-            valveChangedAt.current[zoneId] = parsed.timestamp; // 로컬 Date.now() 대신 데몬 실제 전환 시각 사용
-            if (parsed.state === "OPEN" || parsed.state === "CLOSE") {
-              const st = parsed.state;
-              setValveState(prev => prev[zoneId] === st ? prev : { ...prev, [zoneId]: st });
-            }
-          } catch {}
-        })
-      ),
-      // 데몬이 서버 시계로 계산한 경과초 — 시계 오차와 무관한 권위 값
-      ...zoneIds.map(zoneId =>
-        subscribeToTopic(`tansaeng/mist-control/${zoneId}/elapsed`, (v) => {
-          try {
-            const p = JSON.parse(v) as { state?: string; elapsed?: number; duration?: number };
-            if (!p || typeof p.elapsed !== "number") return;
-            daemonElapsed.current[zoneId] = {
-              state: p.state ?? "",
-              elapsed: p.elapsed,
-              duration: typeof p.duration === "number" ? p.duration : 0,
-              receivedAt: Date.now(),
-            };
-          } catch {}
-        })
-      ),
     ];
     return () => unsubs.forEach(u => u());
   }, [setZones]);
@@ -302,18 +266,10 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   const ZoneTimer = ({ zoneId, stopDuration }: { zoneId: string; stopDuration?: number | null }) => {
     const state = valveState[zoneId];
     if (!state || state === "UNKNOWN") return null;
+    const changedAt = valveChangedAt.current[zoneId];
+    if (!changedAt) return null;
 
-    // 1순위: 데몬이 서버 시계로 보낸 경과초 (시계 오차 무관). 수신 후 경과분은 로컬 델타로 보간.
-    //        단 5초 이상 갱신 끊기면(구역 정지 등) 구버전 fallback으로 전환.
-    let elapsed: number;
-    const de = daemonElapsed.current[zoneId];
-    if (de && Date.now() - de.receivedAt < 5000) {
-      elapsed = de.elapsed + Math.floor((Date.now() - de.receivedAt) / 1000);
-    } else {
-      const changedAt = valveChangedAt.current[zoneId];
-      if (!changedAt) return null;
-      elapsed = Math.floor((Date.now() - changedAt) / 1000);
-    }
+    const elapsed = Math.floor((Date.now() - changedAt) / 1000);
 
     if (state === "OPEN") {
       return (
