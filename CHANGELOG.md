@@ -2,6 +2,50 @@
 
 ---
 
+## 2026-06-11 — 데몬 정리 & 팬 AUTO LED/retain 보강
+
+> 발단: "오늘 데몬이 재부팅됐는지 로그 확인" 요청 → 점검 중 구버전 서비스 crash 루프 발견,
+> 이어서 "팬 자동모드 LED 미점등" + "재시작 후 주야간 수동 재설정 필요" 문제 해결.
+
+### 🚨 장애/이상 점검
+- **데몬 재시작 확인**: 핵심 데몬 3종(autocontrol/mqtt/mist)이 6/11 06:37:37 동시 재시작됨.
+  - 서버 전체 재부팅 아님 (시스템 부팅은 6/6, uptime 유지). `systemctl restart` 성격의 서비스 재시작.
+- **구버전 서비스 2종 crash 루프 발견·정리**:
+  - `tansaeng-command-processor`(+`.timer`): 실행파일 `scripts/command_processor.php` 없음. 마지막 정상동작 2025-12-14. 1초마다 재시작 실패, 에러로그 42MB.
+  - `tansaeng-heartbeat`: 실행파일 `daemons/mqtt_heartbeat_daemon.cjs` 없음(구버전 .php만 잔존). 13,585회 재시작 실패, 에러로그 61MB.
+  - 둘 다 기능이 `tansaeng-mqtt`(장치 감시) / UI MQTT 직접발행으로 대체된 **구버전 잔재** → `stop` + `disable`(+timer) + 에러로그 103MB 정리.
+  - ⚠️ 향후 이 두 서비스 로그가 다시 보이면 = 누군가 enable한 것. 다시 `disable`하면 됨.
+
+### 🔥 버그 수정 — 팬 AUTO "작동중 LED" 미점등
+- **원인**: UI는 `BROWSER_AUTO_CONTROL = false`(데몬 단일제어)라 AUTO 모드에서 브라우저측 제어 useEffect가 첫 줄 return → `deviceState[fanId].power` 미갱신. 데몬은 팬 cmd를 retain 없이·변경 시에만 발행하고 UI는 이를 구독하지 않아, 데몬이 실제로 팬을 돌려도 UI LED가 항상 "정지"로 표시됨.
+- **수정 (데몬 `smartfarm_auto_control_daemon.cjs`)**:
+  - `runFanAutoControl`에서 팬 실제 상태를 `tansaeng/fan-control/autoStates`(JSON `{fan_id:"on"/"off"}`, **retain**) 발행.
+  - AUTO 정지/MANUAL 전환 시 `clearFanAutoStates()`로 전체 off 발행.
+- **수정 (UI `DevicesControl.tsx`)**:
+  - `fanAutoStates` state 추가 + `tansaeng/fan-control/autoStates` 구독.
+  - AUTO 화면 팬 카드 LED 판정을 `deviceState.power` → `fanAutoStates[fanId]`로 변경.
+- 📌 HP 장치는 이미 `tansaeng/ctlr-heat-001/{pump,heater,fan}/state` 구독으로 LED를 켜고 있었음(같은 원리). **새 장치 AUTO LED 만들 때 데몬 retain 상태 발행/구독을 반드시 같이 구현.**
+
+### 🔧 보강 — 팬 dayNightConfig retain (다른 기기 동기화)
+- **현상**: 데몬 재시작 후 주야간 모드를 수동으로 다시 켜야 했음 + 새 브라우저 접속 시 주야간이 OFF로 표시.
+- **진단**:
+  - 데몬 재시작 후 주야간 **자동복원은 이미 동작** (`config/daemon_settings.json` 파일 영속: `loadSettings`/`saveSettings`가 `fan.dayNight` 저장·복원). 06:37 당시엔 파일에 enabled=true가 저장되기 전이라 수동 재설정 필요했던 것.
+  - 단 브로커에 `dayNightConfig`/`humRanges`/`autoSensor` **retain이 없어** 새 기기 접속 시 UI가 기본값(주야간 OFF)으로 떠 데몬과 어긋남.
+- **수정 (데몬)**: `startupComplete` 직후 `publishFanConfigRetain()`으로 파일에서 복원한 위 3개 토픽을 **retain 재발행**. UI는 셋 다 구독 중이라 자동 동기화.
+- **검증**: 브로커 fan-control retain 5개 → 8개(`dayNightConfig` 548B 등 추가) 확인.
+
+### 🏷️ 커밋 (master)
+- `2026-06-11_0847` 팬 AUTO 작동중 LED 수정 (autoStates retain)
+- `2026-06-11_0900` 팬 dayNightConfig retain 보강 (publishFanConfigRetain)
+
+### ⚠️ 다음 작업 시 참고
+- **데몬 = 단일 source of truth.** 서버 `/var/www/html/daemons/smartfarm_auto_control_daemon.cjs`가 실행 기준이며, 로컬 사본(`tansaeng_new/daemons/`, repo `daemons/`)과 다를 수 있으니 수정 전 서버 파일을 받아서 작업할 것.
+- **설정 영속 2중화**: ① `daemon_settings.json` 파일(재시작 생존) ② MQTT retain(기기간 동기화). 새 설정 추가 시 둘 다 보장해야 함 — `saveSettings`/`loadSettings`에 필드 추가 + 시작 시 retain 재발행 고려.
+- **AUTO 모드 장치 상태 표시**는 데몬이 retain으로 알려줘야 UI가 안다 (`autoStates` 패턴).
+- 미적용(필요 시): 천창/측창(side) `dayNightConfig` 등 다른 장치도 동일한 retain 재발행 보강이 필요할 수 있음 (이번엔 팬만 적용).
+
+---
+
 ## smartfarm-ui-2026-06-06 (2026-06-06)
 
 ### 🔥 버그 수정
