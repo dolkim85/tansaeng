@@ -34,9 +34,16 @@
 - **수정 (데몬)**: `startupComplete` 직후 `publishFanConfigRetain()`으로 파일에서 복원한 위 3개 토픽을 **retain 재발행**. UI는 셋 다 구독 중이라 자동 동기화.
 - **검증**: 브로커 fan-control retain 5개 → 8개(`dayNightConfig` 548B 등 추가) 확인.
 
+### 🔧 분무수경 카운트 — 데몬 timerState 구독 (기기간 동기화)
+- **현상**: 카운트가 브라우저를 사이클 도중 열면 0부터 시작, 다른 기기마다 값이 다름(드리프트).
+- **원인**: UI가 `valve/state`(OPEN/CLOSE)를 **받은 순간의 로컬 `Date.now()`**로 경과시간을 계산(`MistControl.tsx`). 데몬은 단독으로 정확히 카운트 중이지만 UI가 그걸 안 읽음.
+- **수정**: 데몬이 전환마다 발행하는 `tansaeng/mist-control/{zone}/timerState`(`{state,timestamp}`, retain, 절대 epoch ms)를 UI가 구독 → `elapsed = now - timestamp`. 언제·어느 기기로 접속해도 동일·정확. timerState 못 받은 구역만 기존 로컬시각 fallback(구버전 데몬 대비).
+- 📌 데몬은 원래부터 timerState retain을 발행하고 있었음(설계는 됐는데 UI 연결만 빠진 상태) → **데몬 수정 없이 UI만 수정**.
+
 ### 🏷️ 커밋 (master)
 - `2026-06-11_0847` 팬 AUTO 작동중 LED 수정 (autoStates retain)
 - `2026-06-11_0900` 팬 dayNightConfig retain 보강 (publishFanConfigRetain)
+- `2026-06-11_2105` 분무수경 카운트 timerState 구독 (기기간 동기화)
 
 ### ⚠️ 다음 작업 시 참고
 - **데몬 = 단일 source of truth.** 서버 `/var/www/html/daemons/smartfarm_auto_control_daemon.cjs`가 실행 기준이며, 로컬 사본(`tansaeng_new/daemons/`, repo `daemons/`)과 다를 수 있으니 수정 전 서버 파일을 받아서 작업할 것.
