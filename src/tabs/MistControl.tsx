@@ -28,8 +28,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   // ESP32 온라인 상태
   const [esp32Online, setEsp32Online] = useState<Record<string, boolean>>({});
 
-  // 밸브 상태가 마지막으로 변경된 시각 (타이머용)
+  // 밸브 상태가 마지막으로 변경된 시각 (타이머용 — 로컬 fallback)
   const valveChangedAt = useRef<Record<string, number>>({});
+  // 데몬이 전환 시 발행하는 정확한 기준점 {state, timestamp} (전환 시에만 발행 → 저빈도, 안전)
+  // 카운트 기준으로 사용하되, state가 실측 valveState와 일치할 때만 신뢰(불일치 시 로컬 fallback)
+  const timerAnchor = useRef<Record<string, { state: string; timestamp: number }>>({});
 
   // 타이머 표시 강제 갱신
   const [, forceUpdate] = useState(0);
@@ -146,6 +149,18 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
           }
         } catch {}
       }),
+      // 데몬 전환 기준점 구독 (전환 시에만 발행 → 저빈도). 카운트 기준 timestamp로만 사용,
+      // 표시 상태(valveState)는 건드리지 않음 (실측 valve/state가 진실).
+      ...zoneIds.map(zoneId =>
+        subscribeToTopic(`tansaeng/mist-control/${zoneId}/timerState`, (v) => {
+          try {
+            const p = JSON.parse(v) as { state?: string; timestamp?: number };
+            if (p && (p.state === "OPEN" || p.state === "CLOSE") && typeof p.timestamp === "number") {
+              timerAnchor.current[zoneId] = { state: p.state, timestamp: p.timestamp };
+            }
+          } catch {}
+        })
+      ),
     ];
     return () => unsubs.forEach(u => u());
   }, [setZones]);
@@ -266,10 +281,15 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   const ZoneTimer = ({ zoneId, stopDuration }: { zoneId: string; stopDuration?: number | null }) => {
     const state = valveState[zoneId];
     if (!state || state === "UNKNOWN") return null;
-    const changedAt = valveChangedAt.current[zoneId];
+    // 카운트 기준점: 데몬 timerState의 state가 실측 valveState와 일치하면 그 timestamp(정확·기기공통),
+    // 불일치(stale 등)하면 로컬 valveChangedAt으로 fallback.
+    const anchor = timerAnchor.current[zoneId];
+    const changedAt = (anchor && anchor.state === state)
+      ? anchor.timestamp
+      : valveChangedAt.current[zoneId];
     if (!changedAt) return null;
 
-    const elapsed = Math.floor((Date.now() - changedAt) / 1000);
+    const elapsed = Math.max(0, Math.floor((Date.now() - changedAt) / 1000));
 
     if (state === "OPEN") {
       return (
