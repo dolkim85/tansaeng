@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-06-12 — 천창/측창 포인트 retain 유실 → 하드코딩 복귀 수정
+
+> 증상: 천창 화면이 하드코딩 기본값(timePoints 08:00→30/12:00→80/18:00→0)으로 보임.
+
+- **원인**: 천창 `timePoints`/`tempPoints`의 MQTT retain이 브로커에서 유실됨(mode/autoActive/autoType는 남아있음). 데몬은 파일(`daemon_settings.json`)에 사용자 실제 포인트(`timePoints 12:00→0/14:00→100`)를 영속·제어 중이었으나, 데몬이 sky 포인트를 발행하지 않고 구독만 해서 retain이 한번 사라지면 복구 주체가 없었음. → **제어는 정상, UI 표시만 하드코딩**.
+- **수정(데몬)**: 시작 시 파일에서 복원한 sky/side 포인트를 retain 재발행하는 `publishSkyConfigRetain`/`publishSideConfigRetain` 추가(팬 `publishFanConfigRetain`과 동일 패턴). `tempPoints`/`timePoints`/`humPoints`/`dayNightConfig`/`fullTimeSeconds`만 발행 — 스크린 이동 없는 표시용이라 안전(mode/autoActive는 제외).
+- **즉시 복구**: 현재값을 retain 발행해 데몬 무중단으로 화면 복구. 코드는 다음 재시작부터 자동 보장.
+- **검증**: sky retain에 timePoints/tempPoints 생성 확인, 천창 미이동(`[SKIP] 히스테리시스`).
+- **커밋**: `2026-06-12_0814`
+
+---
+
 ## 2026-06-11 (밤) — 분무 밸브 닫기 보장 + 카운트 동기화 안전 재도입
 
 > 롤백 후, 사고의 진짜 원인이었던 "닫기 보장 버그"를 고치고 카운트 동기화를 안전한 방식으로 다시 넣음.
