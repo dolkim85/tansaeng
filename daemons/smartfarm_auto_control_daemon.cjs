@@ -46,6 +46,7 @@ const fan = {
   ranges:     {},      // { fan_id: { low, high } } — 온도 범위
   humRanges:  {},      // { fan_id: { low, high } } — 습도 범위
   lastCmd:    {},      // { fan_id: 'ON' | 'OFF' | null }
+  autoStates: {},      // { fan_id: 'on' | 'off' } — UI LED 표시용 (retain 발행)
   dayNight: {
     enabled: false,
     dayStart: '06:00',
@@ -148,8 +149,8 @@ const ctrl = {
     mode:       'MANUAL',
     autoActive: false,
     autoType:   'temp',   // 'temp' | 'time'
-    tempPoints: [{ temp: 20, rate: 10 }, { temp: 23, rate: 30 }, { temp: 28, rate: 100 }],
-    timePoints: [{ time: '08:00', rate: 30 }, { time: '12:00', rate: 80 }, { time: '18:00', rate: 0 }],
+    tempPoints: [{ temp: 20, rate: 0 }, { temp: 28, rate: 0 }],
+    timePoints: [{ time: '00:00', rate: 0 }],
     currentPos: {},   // { deviceId: number }
     lastTarget: {},   // { deviceId: number | null }
     timers:     {},   // { deviceId: Timeout }
@@ -161,9 +162,9 @@ const ctrl = {
     autoActive: false,
     autoType:   'temp',   // 'temp' | 'time' | 'daynight'
     autoSensor: 'temp',   // 'temp' | 'humi' (autoType=temp 일 때)
-    tempPoints: [{ temp: 20, rate: 10 }, { temp: 23, rate: 30 }, { temp: 28, rate: 100 }],
-    humPoints:  [{ humi: 60, rate: 10 }, { humi: 70, rate: 30 }, { humi: 80, rate: 100 }],
-    timePoints: [{ time: '08:00', rate: 0 }, { time: '14:00', rate: 100 }, { time: '20:00', rate: 0 }],
+    tempPoints: [{ temp: 20, rate: 0 }, { temp: 28, rate: 0 }],
+    humPoints:  [{ humi: 60, rate: 0 }, { humi: 80, rate: 0 }],
+    timePoints: [{ time: '00:00', rate: 0 }],
     dayNightConfig: {
       dayStart: '06:00',
       nightStart: '20:00',
@@ -425,6 +426,32 @@ function moveDevice(mqttClient, ctrlState, device, targetRate, forceMove = false
 }
 
 // ─── 팬 ON/OFF 제어 ──────────────────────────────────────────────────────────
+// 팬 실제 작동상태를 UI LED용으로 retain 발행 (manualStates와 동일 패턴)
+function publishFanAutoStates(mqttClient) {
+  const states = {};
+  FAN_DEVICES.forEach(({ id }) => { states[id] = fan.autoStates[id] === 'on' ? 'on' : 'off'; });
+  mqttClient.publish('tansaeng/fan-control/autoStates', JSON.stringify(states), { qos: 1, retain: true });
+}
+
+// AUTO 정지/MANUAL 전환 시 모든 팬 상태를 off로 초기화하고 발행
+function clearFanAutoStates(mqttClient) {
+  FAN_DEVICES.forEach(({ id }) => { fan.autoStates[id] = 'off'; });
+  publishFanAutoStates(mqttClient);
+}
+
+// 데몬이 파일에서 복원한 팬 설정을 retain으로 재발행 — 브로커 retain 부재 시
+// 새 브라우저/다른 기기 접속해도 주야간 등 설정이 동기화되도록 보장
+function publishFanConfigRetain(mqttClient) {
+  try {
+    mqttClient.publish('tansaeng/fan-control/dayNightConfig', JSON.stringify(fan.dayNight), { qos: 1, retain: true });
+    mqttClient.publish('tansaeng/fan-control/humRanges',      JSON.stringify(fan.humRanges), { qos: 1, retain: true });
+    mqttClient.publish('tansaeng/fan-control/autoSensor',     fan.autoSensor,                { qos: 1, retain: true });
+    log(`[FAN] 설정 retain 재발행 (dayNight.enabled=${fan.dayNight.enabled})`);
+  } catch (e) {
+    log(`[FAN] 설정 retain 재발행 실패: ${e.message}`);
+  }
+}
+
 function runFanAutoControl(mqttClient, avgTemp, avgHumi) {
   if (fan.mode !== 'AUTO' || !fan.autoActive) return;
 
@@ -458,10 +485,14 @@ function runFanAutoControl(mqttClient, avgTemp, avgHumi) {
     sensorLabel  = `온도 ${avgTemp.toFixed(1)}°C`;
   }
 
+  let autoStatesChanged = false;
   FAN_DEVICES.forEach(({ id, name, cmdTopic }) => {
     const range = activeRanges[id];
     if (!range) return;
     const cmd = (activeValue >= range.low && activeValue <= range.high) ? 'ON' : 'OFF';
+    // UI LED 표시용 실제 상태 동기화 (lastCmd와 별개로 항상 최신값 반영)
+    const stateVal = cmd === 'ON' ? 'on' : 'off';
+    if (fan.autoStates[id] !== stateVal) { fan.autoStates[id] = stateVal; autoStatesChanged = true; }
     if (fan.lastCmd[id] !== cmd) {
       fan.lastCmd[id] = cmd;
       mqttClient.publish(cmdTopic, cmd, { qos: 1 });
@@ -469,6 +500,7 @@ function runFanAutoControl(mqttClient, avgTemp, avgHumi) {
       sendAlert(`fan_${id}`, `💨 팬 AUTO ${cmd === 'ON' ? '가동' : '정지'}`, `${name}: ${cmd}\n현재 ${sensorLabel}`);
     }
   });
+  if (autoStatesChanged) publishFanAutoStates(mqttClient);
 }
 
 // ─── 히트시스템 ON/OFF 제어 ───────────────────────────────────────────────────
@@ -770,10 +802,13 @@ function main() {
     }));
 
     // settings.json 있으면 3초(MQTT retain 최신값 반영용), 없으면 10초 대기
-    const initDelay = settingsLoaded ? 3000 : 10000;
+    // retain 수신 대기: 파일 있어도 8초, 없으면 20초 (HiveMQ retain 늦게 도착 대비)
+    const initDelay = settingsLoaded ? 8000 : 20000;
     log(`[INIT] ${initDelay / 1000}초 후 첫 제어 실행 (settings.json: ${settingsLoaded ? '로드됨' : '없음'})`);
     setTimeout(() => {
       startupComplete = true;
+      // 복원한 팬 설정을 retain으로 재발행 → 다른 기기 접속 시 동기화 보장
+      publishFanConfigRetain(client);
       log('[INIT] 초기 AUTO 제어 실행');
       runAutoControl(client);
       // 이후 60초 주기
@@ -888,6 +923,7 @@ function main() {
     } else if (topic === 'tansaeng/fan-control/mode') {
       fan.mode = (payload === 'AUTO' || payload === 'MANUAL') ? payload : 'MANUAL';
       log(`[FAN] 모드: ${fan.mode}`);
+      if (fan.mode === 'MANUAL') clearFanAutoStates(client);  // MANUAL 전환 시 LED off
 
     } else if (topic === 'tansaeng/fan-control/autoActive') {
       fan.autoActive = payload === 'true';
@@ -895,6 +931,8 @@ function main() {
       if (fan.autoActive && startupComplete) {
         fan.lastCmd = {};
         setTimeout(() => runAutoControl(client), 500);
+      } else if (!fan.autoActive) {
+        clearFanAutoStates(client);  // 작동멈춤 시 LED off
       }
 
     } else if (topic === 'tansaeng/fan-control/autoSensor') {
@@ -1070,8 +1108,37 @@ function main() {
   });
   client.on('reconnect', () => log('[MQTT] 재연결 시도...'));
 
-  process.on('SIGTERM', () => { log('SIGTERM — 종료'); client.end(); process.exit(0); });
-  process.on('SIGINT',  () => { log('SIGINT — 종료');  client.end(); process.exit(0); });
+  process.on('SIGTERM', () => {
+    log('SIGTERM — 종료 전 설정 저장');
+    // 종료 전 즉시 저장 (debounce 우회)
+    try {
+      const data = {
+        sky:  { mode: ctrl.sky.mode,  autoActive: ctrl.sky.autoActive,  autoType: ctrl.sky.autoType,  tempPoints: ctrl.sky.tempPoints,  timePoints: ctrl.sky.timePoints,  currentPos: ctrl.sky.currentPos,  fullTimeSMap: ctrl.sky.fullTimeSMap },
+        side: { mode: ctrl.side.mode, autoActive: ctrl.side.autoActive, autoType: ctrl.side.autoType, autoSensor: ctrl.side.autoSensor, tempPoints: ctrl.side.tempPoints, humPoints: ctrl.side.humPoints, timePoints: ctrl.side.timePoints, dayNightConfig: ctrl.side.dayNightConfig, currentPos: ctrl.side.currentPos, fullTimeSMap: ctrl.side.fullTimeSMap },
+        fan:  { mode: fan.mode,  autoActive: fan.autoActive,  autoSensor: fan.autoSensor, ranges: fan.ranges, humRanges: fan.humRanges, dayNight: fan.dayNight },
+        hp:   { mode: hp.mode,   autoActive: hp.autoActive,   ranges: hp.ranges, dayNight: hp.dayNight },
+      };
+      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data, null, 2), 'utf8');
+      log('SIGTERM — 설정 저장 완료');
+    } catch (e) { log(`SIGTERM — 설정 저장 실패: ${e.message}`); }
+    client.end();
+    process.exit(0);
+  });
+  process.on('SIGINT', () => {
+    log('SIGINT — 종료 전 설정 저장');
+    try {
+      const data = {
+        sky:  { mode: ctrl.sky.mode,  autoActive: ctrl.sky.autoActive,  autoType: ctrl.sky.autoType,  tempPoints: ctrl.sky.tempPoints,  timePoints: ctrl.sky.timePoints,  currentPos: ctrl.sky.currentPos,  fullTimeSMap: ctrl.sky.fullTimeSMap },
+        side: { mode: ctrl.side.mode, autoActive: ctrl.side.autoActive, autoType: ctrl.side.autoType, autoSensor: ctrl.side.autoSensor, tempPoints: ctrl.side.tempPoints, humPoints: ctrl.side.humPoints, timePoints: ctrl.side.timePoints, dayNightConfig: ctrl.side.dayNightConfig, currentPos: ctrl.side.currentPos, fullTimeSMap: ctrl.side.fullTimeSMap },
+        fan:  { mode: fan.mode,  autoActive: fan.autoActive,  autoSensor: fan.autoSensor, ranges: fan.ranges, humRanges: fan.humRanges, dayNight: fan.dayNight },
+        hp:   { mode: hp.mode,   autoActive: hp.autoActive,   ranges: hp.ranges, dayNight: hp.dayNight },
+      };
+      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data, null, 2), 'utf8');
+      log('SIGINT — 설정 저장 완료');
+    } catch (e) { log(`SIGINT — 설정 저장 실패: ${e.message}`); }
+    client.end();
+    process.exit(0);
+  });
 }
 
 main();
