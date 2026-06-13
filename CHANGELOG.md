@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-06-13 — ESP32 연결 초록불(내부팬 뒤) 오표시 + mqtt 데몬 워치독
+
+> 증상: 내부팬 뒤(ctlr-0002) ESP32가 실제로는 온도·팬 정상인데 UI 연결 초록불만 꺼짐.
+
+- **원인**: UI 초록불은 `device_status` DB(`is_online`) 기준인데, 그 DB를 갱신하는 **`tansaeng-mqtt`(mqtt_daemon.php)가 6/12 22:38부터 "연결됨 상태로 내부 정지"**(크래시 164회 후 connecting에서 멈춤, 프로세스는 살아있어 systemd가 못 잡음) → 약 10시간 DB 동결. 동결 시점에 ctlr-0002가 offline이라 그대로 굳음.
+  - ESP32는 정상(broker에 status=online, 온도 실시간 발행). UI 온도는 autocontrol의 realtime_sensor.json에서 와서 무관하게 정상이었음.
+- **조치**: `tansaeng-mqtt` 재시작 → DB 갱신 재개, 모든 활동 장치 online 정상 복귀(0006/0011은 ~4개월 전부터 진짜 오프라인).
+- **재발 방지(워치독)**: `scripts/mqtt_watchdog.sh` + cron(1분) 추가. mqtt 로그가 120초 이상 멈추면(=내부 정지) 자동 `systemctl restart`. 쿨다운 600초로 정전 시 무한 재시작 방지. 브로커 장애 크래시루프는 로그가 계속 찍혀 오작동 안 함.
+
+---
+
 ## 2026-06-12 — 천창/측창 포인트 retain 유실 → 하드코딩 복귀 수정
 
 > 증상: 천창 화면이 하드코딩 기본값(timePoints 08:00→30/12:00→80/18:00→0)으로 보임.

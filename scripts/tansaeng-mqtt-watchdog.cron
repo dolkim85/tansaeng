@@ -1,0 +1,2 @@
+# tansaeng-mqtt 헬스 워치독 — 1분마다 로그 정지 감지 시 재시작
+* * * * * root /var/www/html/scripts/mqtt_watchdog.sh
