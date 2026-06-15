@@ -288,10 +288,25 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const sideDayNightFirstRunRef = useRef(true);
 
   // 팬 주야간 설정
+  // 하드코딩 기본값을 실사용값과 일치시킴 (retain 미로드 시에도 올바른 값 표시). retain 있으면 retain 우선.
   const defaultFanDNConfig: DayNightConfigFan = {
-    enabled: false, dayStart: "06:00", nightStart: "20:00",
-    day:   { sensor: "temp", ranges: {}, humRanges: {} },
-    night: { sensor: "temp", ranges: {}, humRanges: {} },
+    enabled: true, dayStart: "06:00", nightStart: "20:00",
+    day: {
+      sensor: "temp",
+      ranges: {
+        fan_front: { low: 22, high: 50 }, fan_back: { low: 22, high: 50 }, fan_top: { low: 19, high: 50 },
+        fan_ground_front: { low: 22, high: 50 }, fan_ground_back: { low: 20, high: 50 },
+      },
+      humRanges: {},
+    },
+    night: {
+      sensor: "humi",
+      ranges: {},
+      humRanges: {
+        fan_front: { low: 80, high: 100 }, fan_back: { low: 80, high: 100 }, fan_top: { low: 75, high: 100 },
+        fan_ground_front: { low: 80, high: 100 }, fan_ground: { low: 78, high: 100 }, fan_ground_back: { low: 80, high: 100 },
+      },
+    },
   };
   const [fanDayNightConfig, setFanDayNightConfig] = useState<DayNightConfigFan>(defaultFanDNConfig);
   const fanDayNightFromMqttRef = useRef(false);
