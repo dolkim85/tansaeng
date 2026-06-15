@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-06-15 — UI 하드코딩 기본값을 실사용값과 일치 (retain 미로드 시 오표시 방지)
+
+> 증상: retain 로드 실패 시 천창/팬 화면이 실제값이 아닌 옛 임의 기본값을 표시. (제어는 데몬이 정상 수행, 표시만 틀림)
+
+- **천창 timePoints 기본값**: `08:00→30/12:00→80/18:00→0` → **실사용값 `12:00→0/14:00→100`**. tempPoints 기본값은 이미 일치.
+- **팬 주야간(defaultFanDNConfig)**: `enabled:false`+빈범위 → **실사용값**(주간 온도범위 fan_front 22~50 등, 야간 습도범위 fan_front 80~100 등). dayNightConfig는 버튼에서만 발행되어 안전.
+- **팬 일반범위(fanDeviceRanges)**: `{}` → **실사용값**(fan_front 24~50, fan_top 19~50, fan_ground -10~-3 등).
+  - ⚠️ **주의**: `fanDeviceRanges`는 dayNightConfig/timePoints와 달리 **변경 시 자동발행 useEffect**가 있음. 비어있지 않은 기본값을 그냥 두면 첫 렌더에 retain을 덮어씀 → `fanRangesFirstRunRef`(첫 렌더 발행 방지) 가드 추가로 해결.
+- 공통: **retain 있으면 retain 우선**이므로 제어엔 영향 없음(표시 fallback만 개선). 검증: ranges retain 불변 확인.
+- **커밋**: `2026-06-15_1528`(천창), `_1539`(팬 주야간), `_1605`(팬 일반범위+가드)
+
+---
+
 ## 2026-06-13 — ESP32 연결 초록불(내부팬 뒤) 오표시 + mqtt 데몬 워치독
 
 > 증상: 내부팬 뒤(ctlr-0002) ESP32가 실제로는 온도·팬 정상인데 UI 연결 초록불만 꺼짐.
