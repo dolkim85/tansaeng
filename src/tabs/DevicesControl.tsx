@@ -207,9 +207,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   const skyAutoTypeFromMqttRef = useRef(false);
   const skyAutoTypeFirstRunRef = useRef(true); // 첫 렌더 시 기본값 publish 방지
   const [skyTimePoints, setSkyTimePoints] = useState<Array<{ time: string; rate: number }>>([
-    { time: "08:00", rate: 30 },
-    { time: "12:00", rate: 80 },
-    { time: "18:00", rate: 0 },
+    { time: "12:00", rate: 0 },
+    { time: "14:00", rate: 100 },
   ]);
   const skyTimePointsFromMqttRef = useRef(false);
   const skyTimePointsFirstRunRef = useRef(true); // 첫 렌더 시 기본값 publish 방지
