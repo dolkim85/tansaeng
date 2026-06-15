@@ -154,12 +154,17 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
   // 팬 AUTO 제어 상태
   const [fanMode, setFanMode] = useState<"AUTO" | "MANUAL">("MANUAL");
   const fanModeRef = useRef<"AUTO" | "MANUAL">("MANUAL");
-  const [fanDeviceRanges, setFanDeviceRanges] = useState<Record<string, { low: number; high: number }>>({});
+  // 일반 범위 모드(주야간 OFF) 온도범위 하드코딩 기본값을 실사용값과 일치 (retain 미로드 시에도 올바른 값). retain 있으면 retain 우선.
+  const [fanDeviceRanges, setFanDeviceRanges] = useState<Record<string, { low: number; high: number }>>({
+    fan_front: { low: 24, high: 50 }, fan_back: { low: 24, high: 50 }, fan_top: { low: 19, high: 50 },
+    fan_ground: { low: -10, high: -3 }, fan_ground_front: { low: 24, high: 50 }, fan_ground_back: { low: 24, high: 50 },
+  });
   const [fanAutoActive, setFanAutoActive] = useState(false);
   // 데몬이 발행하는 팬 실제 작동상태 (AUTO 모드 LED 표시용 — 데몬 단일제어이므로 UI는 구독만)
   const [fanAutoStates, setFanAutoStates] = useState<Record<string, "on" | "off">>({});
   const fanDeviceLastCmd = useRef<Record<string, "ON" | "OFF" | null>>({});
   const fanRangesFromMqttRef = useRef(false);
+  const fanRangesFirstRunRef = useRef(true); // 첫 렌더 시 하드코딩 기본값 자동발행 방지(retain 덮어쓰기 차단)
   const [fanAutoSensor, setFanAutoSensor] = useState<"temp" | "humi">("temp");
   const fanAutoSensorRef = useRef<"temp" | "humi">("temp");
   const [fanHumRanges, setFanHumRanges] = useState<Record<string, { low: number; high: number }>>({});
@@ -726,6 +731,8 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
   // 팬 온도 범위 변경 시 MQTT retain 발행 (MQTT 복원에서 온 변경은 재발행 안함)
   useEffect(() => {
+    // 첫 렌더(마운트)에는 하드코딩 기본값을 발행하지 않음 — retain 로드 전에 덮어쓰는 것 방지
+    if (fanRangesFirstRunRef.current) { fanRangesFirstRunRef.current = false; return; }
     if (fanRangesFromMqttRef.current) { fanRangesFromMqttRef.current = false; return; }
     if (Object.keys(fanDeviceRanges).length === 0) return;
     getMqttClient().publish("tansaeng/fan-control/ranges", JSON.stringify(fanDeviceRanges), { qos: 1, retain: true });
