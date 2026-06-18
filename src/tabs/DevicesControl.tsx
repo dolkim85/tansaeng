@@ -2669,7 +2669,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                         {sideSavedSnapshot && (
                           <div className="text-[10px] text-gray-400 bg-gray-50 rounded px-2 py-1">
                             ✅ {sideSavedSnapshot.savedAt} 저장 — {
-                              sideSavedSnapshot.tempPoints.map(p => `${p.temp}°C→${p.rate}%`).join(", ")
+                              sideSavedSnapshot.timePoints.map(p => `${p.time}→${p.rate}%`).join(", ")
                             }
                           </div>
                         )}
