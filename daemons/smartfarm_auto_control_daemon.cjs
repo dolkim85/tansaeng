@@ -388,8 +388,11 @@ function moveDevice(mqttClient, ctrlState, device, targetRate, forceMove = false
   const currentPos = ctrlState.currentPos[id] ?? 0;
   const difference = targetRate - currentPos;
 
-  if (!forceMove && Math.abs(difference) < 1) {
+  // 이미 목표 위치(차이<1%)면 명령 안 보냄 — forceMove여도 발행 금지.
+  // (0초 이동은 드리프트 보정도 못 하면서 0초짜리 CLOSE 펄스만 반복 발행해 스크린을 오작동시킴)
+  if (Math.abs(difference) < 1) {
     log(`[SKIP] ${name} 이미 목표 위치 (${currentPos}%)`);
+    ctrlState.lastTarget[id] = targetRate;
     return;
   }
 
