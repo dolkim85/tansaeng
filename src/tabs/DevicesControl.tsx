@@ -3064,7 +3064,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
                   {sideMode === "AUTO" && (
                     <div className="text-center text-[10px] text-blue-600 bg-blue-50 rounded p-1.5">
                       {sideAutoActive
-                        ? sideAutoType === "time" ? "🕐 시간 기반 자동 개폐 중" : sideAutoType === "daynight" ? "🌓 주야간 기준 자동 개폐 중" : "🌡 온도 기반 자동 개폐 중"
+                        ? sideAutoType === "time" ? "🕐 시간 기반 자동 개폐 중" : sideAutoType === "daynight" ? "🌓 주야간 기준 자동 개폐 중" : sideAutoSensor === "humi" ? "💧 습도 기반 자동 개폐 중" : "🌡 온도 기반 자동 개폐 중"
                         : "AUTO 모드 — 작동시작 버튼을 누르세요"}
                     </div>
                   )}
