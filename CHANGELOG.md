@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-06-29 — tansaeng-mqtt stall 근본 수정 (MQTT 소켓 타임아웃)
+
+> 증상: 오늘 워치독이 tansaeng-mqtt를 10분마다 8번(18:36~19:46) 재시작. "로그 ~294s 정지" 반복.
+
+- **진단**: 데몬이 정상 센서 처리 직후 **갑자기 멈춤**(에러 없이 다음 MQTT 메시지를 못 받고 정지). MQTT 연결이 조용히 끊겼는데 **php-mqtt가 죽은 소켓에서 무한 블록**(socketTimeout/keepAlive 미설정 → 기본값으로 끊김 감지 못 함). 6/13 stall과 같은 부류.
+  - ⚠️ **정정**: 알림 전송은 원인 아님 — 텔레그램은 이미 `CURLOPT_TIMEOUT=10`, 이메일은 비활성. 알림은 30분 쿨다운이라 발송 자체가 드묾.
+- **수정(mqtt_daemon.php)**: ConnectionSettings에 `setKeepAliveInterval(20)` + `setSocketTimeout(8)` + `setConnectTimeout(15)` 추가. → 죽은 연결을 ~30초 내 감지해 exit(1) → systemd `Restart=always`(30s)로 깨끗이 재시작(재구독 포함). 5분 stall + 10분 워치독 대기 → ~1분 복구로 단축.
+- **부수(요청)**: 텔레그램 curl에 `CONNECTTIMEOUT=5` + `NOSIGNAL=true` 추가(DNS/연결 행 방지). repo: `scripts/mqtt_daemon.php`.
+- 워치독은 그대로 최종 백스톱 유지.
+
+---
+
 ## 2026-06-26 — ctlr-0002(천창팬/지상팬) 펌웨어 견고화
 
 > 요청: WiFi 끊김 시 재부팅 + 워치독 + 복구 최고 방안 적용.
