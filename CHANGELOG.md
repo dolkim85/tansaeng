@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-07-03 — tansaeng-mqtt 자동재연결 (잦은 재시작 근본 안정화)
+
+> 증상: 7/2 하루 종일 tansaeng-mqtt가 systemd(exit)·워치독으로 수십 번 재시작.
+
+- **원인 확정**: 로그 `[ERROR] No ping response received in time. The connection is dead.` + 재연결 시 `TLS Handshake timed out`. → **HiveMQ 브로커가 핑/TLS에 제때 응답 안 함**(무료 플랜 연결 불안정). autocontrol·mist(Node/mqtt.js)는 내장 자동재연결로 조용히 넘어가지만, **PHP php-mqtt는 자동재연결이 꺼져 있어 끊길 때마다 프로세스 종료**(→ systemd/워치독 재시작)돼 눈에 띄었음.
+- **수정(mqtt_daemon.php)**: php-mqtt **자동재연결 활성화** — `setReconnectAutomatically(true)` + `setMaxReconnectAttempts(30)` + `setDelayBetweenReconnectAttempts(3000)`. 자동재연결 전제조건인 **비-clean(영속) 세션**으로 전환(`connect(..., false)`) + **고정 clientId**(`tansaeng-php-daemon`)로 세션·구독 유지. connectTimeout 20초로 상향.
+  - → 이제 끊겨도 **프로세스 재시작 없이 자동 재연결**(Node 데몬과 동등). 30회(~90초) 실패 시에만 exit→systemd 재시작(폴백). 워치독은 최종 백스톱 유지.
+- **검증**: 재시작 후 구독 정상 복원(메시지 수신·DB 저장 계속), 안정 유지. 효과는 향후 재시작 빈도 급감으로 확인.
+- repo: `scripts/mqtt_daemon.php`. 커밋 `2026-07-03_0834`.
+
+---
+
 ## 2026-06-29 — tansaeng-mqtt stall 근본 수정 (MQTT 소켓 타임아웃)
 
 > 증상: 오늘 워치독이 tansaeng-mqtt를 10분마다 8번(18:36~19:46) 재시작. "로그 ~294s 정지" 반복.

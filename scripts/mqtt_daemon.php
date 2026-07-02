@@ -26,7 +26,7 @@ echo "시작 시간: " . date('Y-m-d H:i:s') . "\n\n";
 // MQTT 설정
 $server = '22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud';
 $port = 8883;
-$clientId = 'php-daemon-' . uniqid();
+$clientId = 'tansaeng-php-daemon';   // 고정 clientId — 비-clean(영속) 세션 유지·자동재연결용
 $username = 'esp32-client-01';
 $password = 'Qjawns3445';
 
@@ -343,12 +343,16 @@ try {
         ->setTlsSelfSignedAllowed(true)
         ->setKeepAliveInterval(20)   // 20초마다 PINGREQ → 끊김 빠르게 감지
         ->setSocketTimeout(8)        // 소켓 읽기 8초 타임아웃 → 죽은 연결에서 무한 블록 방지(stall 차단)
-        ->setConnectTimeout(15);     // 연결 15초 타임아웃
+        ->setConnectTimeout(20)      // 연결 20초 타임아웃(TLS 핸드셰이크 여유)
+        ->setReconnectAutomatically(true)      // ★ 끊기면 프로세스 재시작 없이 자동 재연결(Node 데몬과 동등)
+        ->setMaxReconnectAttempts(30)          // 최대 30회 재시도(약 90초) 후 실패 시 exit→systemd 재시작(폴백)
+        ->setDelayBetweenReconnectAttempts(3000); // 재시도 간격 3초
 
     $mqtt = new MqttClient($server, $port, $clientId);
 
     echo "[MQTT] Connecting to {$server}:{$port}...\n";
-    $mqtt->connect($connectionSettings, true);
+    // 자동재연결을 쓰려면 clean session=false(영속 세션) 필수 — 브로커가 구독을 유지해 재연결 시 자동 복원
+    $mqtt->connect($connectionSettings, false);
     echo "[MQTT] Connected!\n\n";
 
     // 데몬 시작 알림 (재시작 감지용)
