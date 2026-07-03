@@ -1,0 +1,2 @@
+# tansaeng 데몬 재시작 일일 리포트 — 매일 오전 9시 텔레그램 발송
+0 9 * * * root /var/www/html/scripts/daemon_restart_report.sh >> /var/log/tansaeng-daemon-report.log 2>&1
