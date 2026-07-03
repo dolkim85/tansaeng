@@ -35,6 +35,19 @@ const ZONES = {
   fogging: { name: '포깅',   controllerId: 'ctlr-0004', deviceId: 'valve2' },
 };
 
+// ─── 바이패스 (구역A 전용) ───────────────────────────────────────────────────
+// 메인 전자밸브(valve1) 고장 시 UI에서 바이패스 모드 ON → 같은 ctlr-0004의
+// 바이패스 밸브(valve3)로 구역A 분무를 대신 수행. 스케줄/안전타임아웃 전부 동일.
+const bypassState = {};  // { zoneId: bool } — 현재는 zone_a만 사용
+function effectiveDeviceId(zoneId) {
+  if (zoneId === 'zone_a' && bypassState['zone_a']) return 'valve3';  // 바이패스 밸브
+  return ZONES[zoneId].deviceId;
+}
+// 존 밸브 cmd 토픽 (바이패스면 valve3으로 주소만 바뀜)
+function zoneCmd(zoneId) {
+  return `tansaeng/${ZONES[zoneId].controllerId}/${effectiveDeviceId(zoneId)}/cmd`;
+}
+
 // ─── 존별 상태 (isRunning / 스케줄 / 습도 설정 보관) ────────────────────────
 const zoneState = {};
 Object.keys(ZONES).forEach(id => {
@@ -76,7 +89,7 @@ function closeZoneValveIfOpen(zoneId) {
   if (!zc.valveOpen || !gClient) return;
   zc.valveOpen = false;
   const ts = Date.now();
-  gClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 });
+  gClient.publish(zoneCmd(zoneId), 'CLOSE', { qos: 1 });
   gClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'CLOSE', timestamp: ts }), { qos: 1, retain: true });
   log(`[${ZONES[zoneId].name}] 밸브 강제 CLOSE (방치 방지)`);
 }
@@ -264,7 +277,7 @@ function startZoneCycle(mqttClient, zoneId) {
     }
 
     // 실제 분무 실행
-    mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'OPEN', { qos: 1 });
+    mqttClient.publish(zoneCmd(zoneId), 'OPEN', { qos: 1 });
     mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'OPEN', timestamp: ts }), { qos: 1, retain: true });
     zc.valveOpen = true;
     saveMistLog(zoneId, ZONES[zoneId].name, 'start', st.mode || 'AUTO');
@@ -278,7 +291,7 @@ function startZoneCycle(mqttClient, zoneId) {
   // 정지 단계 — 밸브는 항상 닫는다 (cycling=false여도 방치 금지). 다음 분무 예약만 cycling일 때.
   const doStop = (stopMs) => {
     const ts = Date.now();
-    mqttClient.publish(`tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 });
+    mqttClient.publish(zoneCmd(zoneId), 'CLOSE', { qos: 1 });
     mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'CLOSE', timestamp: ts }), { qos: 1, retain: true });
     zc.valveOpen = false;
     saveMistLog(zoneId, ZONES[zoneId].name, 'stop', st.mode || 'AUTO');
@@ -330,6 +343,8 @@ function main() {
       topics.push(`tansaeng/mist-control/${zoneId}/schedule`);
       topics.push(`tansaeng/mist-control/${zoneId}/humidityConfig`);
     });
+    // 바이패스 전환 (구역A) 구독
+    topics.push('tansaeng/mist-control/zone_a/bypass');
     // 팜 습도 센서 구독
     topics.push('tansaeng/ctlr-0001/+/humidity');
     topics.push('tansaeng/ctlr-0002/+/humidity');
@@ -355,6 +370,22 @@ function main() {
   client.on('message', (topic, message) => {
     const payload = message.toString().trim();
 
+    // ── 바이패스 전환 (구역A): 메인밸브(valve1) ↔ 바이패스밸브(valve3) ──
+    if (topic === 'tansaeng/mist-control/zone_a/bypass') {
+      const newBypass = payload === 'true';
+      const oldBypass = bypassState['zone_a'] || false;
+      bypassState['zone_a'] = newBypass;
+      log(`[구역A] 바이패스 모드: ${newBypass ? 'ON (valve3 바이패스밸브 사용)' : 'OFF (valve1 메인밸브)'}`);
+      if (newBypass !== oldBypass && gClient) {
+        // 전환 시 양쪽 밸브 모두 강제 CLOSE(동시 열림 방지) → 다음 사이클에 올바른 밸브로 재개
+        gClient.publish('tansaeng/ctlr-0004/valve1/cmd', 'CLOSE', { qos: 1 });
+        gClient.publish('tansaeng/ctlr-0004/valve3/cmd', 'CLOSE', { qos: 1 });
+        const zc = zoneCycle['zone_a'];
+        if (zc) zc.valveOpen = false;
+      }
+      return;
+    }
+
     Object.keys(ZONES).forEach(zoneId => {
       if (topic === `tansaeng/mist-control/${zoneId}/isRunning`) {
         const running = zoneState[zoneId].isRunning;
@@ -371,7 +402,7 @@ function main() {
             // 이 구역만 사이클 중지 + 밸브 닫기
             stopZoneCycle(zoneId);
             client.publish(
-              `tansaeng/${ZONES[zoneId].controllerId}/${ZONES[zoneId].deviceId}/cmd`, 'CLOSE', { qos: 1 }
+              zoneCmd(zoneId), 'CLOSE', { qos: 1 }
             );
             log(`[${ZONES[zoneId].name}] 중지 — 밸브 OFF`);
           }

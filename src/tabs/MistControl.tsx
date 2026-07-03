@@ -42,6 +42,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
   // 현재 팜 평균 습도 (API 폴링)
   const [avgHumidity, setAvgHumidity] = useState<number | null>(null);
+  // 구역A 바이패스 모드 (메인밸브 valve1 고장 시 바이패스밸브 valve3으로 전환)
+  const [zoneABypass, setZoneABypass] = useState(false);
 
   // ── MQTT 연결 상태 감시 ────────────────────────────────────────────────────
   useEffect(() => {
@@ -161,6 +163,10 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
           } catch {}
         })
       ),
+      // 구역A 바이패스 상태 복원 (다른 기기 동기화)
+      subscribeToTopic("tansaeng/mist-control/zone_a/bypass", (v) => {
+        setZoneABypass(v === "true");
+      }),
     ];
     return () => unsubs.forEach(u => u());
   }, [setZones]);
@@ -530,6 +536,31 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                     </button>
                   ))}
                 </div>
+
+                {/* 바이패스 전환 (구역A 전용) — 메인밸브 고장 시 바이패스밸브(valve3)로 */}
+                {zone.id === "zone_a" && (
+                  <div className="flex items-center justify-between mb-3 px-2.5 py-2 rounded border border-amber-300 bg-amber-50">
+                    <div className="text-xs">
+                      <span className="font-bold text-amber-800">🔀 사용 밸브</span>
+                      <span className={`ml-1.5 font-bold ${zoneABypass ? "text-red-600" : "text-gray-700"}`}>
+                        {zoneABypass ? "바이패스(valve3)" : "메인(valve1)"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const next = !zoneABypass;
+                        if (!window.confirm(next
+                          ? "메인밸브 고장 대비 — 구역A를 바이패스 밸브(valve3)로 전환합니다.\n메인밸브(valve1)는 닫힙니다. 계속하시겠습니까?"
+                          : "구역A를 메인밸브(valve1)로 되돌립니다.\n바이패스 밸브(valve3)는 닫힙니다. 계속하시겠습니까?")) return;
+                        setZoneABypass(next);
+                        getMqttClient().publish("tansaeng/mist-control/zone_a/bypass", next ? "true" : "false", { qos: 1, retain: true });
+                      }}
+                      className={`px-3 py-1.5 text-xs font-bold rounded ${zoneABypass ? "bg-red-500 text-white active:bg-red-600" : "bg-white border border-amber-400 text-amber-700 active:bg-amber-100"}`}
+                    >
+                      {zoneABypass ? "메인으로 복귀" : "바이패스 전환"}
+                    </button>
+                  </div>
+                )}
 
                 {/* MANUAL 모드 */}
                 {zone.mode === "MANUAL" && (
