@@ -100,7 +100,7 @@ function sendAlert($alertKey, $title, $message) {
     // 쿨다운 체크
     $lastSent = $GLOBALS['alertCooldowns'][$alertKey] ?? 0;
     if ($now - $lastSent < ($cooldownMinutes * 60)) {
-        echo "[ALERT] 쿨다운 중 ({$alertKey}) - 스킵\n";
+        // 쿨다운 중 — 로그 폭주 방지 위해 조용히 스킵(고습도 등 지속 시 매 메시지 로그 도배 방지)
         return;
     }
     $GLOBALS['alertCooldowns'][$alertKey] = $now;
