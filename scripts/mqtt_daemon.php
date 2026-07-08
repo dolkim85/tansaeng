@@ -26,7 +26,7 @@ echo "시작 시간: " . date('Y-m-d H:i:s') . "\n\n";
 // MQTT 설정
 $server = '22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud';
 $port = 8883;
-$clientId = 'tansaeng-php-daemon';   // 고정 clientId — 비-clean(영속) 세션 유지·자동재연결용
+$clientId = 'php-daemon-' . uniqid();   // 고유 clientId — 세션 충돌 방지(7/6 복원, 7/8 정식 커밋)
 $username = 'esp32-client-01';
 $password = 'Qjawns3445';
 
@@ -342,17 +342,14 @@ try {
         ->setUseTls(true)
         ->setTlsSelfSignedAllowed(true)
         ->setKeepAliveInterval(20)   // 20초마다 PINGREQ → 끊김 빠르게 감지
-        ->setSocketTimeout(8)        // 소켓 읽기 8초 타임아웃 → 죽은 연결에서 무한 블록 방지(stall 차단)
-        ->setConnectTimeout(20)      // 연결 20초 타임아웃(TLS 핸드셰이크 여유)
-        ->setReconnectAutomatically(true)      // ★ 끊기면 프로세스 재시작 없이 자동 재연결(Node 데몬과 동등)
-        ->setMaxReconnectAttempts(30)          // 최대 30회 재시도(약 90초) 후 실패 시 exit→systemd 재시작(폴백)
-        ->setDelayBetweenReconnectAttempts(3000); // 재시도 간격 3초
+        ->setSocketTimeout(8)        // 소켓 읽기 8초 타임아웃 → 죽은 연결에서 무한 블록 방지(stall 차단, 6/29 수정 복원)
+        ->setConnectTimeout(20);     // 연결 20초 타임아웃 — 끊기면 즉시 종료→systemd 재시작(자동재연결은 clientId 충돌 회귀 유발해 제거, 7/6 복원)
 
     $mqtt = new MqttClient($server, $port, $clientId);
 
     echo "[MQTT] Connecting to {$server}:{$port}...\n";
-    // 자동재연결을 쓰려면 clean session=false(영속 세션) 필수 — 브로커가 구독을 유지해 재연결 시 자동 복원
-    $mqtt->connect($connectionSettings, false);
+    // clean session=true + 고유 clientId — 세션 충돌/영속세션 백로그 방지(7/6 복원)
+    $mqtt->connect($connectionSettings, true);
     echo "[MQTT] Connected!\n\n";
 
     // 데몬 시작 알림 (재시작 감지용)
@@ -483,12 +480,19 @@ try {
     // 메인 루프 변수
     $lastDeviceCheck = 0;
     $lastSettingsCheck = 0;
+    $lastHeartbeat = 0;
     $cachedSettings = null;
     $missedPingCounts = []; // 연속 실패 카운터 (히스테리시스)
 
-    $mqtt->registerLoopEventHandler(function (MqttClient $mqtt) use ($db, &$lastDeviceCheck, &$lastSettingsCheck, &$cachedSettings, &$deviceCycleState, &$missedPingCounts) {
+    $mqtt->registerLoopEventHandler(function (MqttClient $mqtt) use ($db, &$lastDeviceCheck, &$lastSettingsCheck, &$lastHeartbeat, &$cachedSettings, &$deviceCycleState, &$missedPingCounts) {
         $now = time();
         $currentMicro = microtime(true);
+
+        // 하트비트 (60초마다) — 센서 트래픽과 무관하게 로그 신선도 유지, 워치독 오탐 방지
+        if ($now - $lastHeartbeat >= 60) {
+            $lastHeartbeat = $now;
+            echo "[" . date('H:i:s') . "] [HEARTBEAT] alive\n";
+        }
 
         // 장치 상태 체크 (30초마다)
         if ($now - $lastDeviceCheck >= 30) {
