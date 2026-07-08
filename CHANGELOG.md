@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-07-09 — ctlr-0001 펌웨어 복구 (환기팬 1개, 코드 분실 재작성)
+
+> 요청: ctlr-0001(온습도센서 + 환기팬 1개) 설치 코드 분실, ctlr-0002 견고화 펌웨어를 기반으로 재작성.
+
+- **펌웨어(`firmware/ctlr-0001_fan1.ino`)**: `ctlr-0002_fan_top_ground.ino`의 견고화 구조(하드웨어 워치독, WiFi/MQTT 끊김 시 재부팅, 원격 재시작 토픽, 5분 이상 오프라인 시 재부팅) 그대로 유지, 팬 채널만 3개(fan_top/fan_ground/fan_ground_back) → 1개(`fan1`, GPIO5)로 축소.
+- **토픽**: `tansaeng/ctlr-0001/fan1/cmd`, `.../fan1/state`, `.../dht22/temperature`, `.../dht22/humidity`, `.../status`, `.../restart` — 기존 서버 팜 평균온도(`avgTemp`) 계산용 `ctlr-0001~0003/dht*/temperature` 구조와 호환.
+- **AUTO 임계값(TEMP_ON/OFF, HUM_ON/OFF)**: 서버 데몬 설정값과는 별개로, 데몬이 다운되거나 통신이 끊겼을 때를 대비한 ESP32 자체 로컬 안전장치(fail-safe). 평소엔 데몬이 보내는 ON/OFF 명령이 우선 적용됨(수신 시 MANUAL_MODE로 전환).
+- 커밋 `2026-07-09_0822`.
+
+---
+
 ## 2026-07-08 — mqtt 재시작 폭주 수정 (socketTimeout 복원 + 60초 하트비트)
 
 > 증상: 7/5부터 tansaeng-mqtt가 하루 127~144회씩 재시작(워치독 강제킬), 로그엔 에러 없이 항상 깨끗하게 시작.
