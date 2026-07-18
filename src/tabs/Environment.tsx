@@ -6,6 +6,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import * as XLSX from 'xlsx';
+import WeatherWidget from "../components/WeatherWidget";
 
 interface SensorData {
   temperature: number | null;
@@ -773,6 +774,9 @@ export default function Environment() {
             </div>
           </section>
         </div>
+
+        {/* ===== 실외 날씨 (기상청) ===== */}
+        <WeatherWidget farmAvgTemp={avgTemp} farmAvgHumidity={avgHum} />
 
         {/* 히스토리 데이터 조회 섹션 */}
         <section className="mb-3 sm:mb-6">

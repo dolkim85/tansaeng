@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import type { MistZoneConfig, MistMode, MistScheduleSettings, HumidityControl } from "../types";
 import { getMqttClient, isMqttConnected, onConnectionChange, subscribeToTopic } from "../mqtt/mqttClient";
 import { saveDeviceSettings } from "../api/deviceControl";
+import WeatherWidget from "../components/WeatherWidget";
 
 interface MistControlProps {
   zones: MistZoneConfig[];
@@ -496,6 +497,9 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
             <span className="text-xs text-gray-600">MQTT</span>
           </div>
         </div>
+
+        {/* 실외 날씨 (기상청, 분무 판단 참고용) */}
+        <WeatherWidget compact />
 
         {zones.map((zone) => {
           const modeColor = getModeColor(zone.mode);
