@@ -25,6 +25,7 @@ const SENSOR_FILE      = path.join(__dirname, '../config/realtime_sensor.json');
 const LOG_FILE         = path.join(__dirname, '../logs/auto_control_daemon.log');
 const ALERT_CONFIG_FILE = path.join(__dirname, '../config/alert_config.json');
 const SETTINGS_FILE    = path.join(__dirname, '../config/daemon_settings.json');
+const CMD_QUEUE_DIR    = path.join(__dirname, '../config/manual_cmd_queue');
 
 // 제어 주기 (ms) — 60초마다 온도 체크
 const CHECK_INTERVAL_MS = 60000;
@@ -142,6 +143,47 @@ const DEVICES = {
     { id: 'sidescreen_right', name: '측창 우측', esp32Id: 'ctlr-0021', mqttId: 'sideR' },
   ],
 };
+
+// ─── 컨트롤러 재연결 감지 → 제어 명령 재동기화 ─────────────────────────────────
+// 정전/와이파이 불안정 등으로 ESP32가 재부팅/재연결되면 릴레이는 기본값(대개 OFF)으로
+// 리셋되지만, 데몬은 항상 떠 있어 lastCmd/lastTarget이 그대로 남아있어 "값이 안 바뀌었으니"
+// 재전송을 안 하는 문제가 있었음 (2026-07-24, ctlr-0002 재연결 후 내부팬뒤 제어 불능 사례).
+// 컨트롤러의 offline→online 전환을 감지해 해당 컨트롤러 소속 장치의 lastCmd/lastTarget을
+// 지워 다음 주기에 무조건 현재 조건에 맞는 명령이 재전송되도록 한다.
+const controllerOnline = {}; // { ctlr: true|false }
+const CTRL_TO_FAN_IDS = {};
+FAN_DEVICES.forEach(({ id, cmdTopic }) => {
+  const ctlr = cmdTopic.split('/')[1];
+  (CTRL_TO_FAN_IDS[ctlr] = CTRL_TO_FAN_IDS[ctlr] || []).push(id);
+});
+const CTRL_TO_SCREEN = {}; // { ctlr: [{ key, id }] }
+Object.entries(DEVICES).forEach(([key, list]) => {
+  list.forEach(({ id, esp32Id }) => {
+    (CTRL_TO_SCREEN[esp32Id] = CTRL_TO_SCREEN[esp32Id] || []).push({ key, id });
+  });
+});
+
+function handleControllerStatus(controllerId, payload, client, startupComplete) {
+  const normalized = payload.toLowerCase();
+  const isOnline  = ['online', 'true', 'connected', 'on'].includes(normalized);
+  const isOffline = ['offline', 'false', 'disconnected', 'off'].includes(normalized);
+  if (!isOnline && !isOffline) return;
+
+  const wasOffline = controllerOnline[controllerId] === false;
+  controllerOnline[controllerId] = isOnline;
+  if (!isOnline || !wasOffline) return; // 실제 offline→online 전환일 때만 재동기화
+
+  log(`[재연결] ${controllerId} 온라인 복귀 — 제어 명령 재동기화`);
+  (CTRL_TO_FAN_IDS[controllerId] || []).forEach(id => { delete fan.lastCmd[id]; });
+  if (controllerId === 'ctlr-heat-001') {
+    hp.lastCmd.hp_pump = null; hp.lastCmd.hp_heater = null; hp.lastCmd.hp_fan = null;
+  }
+  (CTRL_TO_SCREEN[controllerId] || []).forEach(({ key, id }) => { delete ctrl[key].lastTarget[id]; });
+  sendAlert(`reconnect_${controllerId}`, '🔌 장치 재연결 감지',
+    `${controllerId} 재연결 감지 — 다음 제어 주기에 명령을 재동기화합니다.\n` +
+    `천창/측창은 위치가 소프트웨어 추정값이라 실제 위치와 다를 수 있으니 필요 시 ↺ 초기화로 확인하세요.`);
+  if (startupComplete) setTimeout(() => runAutoControl(client), 1000);
+}
 
 // ─── 상태 ────────────────────────────────────────────────────────────────────
 const ctrl = {
@@ -755,6 +797,33 @@ function runAutoControl(mqttClient) {
   }
 }
 
+// ─── 수동 명령 큐 처리 ────────────────────────────────────────────────────────
+// device_control.php가 매 클릭마다 새 Node 프로세스로 MQTT에 새로 접속하던 방식은
+// 동시 요청이 겹치면 5초 타임아웃에 걸려 실패하는 문제가 있었음 (2026-07-24).
+// PHP는 이제 이 디렉터리에 명령 파일만 써 넣고, 이미 연결되어 있는 이 데몬이
+// 큐를 읽어 즉시 발행한다 — 매번 새 MQTT 연결을 만들 필요가 없어 훨씬 빠르고 안정적.
+function processManualCommandQueue(client) {
+  let files;
+  try { files = fs.readdirSync(CMD_QUEUE_DIR); } catch (_) { return; }
+  files.filter(f => f.endsWith('.json')).forEach(f => {
+    const fp = path.join(CMD_QUEUE_DIR, f);
+    let raw;
+    try {
+      raw = fs.readFileSync(fp, 'utf8');
+    } catch (_) { return; } // 다른 프로세스가 먼저 처리/삭제했을 수 있음
+    try { fs.unlinkSync(fp); } catch (_) {} // 먼저 삭제 — 중복 처리 방지
+    try {
+      const { topic, message } = JSON.parse(raw);
+      if (typeof topic === 'string' && typeof message === 'string') {
+        client.publish(topic, message, { qos: 1, retain: false });
+        log(`[수동명령] ${topic} = ${message}`);
+      }
+    } catch (e) {
+      log(`[수동명령] 처리 실패 (${f}): ${e.message}`);
+    }
+  });
+}
+
 // ─── MQTT 연결 및 구독 ────────────────────────────────────────────────────────
 function main() {
   log('=== 스마트팜 자동 제어 데몬 시작 ===');
@@ -773,6 +842,15 @@ function main() {
   };
 
   const client = mqtt.connect(`mqtts://${MQTT_HOST}:${MQTT_PORT}`, mqttOptions);
+
+  // 수동 명령 큐 감시 (PHP device_control.php → 파일 → 이 데몬이 발행)
+  try { fs.mkdirSync(CMD_QUEUE_DIR, { recursive: true }); } catch (_) {}
+  try {
+    fs.watch(CMD_QUEUE_DIR, () => processManualCommandQueue(client));
+  } catch (e) {
+    log(`[수동명령] 큐 감시 실패: ${e.message}`);
+  }
+  setInterval(() => processManualCommandQueue(client), 3000); // fs.watch 누락 대비 안전망
 
   let startupComplete = false;
   let mqttWasOffline  = false;
@@ -833,6 +911,12 @@ function main() {
       'tansaeng/sky-control/windowR/currentPos',
       'tansaeng/side-control/sideL/currentPos',
       'tansaeng/side-control/sideR/currentPos',
+      // ESP32 컨트롤러 online/offline 상태 (재연결 시 명령 재동기화용)
+      'tansaeng/ctlr-0001/status',
+      'tansaeng/ctlr-0002/status',
+      'tansaeng/ctlr-0003/status',
+      'tansaeng/ctlr-0012/status',
+      'tansaeng/ctlr-0021/status',
     ];
     topics.forEach(t => client.subscribe(t, { qos: 1 }, (err) => {
       if (err) log(`구독 실패 ${t}: ${err.message}`);
@@ -895,6 +979,21 @@ function main() {
           log(`[설정] 천창 timePoints: ${JSON.stringify(ctrl.sky.timePoints)}`);
         }
       } catch (_) {}
+
+    } else if (topic === 'tansaeng/ctlr-0001/status') {
+      handleControllerStatus('ctlr-0001', payload, client, startupComplete);
+
+    } else if (topic === 'tansaeng/ctlr-0002/status') {
+      handleControllerStatus('ctlr-0002', payload, client, startupComplete);
+
+    } else if (topic === 'tansaeng/ctlr-0003/status') {
+      handleControllerStatus('ctlr-0003', payload, client, startupComplete);
+
+    } else if (topic === 'tansaeng/ctlr-0012/status') {
+      handleControllerStatus('ctlr-0012', payload, client, startupComplete);
+
+    } else if (topic === 'tansaeng/ctlr-0021/status') {
+      handleControllerStatus('ctlr-0021', payload, client, startupComplete);
 
     } else if (topic === 'tansaeng/side-control/mode') {
       ctrl.side.mode = (payload === 'AUTO' || payload === 'MANUAL') ? payload : 'MANUAL';
