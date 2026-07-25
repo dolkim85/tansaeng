@@ -149,7 +149,7 @@ export const DEVICES: DeviceConfig[] = [
   },
   {
     id: "hp_heater",
-    name: "냉각기",
+    name: "양액혼합통 냉각기",
     type: "heater",
     esp32Id: "ctlr-heat-001",
     commandTopic: "tansaeng/ctlr-heat-001/heater/cmd",

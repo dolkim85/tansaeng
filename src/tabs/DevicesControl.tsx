@@ -620,7 +620,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
     const deviceMap: Array<{ key: string; mqttId: string; name: string }> = [
       { key: "hp_pump",   mqttId: "pump",   name: "냉각순환펌프" },
-      { key: "hp_heater", mqttId: "heater", name: "냉각기"       },
+      { key: "hp_heater", mqttId: "heater", name: "양액혼합통 냉각기" },
       { key: "hp_fan",    mqttId: "fan",    name: "장치실 팬"     },
     ];
 
@@ -3518,11 +3518,11 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
           </div>
         </section>
 
-        {/* 히트펌프 시스템 섹션 */}
+        {/* 양액혼합시스템 섹션 (냉각기+순환펌프+장치실팬 — 양액혼합통으로 이설, 구 히트펌프 시스템) */}
         <section className="mb-2 sm:mb-3">
           <header className="bg-orange-400 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg flex items-center justify-between">
             <h2 className="text-sm sm:text-base font-semibold flex items-center gap-1.5 text-gray-900">
-              🔥 히트펌프 시스템
+              🌱 양액혼합시스템
             </h2>
             <div className="flex items-center gap-2">
               <span className="text-[10px] sm:text-xs text-gray-800">
@@ -3690,7 +3690,7 @@ export default function DevicesControl({ deviceState, setDeviceState }: DevicesC
 
               const gaugeItems = [
                 { key: "hp_pump",   label: "냉각순환펌프", icon: "💧", sensorVal: avgTemp,   sensorLabel: "팜평균온도" },
-                { key: "hp_heater", label: "냉각기",       icon: "❄️", sensorVal: waterTemp, sensorLabel: "물온도" },
+                { key: "hp_heater", label: "양액혼합통 냉각기", icon: "❄️", sensorVal: waterTemp, sensorLabel: "물온도" },
                 { key: "hp_fan",    label: "장치실 팬",     icon: "🌀", sensorVal: avgTemp,   sensorLabel: "팜평균온도" },
               ];
 

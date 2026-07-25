@@ -599,7 +599,7 @@ function runHpAutoControl(mqttClient, avgTemp) {
 
   const devices = [
     { key: 'hp_pump',   mqttId: 'pump',   name: '히트펌프 순환펌프', temp: avgTemp   },
-    { key: 'hp_heater', mqttId: 'heater', name: '냉각기',            temp: waterTemp },
+    { key: 'hp_heater', mqttId: 'heater', name: '양액혼합통 냉각기',   temp: waterTemp },
     { key: 'hp_fan',    mqttId: 'fan',    name: '열교환기 팬',       temp: roomTemp  },
   ];
 
