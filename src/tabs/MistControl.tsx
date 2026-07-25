@@ -45,6 +45,22 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   const [avgHumidity, setAvgHumidity] = useState<number | null>(null);
   // 구역A 바이패스 모드 (메인밸브 valve1 고장 시 바이패스밸브 valve3으로 전환)
   const [zoneABypass, setZoneABypass] = useState(false);
+  const zoneABypassRef = useRef(false);
+  // 구역A의 valve1/valve3 실측 상태 (바이패스 전환 시 표시 전환용 원본 보관)
+  const zoneARawValveState = useRef<{ valve1: "OPEN" | "CLOSE" | "UNKNOWN"; valve3: "OPEN" | "CLOSE" | "UNKNOWN" }>({ valve1: "UNKNOWN", valve3: "UNKNOWN" });
+  // 구역A 명령/표시에 실제로 사용할 밸브 채널 (바이패스 ON이면 valve3)
+  const getEffectiveDeviceId = (zone: MistZoneConfig): string =>
+    zone.id === "zone_a" && zoneABypass ? "valve3" : (zone.deviceId ?? "valve1");
+  useEffect(() => {
+    zoneABypassRef.current = zoneABypass;
+    // 전환 즉시 화면 표시를 활성 밸브의 마지막 실측값으로 동기화 (다음 state 메시지를 기다리지 않음)
+    const active = zoneABypass ? zoneARawValveState.current.valve3 : zoneARawValveState.current.valve1;
+    setValveState(prev => {
+      if (prev["zone_a"] === active) return prev;
+      valveChangedAt.current["zone_a"] = Date.now();
+      return { ...prev, zone_a: active };
+    });
+  }, [zoneABypass]);
 
   // ── MQTT 연결 상태 감시 ────────────────────────────────────────────────────
   useEffect(() => {
@@ -78,9 +94,26 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         "tansaeng/ctlr-0008/status": "ctlr-0008",
       };
 
+      // 구역A 바이패스밸브(valve3) 실측 상태 — 원본은 항상 갱신, zone_a 표시는 활성 밸브일 때만 반영
+      if (topic === "tansaeng/ctlr-0004/valve3/state") {
+        const newState = msg === "OPEN" ? "OPEN" : "CLOSE";
+        zoneARawValveState.current.valve3 = newState;
+        if (zoneABypassRef.current) {
+          setValveState(prev => {
+            if (prev["zone_a"] !== newState) valveChangedAt.current["zone_a"] = Date.now();
+            return { ...prev, zone_a: newState };
+          });
+        }
+        return;
+      }
+
       if (topic in ZONES_TOPICS) {
         const zoneId = ZONES_TOPICS[topic];
         const newState = msg === "OPEN" ? "OPEN" : "CLOSE";
+        if (zoneId === "zone_a") {
+          zoneARawValveState.current.valve1 = newState;
+          if (zoneABypassRef.current) return;   // 바이패스 중엔 valve1 실측을 화면에 반영하지 않음
+        }
         setValveState(prev => {
           // 상태가 변경됐을 때만 타이머 리셋
           if (prev[zoneId] !== newState) {
@@ -99,7 +132,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     client.on("message", handleMessage);
 
     const topics = [
-      "tansaeng/ctlr-0004/valve1/state", "tansaeng/ctlr-0004/valve2/state", "tansaeng/ctlr-0004/status",
+      "tansaeng/ctlr-0004/valve1/state", "tansaeng/ctlr-0004/valve2/state", "tansaeng/ctlr-0004/valve3/state", "tansaeng/ctlr-0004/status",
       "tansaeng/ctlr-0005/valve1/state", "tansaeng/ctlr-0005/status",
       "tansaeng/ctlr-0006/valve1/state", "tansaeng/ctlr-0006/status",
       "tansaeng/ctlr-0007/valve1/state", "tansaeng/ctlr-0007/status",
@@ -353,7 +386,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
         await saveDeviceSettings({
           mist_zones: {
-            [zoneId]: { mode: newMode, controllerId: zone.controllerId, deviceId: zone.deviceId ?? "valve1", isRunning: false, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
+            [zoneId]: { mode: newMode, controllerId: zone.controllerId, deviceId: getEffectiveDeviceId(zone), isRunning: false, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
           },
         });
         getMqttClient().publish(
@@ -388,7 +421,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
     const result = await saveDeviceSettings({
       mist_zones: {
-        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: zone.deviceId ?? "valve1", isRunning: zone.isRunning, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
+        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: getEffectiveDeviceId(zone), isRunning: zone.isRunning, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
       },
     });
 
@@ -430,7 +463,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
     // 최신 설정을 데몬에 먼저 전송 (저장 안 하고 작동 눌러도 최신 스케줄 적용)
     await saveDeviceSettings({
       mist_zones: {
-        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: zone.deviceId ?? "valve1", isRunning: true, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
+        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: getEffectiveDeviceId(zone), isRunning: true, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
       },
     });
     getMqttClient().publish(
@@ -455,8 +488,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   const handleStopOperation = async (zone: MistZoneConfig) => {
     if (!zone.controllerId) { alert("컨트롤러가 연결되어 있지 않습니다."); return; }
 
-    // 밸브 즉시 닫기
-    getMqttClient().publish(`tansaeng/${zone.controllerId}/${zone.deviceId ?? "valve1"}/cmd`, "CLOSE", { qos: 1 });
+    // 밸브 즉시 닫기 (바이패스 중이면 valve3로)
+    getMqttClient().publish(`tansaeng/${zone.controllerId}/${getEffectiveDeviceId(zone)}/cmd`, "CLOSE", { qos: 1 });
 
     setZones(prev => prev.map(z => z.id === zone.id ? { ...z, isRunning: false } : z));
     isRunningSelfPublishRef.current[zone.id] = true;
@@ -464,7 +497,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
     await saveDeviceSettings({
       mist_zones: {
-        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: zone.deviceId ?? "valve1", isRunning: false, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
+        [zone.id]: { mode: zone.mode, controllerId: zone.controllerId, deviceId: getEffectiveDeviceId(zone), isRunning: false, daySchedule: zone.daySchedule, nightSchedule: zone.nightSchedule },
       },
     });
   };
@@ -472,7 +505,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   // MANUAL 분무 시작
   const handleManualSpray = (zone: MistZoneConfig) => {
     if (!zone.controllerId) { alert("컨트롤러가 연결되어 있지 않습니다."); return; }
-    const deviceId = zone.deviceId ?? "valve1";
+    const deviceId = getEffectiveDeviceId(zone);
     getMqttClient().publish(`tansaeng/${zone.controllerId}/${deviceId}/cmd`, "OPEN", { qos: 1 });
     console.log(`[MANUAL] OPEN → tansaeng/${zone.controllerId}/${deviceId}/cmd`);
   };
@@ -480,7 +513,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   // MANUAL 분무 중지
   const handleManualStop = (zone: MistZoneConfig) => {
     if (!zone.controllerId) { alert("컨트롤러가 연결되어 있지 않습니다."); return; }
-    const deviceId = zone.deviceId ?? "valve1";
+    const deviceId = getEffectiveDeviceId(zone);
     getMqttClient().publish(`tansaeng/${zone.controllerId}/${deviceId}/cmd`, "CLOSE", { qos: 1 });
     console.log(`[MANUAL] CLOSE → tansaeng/${zone.controllerId}/${deviceId}/cmd`);
   };

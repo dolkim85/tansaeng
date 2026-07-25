@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-07-25 — 분무수경 구역A 바이패스, MANUAL 명령/화면표시가 반영 안 되는 버그 수정
+
+> 증상: 구역A 바이패스(valve3) 전환 후 MANUAL로 작동시키면 밸브가 잘 작동하는 것처럼 보였는데, AUTO에서는 반응이 없는 것처럼 보임.
+
+- **서버 로그로 실제 동작 확인**: 데몬(`smartfarm_mist_daemon.cjs`)의 AUTO 사이클은 `bypassState`를 구독해 `effectiveDeviceId()`로 정확히 valve3에 OPEN/CLOSE를 발행하고 있었음(바이패스 ON 4초 후 valve3 OPEN 로그 확인). 실제 버그는 반대쪽이었음.
+- **원인 1 (MANUAL이 바이패스 무시)**: `MistControl.tsx`의 `handleManualSpray`/`handleManualStop`/`handleStopOperation` 등 모든 UI 직접 명령이 `zone.deviceId ?? "valve1"`을 사용했는데, 바이패스 토글은 `zoneABypass` state만 갱신할 뿐 `zone.deviceId`를 절대 바꾸지 않음 → MANUAL은 바이패스 ON이어도 항상 메인밸브(valve1)를 작동시킴. 메인밸브가 실제로 고장난 게 아니었으니 정상 작동처럼 보였을 뿐, 진짜 바이패스밸브는 켜진 적이 없었음.
+- **원인 2 (화면 표시가 valve1 고정)**: LED/타이머가 구독하는 `valveState`가 `tansaeng/ctlr-0004/valve1/state`에만 고정 매핑되어 있어, AUTO가 valve3를 정상적으로 열고 닫아도 화면은 계속 valve1(닫힘) 상태만 보여줘 "AUTO가 먹통"처럼 보였음.
+- **수정**: `getEffectiveDeviceId(zone)` 헬퍼 추가해 구역A + 바이패스 ON일 때 모든 명령 발행 경로(MANUAL 시작/정지, 작동멈춤, 저장되는 `mist_zones.deviceId`)가 valve3를 쓰도록 통일. `valve3/state` 토픽도 구독해 valve1/valve3 실측값을 별도 보관하고, 바이패스 상태에 맞는 쪽만 `valveState.zone_a`에 반영(토글 즉시 전환 + 실시간 갱신 모두 처리).
+- 커밋 `2026-07-25_2044`.
+
+---
+
 ## 2026-07-24 — ESP32 재연결 자동 재동기화 + 수동명령 큐 처리 (전기작업 정전 후속조치)
 
 > 증상: 오후 3~4시반 전기작업으로 ESP32 7대 + 공유기 전원 재기동. 서버 데몬은 정전 영향 없이 계속 떠있었는데, 내부팬뒤(ctlr-0002)/천창환기(ctlr-0012) 제어가 안 됨. 이후 천장팬(ctlr-0003, fan_top)도 "눌러도 반응 없음" 증상 발생.
