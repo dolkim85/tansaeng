@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-07-31 — 구역A 메인밸브 유량계(YF-B10-S) 감시 + 자동 바이패스 전환 추가
+
+> 요청: ctlr-0004 메인밸브(valve1)에 유량센서(YF-B10-S, NPN 펄스) 연결. 메인밸브 작동 중인데 유량이 안 들어오면(고장) 텔레그램 알림 + 기존 바이패스밸브(valve3)로 자동 전환. 오작동 방지를 위해 on/off 스위치도 요청.
+
+- **ESP32 (`esp32_firmware`, 밸브 컨트롤러 ctlr-0004)**: GPIO4에 `INPUT_PULLUP` + `attachInterrupt`로 펄스 카운트, 1초마다 K factor(10*Q-5)로 환산해 `tansaeng/ctlr-0004/flow1/rate`(L/min), `flow1/total`(누적 L, retain) 발행.
+- **UI (`src/tabs/MistControl.tsx`)**: 분무수경 탭 기상청 위젯 바로 아래 유량계 카드 추가(실시간/누적 유량, 무유량 경고 배지). "유량 기반 밸브고장 자동판단" on/off 스위치 추가(`tansaeng/mist-control/zone_a/flowGuard` retain) — **기본 OFF**, 유량계 배선/동작 확인 전 오작동(설치 전엔 유량이 항상 0이라 켜자마자 바이패스로 전환돼버림) 방지.
+- **데몬 (`daemons/smartfarm_mist_daemon.cjs`)**: `valve1/state`(실측)와 `flow1/rate`를 구독. `flowGuard` ON 상태에서 메인밸브 OPEN이 5초 연속 무유량이면, 기존 수동 바이패스 버튼과 동일한 retain 토픽(`tansaeng/mist-control/zone_a/bypass`=true)을 자동 발행해 valve1→valve3 전환 + 텔레그램 알림(재알림 쿨다운 30분). MANUAL/AUTO 어느 경로로 열렸든 실측 state 기준이라 동일하게 감지됨. 자동 복귀는 구현하지 않음(고장 원인 미확인 상태로 자동으로 메인밸브에 되돌아가는 것은 위험 판단 — 수동 "메인으로 복귀" 필요).
+- 배포: `npm run build` → dist rsync + `smartfarm_mist_daemon.cjs` 개별 파일 rsync → `tansaeng-mist.service` 재시작(재연결 후 진행 중이던 AUTO 사이클 정상 재개, 신규 토픽 구독 로그 확인) → apache2 reload.
+- 커밋 `2026-07-31_1034`.
+
+---
+
 ## 2026-07-25 (2) — 히트펌프 시스템 → 양액혼합시스템으로 명칭 변경 (냉각기·순환펌프를 양액혼합통으로 이설)
 
 > 요청: 냉각기와 순환펌프를 실제로 양액혼합통(nutrient tank)에 이설함 — 셋(순환펌프/냉각기/장치실팬)이 물탱크 순환 루프 하나로 동작하는 건 그대로 유지, 카테고리 이름만 실제 용도에 맞게 변경.

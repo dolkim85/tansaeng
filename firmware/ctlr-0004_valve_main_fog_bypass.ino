@@ -14,14 +14,18 @@ const char* CONTROLLER_ID     = "ctlr-0004";
 const char* VALVE1_CHANNEL_ID = "valve1";   // 메인밸브(구역A)
 const char* VALVE2_CHANNEL_ID = "valve2";   // 포깅밸브
 const char* VALVE3_CHANNEL_ID = "valve3";   // ★ 바이패스밸브(구역A 백업)
+const char* FLOW1_CHANNEL_ID  = "flow1";    // ★ 유량계(메인밸브 라인, YF-B10-S)
 
 const int VALVE1_PIN = 18;
 const int VALVE2_PIN = 19;
 const int VALVE3_PIN = 21;   // ★ 바이패스밸브 핀
+const int FLOW1_PIN  = 4;    // ★ 유량계 신호핀 (내부 풀업 사용, INPUT_PULLUP)
 
 // 밸브 안전 타임아웃: 열린 후 이 시간 동안 새 명령 없으면 자동 닫힘 (침수 방지)
 // 분무 시간(보통 10~30초)보다 충분히 길게 (기본 90초)
 const unsigned long VALVE_SAFETY_TIMEOUT_MS = 90000;  // 90초
+const unsigned long FLOW_PUBLISH_INTERVAL_MS = 1000;  // ★ 유량 계산/발행 주기 1초
+const float FLOW_PULSES_PER_LITER = 595.0;            // ★ 데이터시트: 1L ≈ 595 pulse
 
 String topicValve1Cmd   = "tansaeng/" + String(CONTROLLER_ID) + "/" + VALVE1_CHANNEL_ID + "/cmd";
 String topicValve1State = "tansaeng/" + String(CONTROLLER_ID) + "/" + VALVE1_CHANNEL_ID + "/state";
@@ -29,6 +33,8 @@ String topicValve2Cmd   = "tansaeng/" + String(CONTROLLER_ID) + "/" + VALVE2_CHA
 String topicValve2State = "tansaeng/" + String(CONTROLLER_ID) + "/" + VALVE2_CHANNEL_ID + "/state";
 String topicValve3Cmd   = "tansaeng/" + String(CONTROLLER_ID) + "/" + VALVE3_CHANNEL_ID + "/cmd";    // ★
 String topicValve3State = "tansaeng/" + String(CONTROLLER_ID) + "/" + VALVE3_CHANNEL_ID + "/state";  // ★
+String topicFlow1Rate   = "tansaeng/" + String(CONTROLLER_ID) + "/" + FLOW1_CHANNEL_ID + "/rate";    // ★ L/min
+String topicFlow1Total  = "tansaeng/" + String(CONTROLLER_ID) + "/" + FLOW1_CHANNEL_ID + "/total";   // ★ 누적 L
 String topicStatus      = "tansaeng/" + String(CONTROLLER_ID) + "/status";
 String topicReset       = "tansaeng/" + String(CONTROLLER_ID) + "/restart";
 
@@ -43,6 +49,10 @@ unsigned long valve2OpenTime = 0;     // valve2 열린 시각
 unsigned long valve3OpenTime = 0;     // ★ valve3 열린 시각
 unsigned long lastStatusTime = 0;
 
+volatile unsigned long flow1PulseCount = 0;   // ★ ISR에서 증가
+unsigned long flow1LastPublishTime = 0;       // ★
+double flow1TotalLiters = 0.0;                // ★ 누적 유량(리터, 재부팅 시 초기화됨)
+
 void connectWiFi();
 void connectMQTT();
 void mqttCallback(char* topic, byte* payload, unsigned int length);
@@ -53,6 +63,8 @@ void setValve1(bool on);
 void setValve2(bool on);
 void setValve3(bool on);              // ★
 void checkValveSafety();
+void IRAM_ATTR flow1ISR();            // ★
+void updateFlow1(unsigned long now);  // ★
 
 void setup() {
   Serial.begin(115200);
@@ -65,6 +77,9 @@ void setup() {
   pinMode(VALVE3_PIN, OUTPUT);        // ★
   digitalWrite(VALVE3_PIN, LOW);      // ★
 
+  pinMode(FLOW1_PIN, INPUT_PULLUP);                                    // ★
+  attachInterrupt(digitalPinToInterrupt(FLOW1_PIN), flow1ISR, RISING); // ★
+
   connectWiFi();
 
   wifiClient.setInsecure();
@@ -74,6 +89,8 @@ void setup() {
   mqttClient.setSocketTimeout(30);
 
   connectMQTT();
+
+  flow1LastPublishTime = millis();  // ★
 }
 
 void loop() {
@@ -93,11 +110,53 @@ void loop() {
   checkValveSafety();
 
   unsigned long now = millis();
+
+  updateFlow1(now);   // ★ 유량 계산/발행
+
   if (now - lastStatusTime > 60000) {
     lastStatusTime = now;
     mqttClient.publish(topicStatus.c_str(), "online", true);
     Serial.println("[STATUS] heartbeat: online");
   }
+}
+
+// ★ 유량계 인터럽트 서비스 루틴 - 최소 작업만 수행
+void IRAM_ATTR flow1ISR() {
+  flow1PulseCount++;
+}
+
+// ★ 1초마다 펄스카운트를 읽어 유량(L/min)/누적유량(L) 계산 후 발행
+void updateFlow1(unsigned long now) {
+  if (now - flow1LastPublishTime < FLOW_PUBLISH_INTERVAL_MS) return;
+
+  noInterrupts();
+  unsigned long pulses = flow1PulseCount;
+  flow1PulseCount = 0;
+  interrupts();
+
+  float elapsedSec = (now - flow1LastPublishTime) / 1000.0;
+  flow1LastPublishTime = now;
+
+  // K Factor: Frequency(Hz) = 10*Q - 5  ->  Q(L/min) = (Frequency + 5) / 10
+  float frequency = pulses / elapsedSec;
+  float flowRateLpm = (pulses == 0) ? 0.0 : (frequency + 5.0) / 10.0;
+  if (flowRateLpm < 0) flowRateLpm = 0;
+
+  flow1TotalLiters += pulses / FLOW_PULSES_PER_LITER;
+
+  char rateBuf[16];
+  char totalBuf[16];
+  dtostrf(flowRateLpm, 0, 2, rateBuf);
+  dtostrf(flow1TotalLiters, 0, 3, totalBuf);
+
+  mqttClient.publish(topicFlow1Rate.c_str(), rateBuf, true);
+  mqttClient.publish(topicFlow1Total.c_str(), totalBuf, true);
+
+  Serial.print("[FLOW1] rate=");
+  Serial.print(rateBuf);
+  Serial.print(" L/min, total=");
+  Serial.print(totalBuf);
+  Serial.println(" L");
 }
 
 // ===== 밸브 제어 (안전 타임아웃 타이머 포함) =====
