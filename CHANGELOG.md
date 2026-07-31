@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-08-01 — 유량계 무유량 감시 설정화 + 알림/바이패스 분리 + 유량 통계, 유량계 진단 발행 추가
+
+> 배경: 신규 연결한 ctlr-0004 유량계가 값을 계속 0으로만 보고(펄스 미수신). 하드웨어 원인 조사와 별개로, 무유량 상황을 운영하는 방식 자체를 개선.
+
+- **데몬 (`daemons/smartfarm_mist_daemon.cjs`)**: 모든 로직을 데몬이 전담하도록 구성.
+  - 무유량 판단 타임아웃 하드코딩(5초) → `tansaeng/mist-control/zone_a/flowNoFlowTimeoutSec` retain 토픽으로 설정 가능(3~60초, UI 저장 버튼).
+  - `flowGuardEnabled`(자동 바이패스 전환)와 별개로 `flowAlertEnabled`(밸브 전환 없이 알림+기록만) 신규 추가 — `tansaeng/mist-control/zone_a/flowAlert` retain. 두 토글 독립 동작, 무유량 이벤트는 항상 기록.
+  - `flow1/total` 구독 + 델타 누적 방식으로 일별/시간별/분무 세션별 유량 통계 산출(ESP32 재부팅으로 total이 0 초기화돼도 안전). `config/flow_stats.json`에 영속화, `flow1/dailyTotal`·`flow1/hourlyTotal`·`flow1/sessionHistory`·`flow1/noFlowHistory` retain 발행.
+- **UI (`src/tabs/MistControl.tsx`)**: 무유량 알림 토글, 타임아웃 입력+저장 버튼, 오늘/이번시간 누적, 최근 분무 세션 이력, 무유량 감지 이력 표시 추가.
+- **펌웨어 (`firmware/ctlr-0004_valve_main_fog_bypass.ino`)**: 유량계 원인 진단용 `flow1/pulses`(초당 원시 펄스), `flow1/pinLevel`(GPIO4 순간 레벨) 비-retain 발행 추가 — 밸브 개방 중 `pinLevel`이 계속 HIGH면 배선 단선/미전원, 계속 LOW면 단락 가능성으로 원격 구분 가능. 현장 재플래시 필요.
+- 기본값은 기존과 동일(`flowGuardEnabled`/`flowAlertEnabled` OFF, 타임아웃 5초)하게 유지해 배포해도 기존 동작 변화 없음.
+- 배포: `npm run build` → dist rsync + `smartfarm_mist_daemon.cjs` 개별 파일 rsync → `tansaeng-mist.service` 재시작 → apache2 reload. 펌웨어는 현장에서 수동 재플래시.
+- 커밋 `2026-08-01_0012`.
+
+---
+
 ## 2026-07-31 — 구역A 메인밸브 유량계(YF-B10-S) 감시 + 자동 바이패스 전환 추가
 
 > 요청: ctlr-0004 메인밸브(valve1)에 유량센서(YF-B10-S, NPN 펄스) 연결. 메인밸브 작동 중인데 유량이 안 들어오면(고장) 텔레그램 알림 + 기존 바이패스밸브(valve3)로 자동 전환. 오작동 방지를 위해 on/off 스위치도 요청.

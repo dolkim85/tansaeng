@@ -35,6 +35,8 @@ String topicValve3Cmd   = "tansaeng/" + String(CONTROLLER_ID) + "/" + VALVE3_CHA
 String topicValve3State = "tansaeng/" + String(CONTROLLER_ID) + "/" + VALVE3_CHANNEL_ID + "/state";  // ★
 String topicFlow1Rate   = "tansaeng/" + String(CONTROLLER_ID) + "/" + FLOW1_CHANNEL_ID + "/rate";    // ★ L/min
 String topicFlow1Total  = "tansaeng/" + String(CONTROLLER_ID) + "/" + FLOW1_CHANNEL_ID + "/total";   // ★ 누적 L
+String topicFlow1Pulses   = "tansaeng/" + String(CONTROLLER_ID) + "/" + FLOW1_CHANNEL_ID + "/pulses";   // ★ 진단용 원시 펄스카운트(비-retain)
+String topicFlow1PinLevel = "tansaeng/" + String(CONTROLLER_ID) + "/" + FLOW1_CHANNEL_ID + "/pinLevel"; // ★ 진단용 GPIO4 순간 레벨(비-retain) — 배선 단선/단락 구분용
 String topicStatus      = "tansaeng/" + String(CONTROLLER_ID) + "/status";
 String topicReset       = "tansaeng/" + String(CONTROLLER_ID) + "/restart";
 
@@ -152,7 +154,19 @@ void updateFlow1(unsigned long now) {
   mqttClient.publish(topicFlow1Rate.c_str(), rateBuf, true);
   mqttClient.publish(topicFlow1Total.c_str(), totalBuf, true);
 
-  Serial.print("[FLOW1] rate=");
+  // ★ 진단용: ISR이 실제로 펄스를 받고 있는지 + GPIO4 순간 레벨(배선 단선 vs 단락 구분용) 원격 확인 (retain 안 함)
+  char pulsesBuf[12];
+  itoa((int)pulses, pulsesBuf, 10);
+  mqttClient.publish(topicFlow1Pulses.c_str(), pulsesBuf, false);
+  // 단선/미연결(내부 풀업만 작동) → 항상 HIGH / 신호선 단락·GND 쇼트 → 항상 LOW / 정상 신호 있음 → HIGH·LOW 번갈아 관측됨
+  bool pinLevel = digitalRead(FLOW1_PIN);
+  mqttClient.publish(topicFlow1PinLevel.c_str(), pinLevel ? "HIGH" : "LOW", false);
+
+  Serial.print("[FLOW1] pulses=");
+  Serial.print(pulses);
+  Serial.print(" pin=");
+  Serial.print(pinLevel ? "HIGH" : "LOW");
+  Serial.print(" rate=");
   Serial.print(rateBuf);
   Serial.print(" L/min, total=");
   Serial.print(totalBuf);

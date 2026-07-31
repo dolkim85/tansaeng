@@ -48,6 +48,16 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   const [flow1Total, setFlow1Total] = useState<number | null>(null);
   // 유량 기반 자동 바이패스 판단 on/off (기본 OFF — 유량계 설치/배선 확인 전 오작동 방지)
   const [flowGuardEnabled, setFlowGuardEnabled] = useState(false);
+  // 무유량 알림만(밸브 전환 없음) — flowGuardEnabled와 독립 토글
+  const [flowAlertEnabled, setFlowAlertEnabled] = useState(false);
+  // 무유량 판단 타임아웃(초) — 데몬 적용값(applied)과 입력창 값(input) 분리, 저장 버튼 눌러야 발행
+  const [flowTimeoutSecApplied, setFlowTimeoutSecApplied] = useState(5);
+  const [flowTimeoutSecInput, setFlowTimeoutSecInput] = useState("5");
+  // 유량 통계 — 데몬이 산출해 retain 발행
+  const [flowDailyTotal, setFlowDailyTotal] = useState<number | null>(null);
+  const [flowHourlyTotal, setFlowHourlyTotal] = useState<number | null>(null);
+  const [flowSessionHistory, setFlowSessionHistory] = useState<Array<{ startedAt: number; endedAt: number; durationSec: number; liters: number }>>([]);
+  const [flowNoFlowHistory, setFlowNoFlowHistory] = useState<Array<{ time: number; bypassTriggered: boolean }>>([]);
   // 구역A 바이패스 모드 (메인밸브 valve1 고장 시 바이패스밸브 valve3으로 전환)
   const [zoneABypass, setZoneABypass] = useState(false);
   const zoneABypassRef = useRef(false);
@@ -142,6 +152,27 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         const v = parseFloat(msg);
         if (!isNaN(v)) setFlow1Total(v);
       }
+      // 데몬이 산출하는 유량 통계 (일/시간/세션/무유량 이력)
+      if (topic === "tansaeng/ctlr-0004/flow1/dailyTotal") {
+        const v = parseFloat(msg);
+        if (!isNaN(v)) setFlowDailyTotal(v);
+      }
+      if (topic === "tansaeng/ctlr-0004/flow1/hourlyTotal") {
+        const v = parseFloat(msg);
+        if (!isNaN(v)) setFlowHourlyTotal(v);
+      }
+      if (topic === "tansaeng/ctlr-0004/flow1/sessionHistory") {
+        try {
+          const parsed = JSON.parse(msg);
+          if (Array.isArray(parsed)) setFlowSessionHistory(parsed);
+        } catch {}
+      }
+      if (topic === "tansaeng/ctlr-0004/flow1/noFlowHistory") {
+        try {
+          const parsed = JSON.parse(msg);
+          if (Array.isArray(parsed)) setFlowNoFlowHistory(parsed);
+        } catch {}
+      }
     };
 
     client.on("message", handleMessage);
@@ -153,6 +184,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       "tansaeng/ctlr-0007/valve1/state", "tansaeng/ctlr-0007/status",
       "tansaeng/ctlr-0008/valve1/state", "tansaeng/ctlr-0008/status",
       "tansaeng/ctlr-0004/flow1/rate", "tansaeng/ctlr-0004/flow1/total",
+      "tansaeng/ctlr-0004/flow1/dailyTotal", "tansaeng/ctlr-0004/flow1/hourlyTotal",
+      "tansaeng/ctlr-0004/flow1/sessionHistory", "tansaeng/ctlr-0004/flow1/noFlowHistory",
     ];
     topics.forEach(t => client.subscribe(t, () => {}));
 
@@ -220,6 +253,18 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       // 유량 기반 자동 바이패스 판단 on/off 복원 (다른 기기 동기화)
       subscribeToTopic("tansaeng/mist-control/zone_a/flowGuard", (v) => {
         setFlowGuardEnabled(v === "true");
+      }),
+      // 무유량 알림 on/off 복원 (다른 기기 동기화)
+      subscribeToTopic("tansaeng/mist-control/zone_a/flowAlert", (v) => {
+        setFlowAlertEnabled(v === "true");
+      }),
+      // 무유량 판단 타임아웃(초) 복원 — 저장된 값으로 입력창도 함께 동기화
+      subscribeToTopic("tansaeng/mist-control/zone_a/flowNoFlowTimeoutSec", (v) => {
+        const sec = parseFloat(v);
+        if (!isNaN(sec)) {
+          setFlowTimeoutSecApplied(sec);
+          setFlowTimeoutSecInput(String(sec));
+        }
       }),
     ];
     return () => unsubs.forEach(u => u());
@@ -577,7 +622,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
               onClick={() => {
                 const next = !flowGuardEnabled;
                 if (!window.confirm(next
-                  ? "유량 기반 자동 판단을 켭니다.\n메인밸브 작동 중 5초간 무유량이면 자동으로 바이패스 밸브로 전환되고 텔레그램 알림이 발송됩니다.\n(유량계가 정상 배선/작동 중인지 먼저 확인하세요)\n계속하시겠습니까?"
+                  ? `유량 기반 자동 판단을 켭니다.\n메인밸브 작동 중 ${flowTimeoutSecApplied}초간 무유량이면 자동으로 바이패스 밸브로 전환되고 텔레그램 알림이 발송됩니다.\n(유량계가 정상 배선/작동 중인지 먼저 확인하세요)\n계속하시겠습니까?`
                   : "유량 기반 자동 판단을 끕니다.\n이후 무유량 상황에도 자동 바이패스 전환이 일어나지 않습니다.\n계속하시겠습니까?")) return;
                 setFlowGuardEnabled(next);
                 getMqttClient().publish("tansaeng/mist-control/zone_a/flowGuard", next ? "true" : "false", { qos: 1, retain: true });
@@ -588,7 +633,58 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
             </button>
           </div>
 
-          <div className="flex gap-2">
+          {/* 무유량 알림만(밸브 전환 없음) — 자동 바이패스와 독립 토글 */}
+          <div className="flex items-center justify-between mb-2 px-2.5 py-2 rounded border border-amber-200 bg-amber-50">
+            <div className="text-xs">
+              <span className="font-bold text-amber-800">🔔 무유량 알림</span>
+              <span className={`ml-1.5 font-bold ${flowAlertEnabled ? "text-amber-700" : "text-gray-500"}`}>
+                {flowAlertEnabled ? "ON" : "OFF"}
+              </span>
+              <div className="text-[10px] text-gray-500 mt-0.5">밸브는 전환하지 않고 알림만 발송</div>
+            </div>
+            <button
+              onClick={() => {
+                const next = !flowAlertEnabled;
+                setFlowAlertEnabled(next);
+                getMqttClient().publish("tansaeng/mist-control/zone_a/flowAlert", next ? "true" : "false", { qos: 1, retain: true });
+              }}
+              className={`px-3 py-1.5 text-xs font-bold rounded ${flowAlertEnabled ? "bg-amber-500 text-white active:bg-amber-600" : "bg-white border border-amber-400 text-amber-700 active:bg-amber-100"}`}
+            >
+              {flowAlertEnabled ? "끄기" : "켜기"}
+            </button>
+          </div>
+
+          {/* 무유량 판단 타임아웃(초) — 입력 후 저장 버튼을 눌러야 데몬에 반영 */}
+          <div className="flex items-center justify-between mb-2 px-2.5 py-2 rounded border border-gray-200 bg-gray-50">
+            <div className="text-xs text-gray-700 font-bold">⏱ 무유량 판단 시간</div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={3}
+                max={60}
+                value={flowTimeoutSecInput}
+                onChange={(e) => setFlowTimeoutSecInput(e.target.value)}
+                className="w-16 text-xs text-right border border-gray-300 rounded px-1.5 py-1"
+              />
+              <span className="text-xs text-gray-500">초</span>
+              <button
+                onClick={() => {
+                  const sec = parseFloat(flowTimeoutSecInput);
+                  if (isNaN(sec) || sec < 3 || sec > 60) {
+                    alert("3~60초 사이 값을 입력하세요.");
+                    return;
+                  }
+                  setFlowTimeoutSecApplied(sec);
+                  getMqttClient().publish("tansaeng/mist-control/zone_a/flowNoFlowTimeoutSec", String(sec), { qos: 1, retain: true });
+                }}
+                className="px-2.5 py-1 text-xs font-bold rounded bg-farm-500 text-white active:bg-farm-600"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-2 mb-2">
             <div className="flex-1 rounded bg-sky-50 px-2.5 py-2">
               <div className="text-[11px] text-sky-700">실시간 유량</div>
               <div className="text-base font-bold text-sky-900">
@@ -596,12 +692,64 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
               </div>
             </div>
             <div className="flex-1 rounded bg-gray-50 px-2.5 py-2">
-              <div className="text-[11px] text-gray-600">누적 유량</div>
+              <div className="text-[11px] text-gray-600">누적 유량(ESP32 기준)</div>
               <div className="text-base font-bold text-gray-900">
                 {flow1Total !== null ? flow1Total.toFixed(1) : "—"} <span className="text-xs font-normal">L</span>
               </div>
             </div>
           </div>
+
+          <div className="flex gap-2 mb-2">
+            <div className="flex-1 rounded bg-teal-50 px-2.5 py-2">
+              <div className="text-[11px] text-teal-700">오늘 누적</div>
+              <div className="text-base font-bold text-teal-900">
+                {flowDailyTotal !== null ? flowDailyTotal.toFixed(1) : "—"} <span className="text-xs font-normal">L</span>
+              </div>
+            </div>
+            <div className="flex-1 rounded bg-teal-50 px-2.5 py-2">
+              <div className="text-[11px] text-teal-700">이번 시간 누적</div>
+              <div className="text-base font-bold text-teal-900">
+                {flowHourlyTotal !== null ? flowHourlyTotal.toFixed(1) : "—"} <span className="text-xs font-normal">L</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 최근 분무 세션별 사용량 */}
+          {flowSessionHistory.length > 0 && (
+            <div className="mb-2">
+              <div className="text-[11px] font-bold text-gray-600 mb-1">최근 분무 사용량</div>
+              <div className="rounded border border-gray-200 divide-y divide-gray-100 max-h-32 overflow-y-auto">
+                {flowSessionHistory.slice(0, 5).map((s, i) => (
+                  <div key={i} className="flex items-center justify-between px-2 py-1 text-[11px]">
+                    <span className="text-gray-500">
+                      {new Date(s.startedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <span className="text-gray-700">{s.durationSec}초</span>
+                    <span className="font-bold text-gray-900">{s.liters.toFixed(2)}L</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 무유량 감지 이력 */}
+          {flowNoFlowHistory.length > 0 && (
+            <div>
+              <div className="text-[11px] font-bold text-gray-600 mb-1">무유량 감지 이력</div>
+              <div className="rounded border border-red-100 divide-y divide-red-50 max-h-28 overflow-y-auto">
+                {flowNoFlowHistory.slice(0, 5).map((ev, i) => (
+                  <div key={i} className="flex items-center justify-between px-2 py-1 text-[11px]">
+                    <span className="text-gray-500">
+                      {new Date(ev.time).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <span className={`font-bold ${ev.bypassTriggered ? "text-red-600" : "text-amber-600"}`}>
+                      {ev.bypassTriggered ? "바이패스 전환" : "알림만"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {zones.map((zone) => {

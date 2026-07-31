@@ -21,9 +21,10 @@ const MQTT_PORT     = 8883;
 const MQTT_USERNAME = 'esp32-client-01';
 const MQTT_PASSWORD = 'Qjawns3445';
 
-const SETTINGS_FILE = path.join(__dirname, '../config/device_settings.json');
-const ALERT_FILE    = path.join(__dirname, '../config/alert_config.json');
-const LOG_FILE      = path.join(__dirname, '../logs/mist_daemon.log');
+const SETTINGS_FILE   = path.join(__dirname, '../config/device_settings.json');
+const ALERT_FILE      = path.join(__dirname, '../config/alert_config.json');
+const LOG_FILE        = path.join(__dirname, '../logs/mist_daemon.log');
+const FLOW_STATS_FILE = path.join(__dirname, '../config/flow_stats.json');
 
 // ─── Zone 정의 ───────────────────────────────────────────────────────────────
 const ZONES = {
@@ -44,49 +45,205 @@ function effectiveDeviceId(zoneId) {
   return ZONES[zoneId].deviceId;
 }
 
-// ─── 유량계 감시 (구역A 메인밸브 고장 자동 감지 → 자동 바이패스 전환) ────────
-// valve1(실측 state)이 OPEN인데 유량(flow1/rate)이 5초 연속 0이면 고장으로 판단.
+// ─── 유량계 감시 (구역A 메인밸브 고장 자동 감지 → 알림/자동 바이패스 전환) ───
+// valve1(실측 state)이 OPEN인데 유량(flow1/rate)이 설정된 시간 연속 0이면 고장으로 판단.
 // AUTO 사이클/MANUAL 조작 어느 쪽으로 열렸든 동일하게 감지(실측 state 기준이라 출처 무관).
+// 감시는 두 토글로 독립 제어: flowAlertEnabled(알림만) / flowGuardEnabled(알림+자동 바이패스 전환)
 const FLOW_TOPIC_STATE      = 'tansaeng/ctlr-0004/valve1/state';
 const FLOW_TOPIC_RATE       = 'tansaeng/ctlr-0004/flow1/rate';
-const FLOW_NO_FLOW_TIMEOUT_MS = 5000;             // 5초
-const FLOW_ALERT_COOLDOWN_MS  = 30 * 60 * 1000;   // 텔레그램 재알림 최소 간격 30분(스팸 방지)
+const FLOW_TOPIC_TOTAL      = 'tansaeng/ctlr-0004/flow1/total';
+const FLOW_ALERT_COOLDOWN_MS   = 30 * 60 * 1000;  // 텔레그램 재알림 최소 간격 30분(스팸 방지)
+const FLOW_TIMEOUT_DEFAULT_SEC = 5;
+const FLOW_TIMEOUT_MIN_SEC     = 3;
+const FLOW_TIMEOUT_MAX_SEC     = 60;
 
-let flowGuardEnabled = false;  // UI 토글로 켜기 전까지는 감시 비활성 (유량계 미설치 상태에서 오작동 방지)
+let flowGuardEnabled    = false;  // UI 토글로 켜기 전까지는 자동 바이패스 전환 비활성 (유량계 미설치/미검증 상태 오작동 방지)
+let flowAlertEnabled    = false;  // 무유량 알림만(밸브 전환 없음) — flowGuardEnabled와 독립
+let flowNoFlowTimeoutMs = FLOW_TIMEOUT_DEFAULT_SEC * 1000;  // UI에서 설정/저장 가능
 let valve1IsOpen    = false;
 let flowFailTimer   = null;
 let lastFlowAlertAt = 0;
+
+function flowMonitoringActive() {
+  return flowGuardEnabled || flowAlertEnabled;
+}
 
 function clearFlowFailTimer() {
   if (flowFailTimer) { clearTimeout(flowFailTimer); flowFailTimer = null; }
 }
 
-// 무유량 타이머 (재)무장 — 유량>0 확인될 때마다 호출해 5초 카운트를 리셋
+// 무유량 타이머 (재)무장 — 유량>0 확인될 때마다 호출해 설정된 타임아웃 카운트를 리셋
 function armFlowFailTimer() {
   clearFlowFailTimer();
   flowFailTimer = setTimeout(() => {
     flowFailTimer = null;
-    if (!flowGuardEnabled || !valve1IsOpen || bypassState['zone_a']) return;  // 그 사이 상태가 바뀌었으면 무시
+    if (!flowMonitoringActive() || !valve1IsOpen || bypassState['zone_a']) return;  // 그 사이 상태가 바뀌었으면 무시
     handleFlowFailure();
-  }, FLOW_NO_FLOW_TIMEOUT_MS);
+  }, flowNoFlowTimeoutMs);
 }
 
 function handleFlowFailure() {
-  log(`[구역A] ⚠️ 메인밸브(valve1) 작동중 ${FLOW_NO_FLOW_TIMEOUT_MS / 1000}초간 유량 미검출 → 자동 바이패스 전환`);
-  if (gClient) {
+  const now = Date.now();
+  const willBypass = flowGuardEnabled;
+  const willAlert  = flowGuardEnabled || flowAlertEnabled;
+  const timeoutSec = flowNoFlowTimeoutMs / 1000;
+
+  log(`[구역A] ⚠️ 메인밸브(valve1) 작동중 ${timeoutSec}초간 유량 미검출` +
+      (willBypass ? ' → 자동 바이패스 전환' : ' (알림만 — 자동 바이패스 감시 꺼짐)'));
+
+  recordNoFlowEvent(now, willBypass);
+
+  if (willBypass && gClient) {
     // 수동 "바이패스 전환" 버튼과 동일 경로(retain) — 데몬 자신도 구독 중이라 즉시 valve1 CLOSE/valve3 OPEN 처리됨
     gClient.publish('tansaeng/mist-control/zone_a/bypass', 'true', { qos: 1, retain: true });
   }
-  const now = Date.now();
-  if (now - lastFlowAlertAt >= FLOW_ALERT_COOLDOWN_MS) {
+
+  if (willAlert && now - lastFlowAlertAt >= FLOW_ALERT_COOLDOWN_MS) {
     lastFlowAlertAt = now;
     sendTelegram(
       `🚨 <b>구역A 메인밸브 유량 이상</b>\n` +
-      `메인밸브(valve1) 작동 중 ${FLOW_NO_FLOW_TIMEOUT_MS / 1000}초간 유량이 감지되지 않아 ` +
-      `바이패스 밸브(valve3)로 자동 전환했습니다.\n메인밸브 점검이 필요합니다.\n시각: ${seoulTime()}`
+      `메인밸브(valve1) 작동 중 ${timeoutSec}초간 유량이 감지되지 않았습니다.\n` +
+      (willBypass
+        ? `바이패스 밸브(valve3)로 자동 전환했습니다. 메인밸브 점검이 필요합니다.\n`
+        : `(자동 바이패스 전환은 꺼져 있어 메인밸브를 계속 사용 중입니다. 점검이 필요합니다.)\n`) +
+      `시각: ${seoulTime()}`
     );
   }
 }
+// ─── 유량 통계 (일별/시간별/분무 세션별) ─────────────────────────────────────
+// flow1/total은 ESP32 재부팅 시 0으로 초기화되므로 그대로 누적하면 안 됨 —
+// 데몬이 직접 증가분(delta)만 집계해서 재부팅에 영향받지 않게 함.
+const flowStats = {
+  lastTotalLiters: null,          // 마지막 관측 total (재부팅 감지용)
+  day:  { date: null, liters: 0 },   // 오늘 누적 (Asia/Seoul 자정 리셋)
+  hour: { hourKey: null, liters: 0 },// 이번 시간 누적 (정시 리셋)
+  session: null,                     // 진행 중인 분무 세션 { startedAt, liters }
+  sessionHistory: [],                // 최근 세션 이력 (최대 30건)
+  noFlowEvents: [],                  // 최근 무유량 이벤트 이력 (최대 20건)
+};
+let statsDirty = false;
+
+function todayKeySeoul() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });  // "YYYY-MM-DD"
+}
+function hourKeySeoul() {
+  const h = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })).getHours();
+  return `${todayKeySeoul()}T${String(h).padStart(2, '0')}`;
+}
+
+// 자정/정시가 지났으면 일별/시간별 카운터 리셋
+function rolloverFlowStats() {
+  const dKey = todayKeySeoul();
+  if (flowStats.day.date !== dKey) {
+    flowStats.day.date = dKey;
+    flowStats.day.liters = 0;
+    statsDirty = true;
+  }
+  const hKey = hourKeySeoul();
+  if (flowStats.hour.hourKey !== hKey) {
+    flowStats.hour.hourKey = hKey;
+    flowStats.hour.liters = 0;
+    statsDirty = true;
+  }
+}
+
+// flow1/total 신규 값 수신 시 증가분만 누적
+function accumulateFlowTotal(total) {
+  const prev = flowStats.lastTotalLiters;
+  flowStats.lastTotalLiters = total;
+  if (prev === null) return;   // 최초 관측값은 기준점으로만 사용
+
+  const delta = total >= prev ? (total - prev) : total;  // 감소 = ESP32 재부팅으로 판단, 새 total 자체를 증가분으로 취급
+  if (delta <= 0) return;
+
+  rolloverFlowStats();
+  flowStats.day.liters  += delta;
+  flowStats.hour.liters += delta;
+  if (flowStats.session) flowStats.session.liters += delta;
+
+  statsDirty = true;
+  publishFlowStats();
+}
+
+function startFlowSession() {
+  flowStats.session = { startedAt: Date.now(), liters: 0 };
+}
+
+function endFlowSession() {
+  if (!flowStats.session) return;
+  const s = flowStats.session;
+  const endedAt = Date.now();
+  const entry = {
+    startedAt:   s.startedAt,
+    endedAt,
+    durationSec: Math.round((endedAt - s.startedAt) / 1000),
+    liters:      Math.round(s.liters * 1000) / 1000,
+  };
+  flowStats.sessionHistory.unshift(entry);
+  flowStats.sessionHistory = flowStats.sessionHistory.slice(0, 30);
+  flowStats.session = null;
+  statsDirty = true;
+  log(`[구역A] 분무 세션 종료: ${entry.durationSec}초, ${entry.liters}L`);
+  publishFlowStats();
+}
+
+function recordNoFlowEvent(time, bypassTriggered) {
+  flowStats.noFlowEvents.unshift({ time, bypassTriggered });
+  flowStats.noFlowEvents = flowStats.noFlowEvents.slice(0, 20);
+  statsDirty = true;
+  if (gClient) {
+    gClient.publish('tansaeng/ctlr-0004/flow1/noFlowHistory', JSON.stringify(flowStats.noFlowEvents), { qos: 1, retain: true });
+  }
+}
+
+function publishFlowStats() {
+  if (!gClient) return;
+  gClient.publish('tansaeng/ctlr-0004/flow1/dailyTotal',  flowStats.day.liters.toFixed(2),  { qos: 1, retain: true });
+  gClient.publish('tansaeng/ctlr-0004/flow1/hourlyTotal', flowStats.hour.liters.toFixed(2), { qos: 1, retain: true });
+  gClient.publish('tansaeng/ctlr-0004/flow1/sessionHistory', JSON.stringify(flowStats.sessionHistory), { qos: 1, retain: true });
+}
+
+function loadFlowStats() {
+  try {
+    const raw  = fs.readFileSync(FLOW_STATS_FILE, 'utf8');
+    const data = JSON.parse(raw);
+    flowStats.lastTotalLiters = data.lastTotalLiters ?? null;
+    flowStats.day             = data.day             ?? { date: null, liters: 0 };
+    flowStats.hour            = data.hour             ?? { hourKey: null, liters: 0 };
+    flowStats.sessionHistory  = Array.isArray(data.sessionHistory) ? data.sessionHistory : [];
+    flowStats.noFlowEvents    = Array.isArray(data.noFlowEvents)   ? data.noFlowEvents   : [];
+    if (typeof data.flowNoFlowTimeoutMs === 'number') flowNoFlowTimeoutMs = data.flowNoFlowTimeoutMs;
+    flowGuardEnabled = !!data.flowGuardEnabled;
+    flowAlertEnabled = !!data.flowAlertEnabled;
+    rolloverFlowStats();
+    log('[구역A] 유량 통계 파일 로드 완료');
+  } catch (_) {
+    // 파일 없으면 기본값 사용 (최초 실행) — retain 토픽 도착 시 정상 값으로 갱신됨
+  }
+}
+
+function saveFlowStats() {
+  try {
+    fs.writeFileSync(FLOW_STATS_FILE, JSON.stringify({
+      lastTotalLiters: flowStats.lastTotalLiters,
+      day:             flowStats.day,
+      hour:            flowStats.hour,
+      sessionHistory:  flowStats.sessionHistory,
+      noFlowEvents:    flowStats.noFlowEvents,
+      flowNoFlowTimeoutMs,
+      flowGuardEnabled,
+      flowAlertEnabled,
+    }, null, 2));
+    statsDirty = false;
+  } catch (e) {
+    log(`[ERROR] 유량 통계 저장 실패: ${e.message}`);
+  }
+}
+
+function flushFlowStatsIfDirty() {
+  if (statsDirty) saveFlowStats();
+}
+
 // 존 밸브 cmd 토픽 (바이패스면 valve3으로 주소만 바뀜)
 function zoneCmd(zoneId) {
   return `tansaeng/${ZONES[zoneId].controllerId}/${effectiveDeviceId(zoneId)}/cmd`;
@@ -363,6 +520,14 @@ function startActiveCycles(mqttClient) {
 function main() {
   log('=== 분무수경 자동 제어 데몬 시작 (공유 사이클) ===');
 
+  loadFlowStats();
+  // 1분마다 일/시간 롤오버 체크(무유량 상태에서도 시간 경계 반영) + 통계 파일 flush
+  setInterval(() => {
+    rolloverFlowStats();
+    publishFlowStats();
+    flushFlowStatsIfDirty();
+  }, 60000);
+
   const client = mqtt.connect(`mqtts://${MQTT_HOST}:${MQTT_PORT}`, {
     host:               MQTT_HOST,
     port:               MQTT_PORT,
@@ -389,8 +554,13 @@ function main() {
     });
     // 바이패스 전환 (구역A) 구독
     topics.push('tansaeng/mist-control/zone_a/bypass');
-    // 구역A 메인밸브 유량계 감시 구독 (+ 감시 on/off 토글)
-    topics.push(FLOW_TOPIC_STATE, FLOW_TOPIC_RATE, 'tansaeng/mist-control/zone_a/flowGuard');
+    // 구역A 메인밸브 유량계 감시 구독 (+ 감시 on/off 토글, 타임아웃 설정)
+    topics.push(
+      FLOW_TOPIC_STATE, FLOW_TOPIC_RATE, FLOW_TOPIC_TOTAL,
+      'tansaeng/mist-control/zone_a/flowGuard',
+      'tansaeng/mist-control/zone_a/flowAlert',
+      'tansaeng/mist-control/zone_a/flowNoFlowTimeoutSec',
+    );
     // 팜 습도 센서 구독
     topics.push('tansaeng/ctlr-0001/+/humidity');
     topics.push('tansaeng/ctlr-0002/+/humidity');
@@ -433,18 +603,46 @@ function main() {
       return;
     }
 
-    // ── 구역A 메인밸브 유량 감시 on/off 토글 (UI 스위치) ──
+    // ── 구역A 메인밸브 자동 바이패스 전환 on/off 토글 (UI 스위치) ──
     if (topic === 'tansaeng/mist-control/zone_a/flowGuard') {
       const enabled = payload === 'true';
-      const wasEnabled = flowGuardEnabled;
+      const wasActive = flowMonitoringActive();
       flowGuardEnabled = enabled;
-      log(`[구역A] 유량 감시(자동 바이패스): ${enabled ? 'ON' : 'OFF'}`);
-      if (!enabled) {
+      statsDirty = true;
+      log(`[구역A] 자동 바이패스 감시: ${enabled ? 'ON' : 'OFF'}`);
+      if (!flowMonitoringActive()) {
         clearFlowFailTimer();
-      } else if (enabled && !wasEnabled && valve1IsOpen && !bypassState['zone_a']) {
+      } else if (!wasActive && valve1IsOpen && !bypassState['zone_a']) {
         // 이미 밸브가 열려 있는 도중에 켠 경우 즉시 감시 시작
         log('[구역A] 감시 ON — 현재 열려있는 메인밸브 즉시 모니터링 시작');
         armFlowFailTimer();
+      }
+      return;
+    }
+
+    // ── 구역A 메인밸브 무유량 알림 on/off 토글 (밸브 전환 없이 알림만) ──
+    if (topic === 'tansaeng/mist-control/zone_a/flowAlert') {
+      const enabled = payload === 'true';
+      const wasActive = flowMonitoringActive();
+      flowAlertEnabled = enabled;
+      statsDirty = true;
+      log(`[구역A] 무유량 알림: ${enabled ? 'ON' : 'OFF'}`);
+      if (!flowMonitoringActive()) {
+        clearFlowFailTimer();
+      } else if (!wasActive && valve1IsOpen && !bypassState['zone_a']) {
+        log('[구역A] 감시 ON — 현재 열려있는 메인밸브 즉시 모니터링 시작');
+        armFlowFailTimer();
+      }
+      return;
+    }
+
+    // ── 구역A 무유량 판단 타임아웃 설정 (UI 입력 → 저장 버튼) ──
+    if (topic === 'tansaeng/mist-control/zone_a/flowNoFlowTimeoutSec') {
+      const sec = parseFloat(payload);
+      if (!isNaN(sec) && sec >= FLOW_TIMEOUT_MIN_SEC && sec <= FLOW_TIMEOUT_MAX_SEC) {
+        flowNoFlowTimeoutMs = sec * 1000;
+        statsDirty = true;
+        log(`[구역A] 무유량 판단 타임아웃 설정: ${sec}초`);
       }
       return;
     }
@@ -454,10 +652,14 @@ function main() {
       const isOpen = payload === 'OPEN';
       if (isOpen !== valve1IsOpen) {
         valve1IsOpen = isOpen;
-        if (isOpen && flowGuardEnabled && !bypassState['zone_a']) {
-          log('[구역A] 메인밸브 OPEN 감지 → 유량 모니터링 시작(5초)');
-          armFlowFailTimer();
+        if (isOpen) {
+          startFlowSession();
+          if (flowMonitoringActive() && !bypassState['zone_a']) {
+            log(`[구역A] 메인밸브 OPEN 감지 → 유량 모니터링 시작(${flowNoFlowTimeoutMs / 1000}초)`);
+            armFlowFailTimer();
+          }
         } else {
+          endFlowSession();
           clearFlowFailTimer();
         }
       }
@@ -465,9 +667,14 @@ function main() {
     }
     if (topic === FLOW_TOPIC_RATE) {
       const rate = parseFloat(payload);
-      if (!isNaN(rate) && rate > 0 && flowGuardEnabled && valve1IsOpen && !bypassState['zone_a']) {
+      if (!isNaN(rate) && rate > 0 && flowMonitoringActive() && valve1IsOpen && !bypassState['zone_a']) {
         armFlowFailTimer();  // 유량 정상 확인 → 무유량 카운트 리셋
       }
+      return;
+    }
+    if (topic === FLOW_TOPIC_TOTAL) {
+      const total = parseFloat(payload);
+      if (!isNaN(total)) accumulateFlowTotal(total);
       return;
     }
 
@@ -555,8 +762,8 @@ function main() {
   client.on('offline',   () => log('[MQTT] 연결 끊김 — 재연결 중...'));
   client.on('reconnect', () => log('[MQTT] 재연결 시도...'));
 
-  process.on('SIGTERM', () => { log('SIGTERM — 종료'); stopAllCycles(); client.end(); process.exit(0); });
-  process.on('SIGINT',  () => { log('SIGINT — 종료');  stopAllCycles(); client.end(); process.exit(0); });
+  process.on('SIGTERM', () => { log('SIGTERM — 종료'); stopAllCycles(); saveFlowStats(); client.end(); process.exit(0); });
+  process.on('SIGINT',  () => { log('SIGINT — 종료');  stopAllCycles(); saveFlowStats(); client.end(); process.exit(0); });
 }
 
 function loadSettingsFromFile(client) {
