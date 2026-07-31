@@ -43,6 +43,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
   // 현재 팜 평균 습도 (API 폴링)
   const [avgHumidity, setAvgHumidity] = useState<number | null>(null);
+  // 구역A 메인밸브 유량계(YF-B10-S) 실시간 유량(L/min) / 누적유량(L)
+  const [flow1Rate, setFlow1Rate] = useState<number | null>(null);
+  const [flow1Total, setFlow1Total] = useState<number | null>(null);
+  // 유량 기반 자동 바이패스 판단 on/off (기본 OFF — 유량계 설치/배선 확인 전 오작동 방지)
+  const [flowGuardEnabled, setFlowGuardEnabled] = useState(false);
   // 구역A 바이패스 모드 (메인밸브 valve1 고장 시 바이패스밸브 valve3으로 전환)
   const [zoneABypass, setZoneABypass] = useState(false);
   const zoneABypassRef = useRef(false);
@@ -127,6 +132,16 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
         const controllerId = STATUS_TOPICS[topic];
         setEsp32Online(prev => ({ ...prev, [controllerId]: msg === "online" }));
       }
+
+      // 구역A 메인밸브 유량계(YF-B10-S) — null/파싱실패 시 이전 값 유지(깜빡임 방지)
+      if (topic === "tansaeng/ctlr-0004/flow1/rate") {
+        const v = parseFloat(msg);
+        if (!isNaN(v)) setFlow1Rate(v);
+      }
+      if (topic === "tansaeng/ctlr-0004/flow1/total") {
+        const v = parseFloat(msg);
+        if (!isNaN(v)) setFlow1Total(v);
+      }
     };
 
     client.on("message", handleMessage);
@@ -137,6 +152,7 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       "tansaeng/ctlr-0006/valve1/state", "tansaeng/ctlr-0006/status",
       "tansaeng/ctlr-0007/valve1/state", "tansaeng/ctlr-0007/status",
       "tansaeng/ctlr-0008/valve1/state", "tansaeng/ctlr-0008/status",
+      "tansaeng/ctlr-0004/flow1/rate", "tansaeng/ctlr-0004/flow1/total",
     ];
     topics.forEach(t => client.subscribe(t, () => {}));
 
@@ -200,6 +216,10 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
       // 구역A 바이패스 상태 복원 (다른 기기 동기화)
       subscribeToTopic("tansaeng/mist-control/zone_a/bypass", (v) => {
         setZoneABypass(v === "true");
+      }),
+      // 유량 기반 자동 바이패스 판단 on/off 복원 (다른 기기 동기화)
+      subscribeToTopic("tansaeng/mist-control/zone_a/flowGuard", (v) => {
+        setFlowGuardEnabled(v === "true");
       }),
     ];
     return () => unsubs.forEach(u => u());
@@ -533,6 +553,56 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
 
         {/* 실외 날씨 (기상청, 분무 판단 참고용) */}
         <WeatherWidget compact />
+
+        {/* 구역A 메인밸브 유량계 (YF-B10-S) — 밸브 OPEN인데 5초간 무유량이면 데몬이 자동 바이패스 전환+텔레그램 알림 */}
+        <div className="bg-white rounded-lg shadow-sm mb-2 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-gray-800">🌊 유량계 (구역A 메인밸브)</span>
+            {!zoneABypass && valveState["zone_a"] === "OPEN" && flow1Rate !== null && flow1Rate <= 0 && (
+              <span className="text-[11px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded animate-pulse">
+                ⚠ 무유량 감지중
+              </span>
+            )}
+          </div>
+
+          {/* 유량 기반 자동 바이패스 판단 on/off — 유량계 배선/동작 확인 전에는 꺼두는 것을 권장 */}
+          <div className="flex items-center justify-between mb-2 px-2.5 py-2 rounded border border-sky-200 bg-sky-50">
+            <div className="text-xs">
+              <span className="font-bold text-sky-800">🛡️ 유량 기반 밸브고장 자동판단</span>
+              <span className={`ml-1.5 font-bold ${flowGuardEnabled ? "text-sky-700" : "text-gray-500"}`}>
+                {flowGuardEnabled ? "ON" : "OFF"}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                const next = !flowGuardEnabled;
+                if (!window.confirm(next
+                  ? "유량 기반 자동 판단을 켭니다.\n메인밸브 작동 중 5초간 무유량이면 자동으로 바이패스 밸브로 전환되고 텔레그램 알림이 발송됩니다.\n(유량계가 정상 배선/작동 중인지 먼저 확인하세요)\n계속하시겠습니까?"
+                  : "유량 기반 자동 판단을 끕니다.\n이후 무유량 상황에도 자동 바이패스 전환이 일어나지 않습니다.\n계속하시겠습니까?")) return;
+                setFlowGuardEnabled(next);
+                getMqttClient().publish("tansaeng/mist-control/zone_a/flowGuard", next ? "true" : "false", { qos: 1, retain: true });
+              }}
+              className={`px-3 py-1.5 text-xs font-bold rounded ${flowGuardEnabled ? "bg-sky-500 text-white active:bg-sky-600" : "bg-white border border-sky-400 text-sky-700 active:bg-sky-100"}`}
+            >
+              {flowGuardEnabled ? "끄기" : "켜기"}
+            </button>
+          </div>
+
+          <div className="flex gap-2">
+            <div className="flex-1 rounded bg-sky-50 px-2.5 py-2">
+              <div className="text-[11px] text-sky-700">실시간 유량</div>
+              <div className="text-base font-bold text-sky-900">
+                {flow1Rate !== null ? flow1Rate.toFixed(2) : "—"} <span className="text-xs font-normal">L/min</span>
+              </div>
+            </div>
+            <div className="flex-1 rounded bg-gray-50 px-2.5 py-2">
+              <div className="text-[11px] text-gray-600">누적 유량</div>
+              <div className="text-base font-bold text-gray-900">
+                {flow1Total !== null ? flow1Total.toFixed(1) : "—"} <span className="text-xs font-normal">L</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {zones.map((zone) => {
           const modeColor = getModeColor(zone.mode);

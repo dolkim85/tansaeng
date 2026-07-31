@@ -43,6 +43,50 @@ function effectiveDeviceId(zoneId) {
   if (zoneId === 'zone_a' && bypassState['zone_a']) return 'valve3';  // 바이패스 밸브
   return ZONES[zoneId].deviceId;
 }
+
+// ─── 유량계 감시 (구역A 메인밸브 고장 자동 감지 → 자동 바이패스 전환) ────────
+// valve1(실측 state)이 OPEN인데 유량(flow1/rate)이 5초 연속 0이면 고장으로 판단.
+// AUTO 사이클/MANUAL 조작 어느 쪽으로 열렸든 동일하게 감지(실측 state 기준이라 출처 무관).
+const FLOW_TOPIC_STATE      = 'tansaeng/ctlr-0004/valve1/state';
+const FLOW_TOPIC_RATE       = 'tansaeng/ctlr-0004/flow1/rate';
+const FLOW_NO_FLOW_TIMEOUT_MS = 5000;             // 5초
+const FLOW_ALERT_COOLDOWN_MS  = 30 * 60 * 1000;   // 텔레그램 재알림 최소 간격 30분(스팸 방지)
+
+let flowGuardEnabled = false;  // UI 토글로 켜기 전까지는 감시 비활성 (유량계 미설치 상태에서 오작동 방지)
+let valve1IsOpen    = false;
+let flowFailTimer   = null;
+let lastFlowAlertAt = 0;
+
+function clearFlowFailTimer() {
+  if (flowFailTimer) { clearTimeout(flowFailTimer); flowFailTimer = null; }
+}
+
+// 무유량 타이머 (재)무장 — 유량>0 확인될 때마다 호출해 5초 카운트를 리셋
+function armFlowFailTimer() {
+  clearFlowFailTimer();
+  flowFailTimer = setTimeout(() => {
+    flowFailTimer = null;
+    if (!flowGuardEnabled || !valve1IsOpen || bypassState['zone_a']) return;  // 그 사이 상태가 바뀌었으면 무시
+    handleFlowFailure();
+  }, FLOW_NO_FLOW_TIMEOUT_MS);
+}
+
+function handleFlowFailure() {
+  log(`[구역A] ⚠️ 메인밸브(valve1) 작동중 ${FLOW_NO_FLOW_TIMEOUT_MS / 1000}초간 유량 미검출 → 자동 바이패스 전환`);
+  if (gClient) {
+    // 수동 "바이패스 전환" 버튼과 동일 경로(retain) — 데몬 자신도 구독 중이라 즉시 valve1 CLOSE/valve3 OPEN 처리됨
+    gClient.publish('tansaeng/mist-control/zone_a/bypass', 'true', { qos: 1, retain: true });
+  }
+  const now = Date.now();
+  if (now - lastFlowAlertAt >= FLOW_ALERT_COOLDOWN_MS) {
+    lastFlowAlertAt = now;
+    sendTelegram(
+      `🚨 <b>구역A 메인밸브 유량 이상</b>\n` +
+      `메인밸브(valve1) 작동 중 ${FLOW_NO_FLOW_TIMEOUT_MS / 1000}초간 유량이 감지되지 않아 ` +
+      `바이패스 밸브(valve3)로 자동 전환했습니다.\n메인밸브 점검이 필요합니다.\n시각: ${seoulTime()}`
+    );
+  }
+}
 // 존 밸브 cmd 토픽 (바이패스면 valve3으로 주소만 바뀜)
 function zoneCmd(zoneId) {
   return `tansaeng/${ZONES[zoneId].controllerId}/${effectiveDeviceId(zoneId)}/cmd`;
@@ -345,6 +389,8 @@ function main() {
     });
     // 바이패스 전환 (구역A) 구독
     topics.push('tansaeng/mist-control/zone_a/bypass');
+    // 구역A 메인밸브 유량계 감시 구독 (+ 감시 on/off 토글)
+    topics.push(FLOW_TOPIC_STATE, FLOW_TOPIC_RATE, 'tansaeng/mist-control/zone_a/flowGuard');
     // 팜 습도 센서 구독
     topics.push('tansaeng/ctlr-0001/+/humidity');
     topics.push('tansaeng/ctlr-0002/+/humidity');
@@ -376,12 +422,51 @@ function main() {
       const oldBypass = bypassState['zone_a'] || false;
       bypassState['zone_a'] = newBypass;
       log(`[구역A] 바이패스 모드: ${newBypass ? 'ON (valve3 바이패스밸브 사용)' : 'OFF (valve1 메인밸브)'}`);
+      if (newBypass) clearFlowFailTimer();  // 바이패스 전환 시 유량 감시 즉시 중단(재판정 오발화 방지)
       if (newBypass !== oldBypass && gClient) {
         // 전환 시 양쪽 밸브 모두 강제 CLOSE(동시 열림 방지) → 다음 사이클에 올바른 밸브로 재개
         gClient.publish('tansaeng/ctlr-0004/valve1/cmd', 'CLOSE', { qos: 1 });
         gClient.publish('tansaeng/ctlr-0004/valve3/cmd', 'CLOSE', { qos: 1 });
         const zc = zoneCycle['zone_a'];
         if (zc) zc.valveOpen = false;
+      }
+      return;
+    }
+
+    // ── 구역A 메인밸브 유량 감시 on/off 토글 (UI 스위치) ──
+    if (topic === 'tansaeng/mist-control/zone_a/flowGuard') {
+      const enabled = payload === 'true';
+      const wasEnabled = flowGuardEnabled;
+      flowGuardEnabled = enabled;
+      log(`[구역A] 유량 감시(자동 바이패스): ${enabled ? 'ON' : 'OFF'}`);
+      if (!enabled) {
+        clearFlowFailTimer();
+      } else if (enabled && !wasEnabled && valve1IsOpen && !bypassState['zone_a']) {
+        // 이미 밸브가 열려 있는 도중에 켠 경우 즉시 감시 시작
+        log('[구역A] 감시 ON — 현재 열려있는 메인밸브 즉시 모니터링 시작');
+        armFlowFailTimer();
+      }
+      return;
+    }
+
+    // ── 구역A 메인밸브 유량 감시 ──
+    if (topic === FLOW_TOPIC_STATE) {
+      const isOpen = payload === 'OPEN';
+      if (isOpen !== valve1IsOpen) {
+        valve1IsOpen = isOpen;
+        if (isOpen && flowGuardEnabled && !bypassState['zone_a']) {
+          log('[구역A] 메인밸브 OPEN 감지 → 유량 모니터링 시작(5초)');
+          armFlowFailTimer();
+        } else {
+          clearFlowFailTimer();
+        }
+      }
+      return;
+    }
+    if (topic === FLOW_TOPIC_RATE) {
+      const rate = parseFloat(payload);
+      if (!isNaN(rate) && rate > 0 && flowGuardEnabled && valve1IsOpen && !bypassState['zone_a']) {
+        armFlowFailTimer();  // 유량 정상 확인 → 무유량 카운트 리셋
       }
       return;
     }
