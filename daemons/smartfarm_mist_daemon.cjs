@@ -41,9 +41,24 @@ const CONTROLLER_IDS = [...new Set(Object.values(ZONES).map(z => z.controllerId)
 // AUTO 사이클은 컨트롤러가 오프라인이어도 명령 발행 자체는 계속 시도하지만(재연결 시 즉시 정상화),
 // "분무 시작/정지 성공" 로그·DB 기록·텔레그램은 실제로 받을 수 있는 상태일 때만 남긴다.
 // (오프라인인데도 성공한 것처럼 기록되면 대시보드 로그가 실제 동작과 어긋남 — 2026-08-01 수정)
-const esp32Online = {};  // { controllerId: boolean } — 미수신(undefined)이면 판단 보류로 간주해 낙관적으로 허용
+const esp32Online = {};  // { controllerId: boolean } — 미수신(undefined)이면 "확인 안 됨"으로 간주해 성공 기록 보류(재시작 직후 status 구독 전 retained isRunning/schedule이 먼저 도착하는 순간의 오탐 방지)
 function isControllerOnline(zoneId) {
-  return esp32Online[ZONES[zoneId].controllerId] !== false;
+  return esp32Online[ZONES[zoneId].controllerId] === true;
+}
+
+// 오프라인이었던 컨트롤러가 복귀하면, 그 컨트롤러를 쓰는 사이클 진행 중인 구역들에
+// 현재 daemon이 의도하는 밸브 상태(OPEN/CLOSE)를 즉시 재전송 — 다음 스케줄 타이머까지 기다리지 않음
+// (오프라인 동안에도 사이클 타이머 자체는 계속 돌아가고 있었으므로 zc.valveOpen이 곧 "의도한 현재 상태")
+function resyncControllerZones(cid) {
+  if (!gClient) return;
+  Object.keys(ZONES).forEach(zoneId => {
+    if (ZONES[zoneId].controllerId !== cid) return;
+    const zc = zoneCycle[zoneId];
+    if (!zc.cycling) return;   // 사이클 진행 중이 아니면 재전송 불필요
+    const cmd = zc.valveOpen ? 'OPEN' : 'CLOSE';
+    gClient.publish(zoneCmd(zoneId), cmd, { qos: 1 });
+    log(`[${ZONES[zoneId].name}] 컨트롤러(${cid}) 복귀 감지 → 현재 의도 상태(${cmd}) 즉시 재전송`);
+  });
 }
 
 // ─── 바이패스 (구역A 전용) ───────────────────────────────────────────────────
@@ -566,6 +581,9 @@ function main() {
     startWatchdog();   // 안전 워치독 시작 (최초 1회)
 
     const topics = [];
+    // 구역 컨트롤러(ESP32) 온라인 상태 — isRunning/schedule retained 메시지보다 먼저 도착하도록 맨 앞에서 구독
+    // (재시작 직후 사이클이 즉시 시작될 수 있어, 온라인 상태를 먼저 알아야 성공 로그 오탐 방지 가능)
+    CONTROLLER_IDS.forEach(cid => topics.push(`tansaeng/${cid}/status`));
     Object.keys(ZONES).forEach(zoneId => {
       topics.push(`tansaeng/mist-control/${zoneId}/isRunning`);
       topics.push(`tansaeng/mist-control/${zoneId}/schedule`);
@@ -580,8 +598,6 @@ function main() {
       'tansaeng/mist-control/zone_a/flowAlert',
       'tansaeng/mist-control/zone_a/flowNoFlowTimeoutSec',
     );
-    // 구역 컨트롤러(ESP32) 온라인 상태 구독 (분무 성공 로그/알림 판단용)
-    CONTROLLER_IDS.forEach(cid => topics.push(`tansaeng/${cid}/status`));
     // 팜 습도 센서 구독
     topics.push('tansaeng/ctlr-0001/+/humidity');
     topics.push('tansaeng/ctlr-0002/+/humidity');
@@ -703,9 +719,13 @@ function main() {
     if (CONTROLLER_IDS.some(cid => topic === `tansaeng/${cid}/status`)) {
       const cid = topic.split('/')[1];
       const online = payload === 'online';
-      if (esp32Online[cid] !== online) {
+      const wasOnline = esp32Online[cid];
+      if (wasOnline !== online) {
         esp32Online[cid] = online;
         log(`[${cid}] 온라인 상태: ${online ? 'online' : 'offline'}`);
+        // 오프라인이었다가 복귀한 경우 — 다음 사이클 타이머(최대 수분)까지 기다리지 않고
+        // AUTO가 지금 의도하는 상태(OPEN/CLOSE)를 즉시 재전송해 바로 정상화
+        if (online && wasOnline === false) resyncControllerZones(cid);
       }
       return;
     }
