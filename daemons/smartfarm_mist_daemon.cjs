@@ -35,6 +35,16 @@ const ZONES = {
   zone_e:  { name: '구역E', controllerId: 'ctlr-0008', deviceId: 'valve1' },
   fogging: { name: '포깅',   controllerId: 'ctlr-0004', deviceId: 'valve2' },
 };
+const CONTROLLER_IDS = [...new Set(Object.values(ZONES).map(z => z.controllerId))];
+
+// ─── 구역 컨트롤러(ESP32) 온라인 상태 ────────────────────────────────────────
+// AUTO 사이클은 컨트롤러가 오프라인이어도 명령 발행 자체는 계속 시도하지만(재연결 시 즉시 정상화),
+// "분무 시작/정지 성공" 로그·DB 기록·텔레그램은 실제로 받을 수 있는 상태일 때만 남긴다.
+// (오프라인인데도 성공한 것처럼 기록되면 대시보드 로그가 실제 동작과 어긋남 — 2026-08-01 수정)
+const esp32Online = {};  // { controllerId: boolean } — 미수신(undefined)이면 판단 보류로 간주해 낙관적으로 허용
+function isControllerOnline(zoneId) {
+  return esp32Online[ZONES[zoneId].controllerId] !== false;
+}
 
 // ─── 바이패스 (구역A 전용) ───────────────────────────────────────────────────
 // 메인 전자밸브(valve1) 고장 시 UI에서 바이패스 모드 ON → 같은 ctlr-0004의
@@ -477,14 +487,19 @@ function startZoneCycle(mqttClient, zoneId) {
       }
     }
 
-    // 실제 분무 실행
+    // 실제 분무 실행 — 명령은 항상 발행(재연결 시 다음 사이클부터 정상화되게), 성공 기록은 온라인일 때만
     mqttClient.publish(zoneCmd(zoneId), 'OPEN', { qos: 1 });
     mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'OPEN', timestamp: ts }), { qos: 1, retain: true });
     zc.valveOpen = true;
-    saveMistLog(zoneId, ZONES[zoneId].name, 'start', st.mode || 'AUTO');
-    log(`[${ZONES[zoneId].name}] OPEN — 분무 ${sprayMs/1000}s / 정지 ${stopMs/1000}s${avgH !== null ? ` / 습도 ${avgH.toFixed(1)}%` : ''}`);
-    // (a) 실제 분무했을 때만 텔레그램 발송
-    sendTelegram(`💧 <b>분무수경 분무 시작</b>\n구역: ${ZONES[zoneId].name}\n지속: ${sprayMs/1000}초\n시각: ${seoulTime()}`);
+    if (isControllerOnline(zoneId)) {
+      saveMistLog(zoneId, ZONES[zoneId].name, 'start', st.mode || 'AUTO');
+      log(`[${ZONES[zoneId].name}] OPEN — 분무 ${sprayMs/1000}s / 정지 ${stopMs/1000}s${avgH !== null ? ` / 습도 ${avgH.toFixed(1)}%` : ''}`);
+      // (a) 실제 분무했을 때만 텔레그램 발송
+      sendTelegram(`💧 <b>분무수경 분무 시작</b>\n구역: ${ZONES[zoneId].name}\n지속: ${sprayMs/1000}초\n시각: ${seoulTime()}`);
+    } else {
+      // 컨트롤러 오프라인 — 명령을 받을 수 없어 실제 작동을 확인할 수 없으므로 성공 로그/DB기록/알림 생략
+      log(`[${ZONES[zoneId].name}] ⚠️ 컨트롤러(${ZONES[zoneId].controllerId}) 오프라인 — OPEN 명령 발행했으나 실제 작동 미확인(로그/알림 생략)`);
+    }
 
     zc.sprayTimer = setTimeout(() => doStop(stopMs), sprayMs);
   };
@@ -495,9 +510,13 @@ function startZoneCycle(mqttClient, zoneId) {
     mqttClient.publish(zoneCmd(zoneId), 'CLOSE', { qos: 1 });
     mqttClient.publish(`tansaeng/mist-control/${zoneId}/timerState`, JSON.stringify({ state: 'CLOSE', timestamp: ts }), { qos: 1, retain: true });
     zc.valveOpen = false;
-    saveMistLog(zoneId, ZONES[zoneId].name, 'stop', st.mode || 'AUTO');
-    log(`[${ZONES[zoneId].name}] CLOSE — 정지 ${stopMs/1000}s`);
-    sendTelegram(`⏸ <b>분무수경 대기 시작</b>\n구역: ${ZONES[zoneId].name}\n대기: ${stopMs/1000}초\n시각: ${seoulTime()}`);
+    if (isControllerOnline(zoneId)) {
+      saveMistLog(zoneId, ZONES[zoneId].name, 'stop', st.mode || 'AUTO');
+      log(`[${ZONES[zoneId].name}] CLOSE — 정지 ${stopMs/1000}s`);
+      sendTelegram(`⏸ <b>분무수경 대기 시작</b>\n구역: ${ZONES[zoneId].name}\n대기: ${stopMs/1000}초\n시각: ${seoulTime()}`);
+    } else {
+      log(`[${ZONES[zoneId].name}] ⚠️ 컨트롤러(${ZONES[zoneId].controllerId}) 오프라인 — CLOSE 명령 발행(로그/알림 생략)`);
+    }
 
     if (!zc.cycling) return;   // 사이클 종료됐으면 다음 분무 예약 안 함 (밸브는 위에서 닫음)
     zc.stopTimer = setTimeout(doSpray, Math.max(stopMs, 500));
@@ -561,6 +580,8 @@ function main() {
       'tansaeng/mist-control/zone_a/flowAlert',
       'tansaeng/mist-control/zone_a/flowNoFlowTimeoutSec',
     );
+    // 구역 컨트롤러(ESP32) 온라인 상태 구독 (분무 성공 로그/알림 판단용)
+    CONTROLLER_IDS.forEach(cid => topics.push(`tansaeng/${cid}/status`));
     // 팜 습도 센서 구독
     topics.push('tansaeng/ctlr-0001/+/humidity');
     topics.push('tansaeng/ctlr-0002/+/humidity');
@@ -675,6 +696,17 @@ function main() {
     if (topic === FLOW_TOPIC_TOTAL) {
       const total = parseFloat(payload);
       if (!isNaN(total)) accumulateFlowTotal(total);
+      return;
+    }
+
+    // ── 구역 컨트롤러(ESP32) 온라인 상태 ──
+    if (CONTROLLER_IDS.some(cid => topic === `tansaeng/${cid}/status`)) {
+      const cid = topic.split('/')[1];
+      const online = payload === 'online';
+      if (esp32Online[cid] !== online) {
+        esp32Online[cid] = online;
+        log(`[${cid}] 온라인 상태: ${online ? 'online' : 'offline'}`);
+      }
       return;
     }
 
