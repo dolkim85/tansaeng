@@ -19,7 +19,7 @@ const char* FLOW1_CHANNEL_ID  = "flow1";    // ★ 유량계(메인밸브 라인
 const int VALVE1_PIN = 18;
 const int VALVE2_PIN = 19;
 const int VALVE3_PIN = 21;   // ★ 바이패스밸브 핀
-const int FLOW1_PIN  = 4;    // ★ 유량계 신호핀 (내부 풀업 사용, INPUT_PULLUP)
+const int FLOW1_PIN  = 16;   // ★ 유량계 신호핀 (내부 풀업 사용, INPUT_PULLUP) — GPIO4가 24V 직결로 손상되어 GPIO16으로 변경(2026-08-01)
 
 // 밸브 안전 타임아웃: 열린 후 이 시간 동안 새 명령 없으면 자동 닫힘 (침수 방지)
 // 분무 시간(보통 10~30초)보다 충분히 길게 (기본 90초)
