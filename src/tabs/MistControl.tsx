@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import type { MistZoneConfig, MistMode, MistScheduleSettings, HumidityControl } from "../types";
 import { getMqttClient, isMqttConnected, onConnectionChange, subscribeToTopic } from "../mqtt/mqttClient";
 import { saveDeviceSettings } from "../api/deviceControl";
+import { useMqttSettingsReady } from "../hooks/useMqttSettingsReady";
 import WeatherWidget from "../components/WeatherWidget";
 
 interface MistControlProps {
@@ -22,6 +23,10 @@ const ZONE_CONTROLLER_MAP: Record<string, string> = {
 export default function MistControl({ zones, setZones }: MistControlProps) {
   // MQTT 연결 상태
   const [mqttConnected, setMqttConnected] = useState(isMqttConnected());
+
+  // retain 동기화 유예시간이 지나기 전에는 저장/모드변경/작동시작을 막는다
+  // (2026-08-13: 재로드 직후 blank 기본값이 진짜 AUTO 설정을 덮어쓴 사고 재발 방지)
+  const settingsReady = useMqttSettingsReady();
 
   // ESP32 밸브 상태 (valve1/state 토픽에서 수신)
   const [valveState, setValveState] = useState<Record<string, "OPEN" | "CLOSE" | "UNKNOWN">>({});
@@ -435,6 +440,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   // ── 핸들러 ────────────────────────────────────────────────────────────────
 
   const updateZone = async (zoneId: string, updates: Partial<MistZoneConfig>) => {
+    if ("mode" in updates && !settingsReady) {
+      alert("설정을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     setZones(prev => prev.map(z => z.id === zoneId ? { ...z, ...updates } : z));
 
     if ("mode" in updates) {
@@ -472,6 +482,11 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   };
 
   const handleSaveZone = async (zone: MistZoneConfig) => {
+    if (!settingsReady) {
+      alert("설정을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     if (zone.mode === "AUTO") {
       if (zone.daySchedule.enabled && !zone.daySchedule.sprayDurationSeconds) {
         alert("주간 모드: 작동분무주기(초)를 입력해야 합니다."); return;
@@ -512,6 +527,10 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   // AUTO 작동 시작 → 설정 저장 후 데몬에 위임
   const handleStartOperation = async (zone: MistZoneConfig) => {
     if (!zone.controllerId) { alert("컨트롤러가 연결되어 있지 않습니다."); return; }
+    if (!settingsReady) {
+      alert("설정을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
 
     if (zone.mode === "AUTO") {
       if (zone.daySchedule.enabled && !zone.daySchedule.sprayDurationSeconds) {
@@ -783,7 +802,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                         if (mode === "MANUAL" && zone.mode === "AUTO" && !window.confirm("AUTO 모드를 종료하고 수동(MANUAL)으로 전환합니다.\n계속하시겠습니까?")) return;
                         updateZone(zone.id, { mode });
                       }}
-                      className={`flex-1 py-2 text-xs font-bold rounded transition-all ${
+                      disabled={!settingsReady}
+                      className={`flex-1 py-2 text-xs font-bold rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                         zone.mode === mode ? "bg-farm-500 text-white" : "bg-gray-100 text-gray-600 active:bg-gray-200"
                       }`}
                     >
@@ -791,6 +811,9 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                     </button>
                   ))}
                 </div>
+                {!settingsReady && (
+                  <p className="text-[10px] text-amber-600 mb-2">⏳ 설정 동기화 중... 잠시 후 조작해주세요</p>
+                )}
 
                 {/* 바이패스 전환 (구역A 전용) — 메인밸브 고장 시 바이패스밸브(valve3)로 */}
                 {zone.id === "zone_a" && (
@@ -1049,13 +1072,14 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
                     <div className="grid grid-cols-3 gap-3">
                       <button
                         onClick={() => handleSaveZone(zone)}
-                        className="bg-farm-500 hover:bg-farm-600 text-white font-medium px-4 py-3 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
+                        disabled={!settingsReady}
+                        className="bg-farm-500 hover:bg-farm-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium px-4 py-3 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
                       >
                         💾 설정 저장
                       </button>
                       <button
                         onClick={() => handleStartOperation(zone)}
-                        disabled={!zone.controllerId || zone.isRunning}
+                        disabled={!zone.controllerId || zone.isRunning || !settingsReady}
                         className="bg-green-500 hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium px-4 py-3 rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
                       >
                         ▶️ 작동
