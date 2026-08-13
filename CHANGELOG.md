@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-08-13 — 분무수경 AUTO 설정값 초기화 레이스 컨디션 수정
+
+> 발견 경위: 메인밸브 ESP32(ctlr-0004)가 12:35~16:41 사이 최소 9회 온/오프라인을 반복(하드웨어/WiFi 단절로 추정, 서버 데몬 3개는 재시작·크래시 없이 하루 종일 정상). 사용자가 이 문제를 확인하러 분무수경 화면에 접속한 뒤 천창/측창/팬/메인밸브/포깅/바이패스의 AUTO 설정값이 초기화된 것을 발견 — 신고.
+
+- **원인**: `usePersistedMistZones()`(`src/store/usePersistedStore.ts`)는 마운트 시 하드코딩된 빈 기본값(`DEFAULT_MIST_ZONES`, mode: OFF·스케줄 null)으로 먼저 렌더링되고, 이후 `useEffect`에서 비동기로 localStorage/MQTT retain을 받아와 실제 값으로 덮어쓴다. 그런데 `MistControl.tsx`의 저장/모드변경/작동시작 핸들러(`updateZone`/`handleSaveZone`/`handleStartOperation`)는 이 하이드레이션 완료 여부를 확인하지 않고 클릭 시점의 state를 그대로 `retain: true`로 발행 + `save_device_settings.php`에 영구 저장했다. localStorage가 없는 기기/브라우저에서 MQTT retain 도착 전(수백ms~수초)에 버튼을 누르면 빈 기본값이 실제 설정을 영구 덮어씀.
+- `DevicesControl.tsx`(천창/측창/팬/히트펌프)는 과거 유사 사고를 거치며 이미 `skyPointsReady`/`sidePointsReady`/`fanRangesFirstRunRef` 가드가 구현돼 있어 이번엔 영향 없었음 — 근본원인이 없던 `MistControl.tsx`에만 존재.
+- **수정**: `src/hooks/useMqttSettingsReady.ts` 신규 — MQTT 연결 후 3초 유예시간이 지나야 `true`(재연결 시 다시 `false`로 리셋). `MistControl.tsx`의 `updateZone`/`handleSaveZone`/`handleStartOperation`에 가드 추가, 관련 버튼(모드 선택/저장/작동) `disabled` + "설정 동기화 중..." 안내 표시.
+- 배포: `npm run build` → dist rsync + apache2 reload. 서버 3개 데몬 재시작 불필요(프론트엔드 전용 수정).
+- 커밋 `011b9a3` (`2026-08-13_2155`). 태그 `stable-2026-08-13`.
+
+---
+
 ## 2026-08-01 — 유량계 무유량 감시 설정화 + 알림/바이패스 분리 + 유량 통계, 유량계 진단 발행 추가
 
 > 배경: 신규 연결한 ctlr-0004 유량계가 값을 계속 0으로만 보고(펄스 미수신). 하드웨어 원인 조사와 별개로, 무유량 상황을 운영하는 방식 자체를 개선.
