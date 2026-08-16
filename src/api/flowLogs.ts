@@ -66,6 +66,20 @@ export function deleteFlowLogs(ids: number[]): Promise<{ success: boolean; delet
   return postJson(`${BASE}/delete_flow_log.php`, { ids });
 }
 
+export function deleteFlowLogsByDate(params: {
+  zoneId: string;
+  from: string; // YYYY-MM-DD
+  to: string;   // YYYY-MM-DD
+  logType?: "session" | "noflow";
+}): Promise<{ success: boolean; deleted?: number; message?: string }> {
+  return postJson(`${BASE}/delete_flow_log.php`, {
+    zone_id: params.zoneId,
+    from: params.from,
+    to: params.to,
+    log_type: params.logType,
+  });
+}
+
 export function listFlowArchives(): Promise<{ success: boolean; data?: FlowArchiveInfo[]; message?: string }> {
   return getJson(`${BASE}/list_flow_archives.php`);
 }

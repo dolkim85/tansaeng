@@ -4,7 +4,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import type { MistZoneConfig, MistMode, MistScheduleSettings, HumidityControl } from "../types";
 import { getMqttClient, isMqttConnected, onConnectionChange, subscribeToTopic } from "../mqtt/mqttClient";
 import { saveDeviceSettings } from "../api/deviceControl";
-import { getFlowLogs, deleteFlowLogs, listFlowArchives, getFlowArchive, deleteFlowArchive, type FlowLogRow, type FlowArchiveInfo } from "../api/flowLogs";
+import { getFlowLogs, deleteFlowLogs, deleteFlowLogsByDate, listFlowArchives, getFlowArchive, deleteFlowArchive, type FlowLogRow, type FlowArchiveInfo } from "../api/flowLogs";
 import { useMqttSettingsReady } from "../hooks/useMqttSettingsReady";
 import WeatherWidget from "../components/WeatherWidget";
 
@@ -1216,6 +1216,10 @@ function FlowLogModal({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 선택삭제 대상은 DB(최근) 행만 — 압축 아카이브 행은 개별 삭제 불가(파일 단위만 삭제 가능)
+  const dbRowIds = rows.filter(r => r.source === "db" && r.id !== undefined).map(r => r.id!);
+  const allSelected = dbRowIds.length > 0 && dbRowIds.every(id => selectedIds.has(id));
+
   const toggleSelect = (id: number) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -1224,11 +1228,38 @@ function FlowLogModal({ onClose }: { onClose: () => void }) {
     });
   };
 
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(dbRowIds));
+  };
+
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) return;
     if (!window.confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?\n되돌릴 수 없습니다.`)) return;
     const res = await deleteFlowLogs(Array.from(selectedIds));
     if (res.success) {
+      search();
+    } else {
+      alert(res.message || "삭제 실패");
+    }
+  };
+
+  // 현재 검색 조건(날짜범위+종류)에 해당하는 최근(DB) 데이터를 통째로 삭제 — 화면에 로드된 것만이 아니라 서버에서 직접 범위 삭제
+  const handleDeleteByDateRange = async () => {
+    const fromStr = toYMD(fromDate);
+    const toStr = toYMD(toDate);
+    const typeLabel = logTypeFilter === "all" ? "전체" : logTypeFilter === "session" ? "세션" : "무유량";
+    if (!window.confirm(
+      `${fromStr} ~ ${toStr} 기간의 ${typeLabel} 기록을 모두 삭제하시겠습니까?\n` +
+      `(화면에 검색되지 않은 것까지 해당 기간 전부 삭제됩니다. 압축 보관함은 영향 없음)\n되돌릴 수 없습니다.`
+    )) return;
+    const res = await deleteFlowLogsByDate({
+      zoneId: "zone_a",
+      from: fromStr,
+      to: toStr,
+      logType: logTypeFilter === "all" ? undefined : logTypeFilter,
+    });
+    if (res.success) {
+      alert(`${res.deleted ?? 0}건 삭제되었습니다.`);
       search();
     } else {
       alert(res.message || "삭제 실패");
@@ -1311,13 +1342,28 @@ function FlowLogModal({ onClose }: { onClose: () => void }) {
               >
                 {loading ? "검색 중..." : "🔍 검색"}
               </button>
+              <button
+                onClick={handleDeleteByDateRange}
+                className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded px-2.5 py-1.5 whitespace-nowrap"
+                title="이 날짜 범위의 최근(DB) 기록을 전부 삭제"
+              >
+                📅🗑 기간 전체삭제
+              </button>
             </div>
           </div>
 
           {/* 검색 결과 */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-bold text-gray-600">검색 결과 {rows.length}건</span>
+              <label className="flex items-center gap-1.5 text-[11px] font-bold text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  disabled={dbRowIds.length === 0}
+                />
+                전체선택 · 검색 결과 {rows.length}건
+              </label>
               <button
                 onClick={handleDeleteSelected}
                 disabled={selectedIds.size === 0}

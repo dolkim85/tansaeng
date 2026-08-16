@@ -12,6 +12,7 @@
 - **데몬 (`daemons/smartfarm_mist_daemon.cjs`)**: `endFlowSession()`/`recordNoFlowEvent()`에서 기존 `flow_stats.json` 롤링 캐시는 그대로 유지하면서, 추가로 `log_flow_event.php`에 비동기 HTTP POST(기존 `saveMistLog`와 동일 패턴, 실패해도 데몬 동작에 영향 없음)해 영구 저장.
 - **UI (`src/tabs/MistControl.tsx`, 신규 `src/api/flowLogs.ts`)**: 구역A 카드에 "유량 로그 전체 보기" 버튼 → 모달에서 날짜범위 검색(react-datepicker)/종류 필터/선택삭제, 압축 보관함 목록(주차·기간·건수·용량)에서 펼쳐보기·삭제 가능.
 - 배포 후 실제 분무 세션 2건이 DB에 정상 insert되는 것을 프로덕션에서 직접 확인(`get_flow_logs.php` 응답으로 검증).
+- **(추가) 전체선택 + 날짜별(기간) 삭제**: `delete_flow_log.php`에 `{zone_id, from, to, log_type?}` 모드 추가 — 화면에 로드된 건수와 무관하게 서버에서 해당 기간 DB 행을 통째로 삭제(압축 보관함은 영향 없음). UI에 검색결과 전체선택 체크박스 + "기간 전체삭제" 버튼 추가.
 
 ---
 
