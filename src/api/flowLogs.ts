@@ -93,3 +93,8 @@ export function getFlowArchive(file: string, zoneId?: string): Promise<{ success
 export function deleteFlowArchive(file: string): Promise<{ success: boolean; message?: string }> {
   return postJson(`${BASE}/delete_flow_archive.php`, { file });
 }
+
+// from~to 기간이 걸치는 주간 압축 아카이브 파일들을 한 번에 삭제 (주 단위 파일이라 걸치는 주 전체가 삭제됨)
+export function deleteFlowArchivesByDate(from: string, to: string): Promise<{ success: boolean; deleted?: number; files?: string[]; message?: string }> {
+  return postJson(`${BASE}/delete_flow_archive.php`, { from, to });
+}

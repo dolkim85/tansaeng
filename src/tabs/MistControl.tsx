@@ -4,7 +4,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import type { MistZoneConfig, MistMode, MistScheduleSettings, HumidityControl } from "../types";
 import { getMqttClient, isMqttConnected, onConnectionChange, subscribeToTopic } from "../mqtt/mqttClient";
 import { saveDeviceSettings } from "../api/deviceControl";
-import { getFlowLogs, deleteFlowLogs, deleteFlowLogsByDate, listFlowArchives, getFlowArchive, deleteFlowArchive, type FlowLogRow, type FlowArchiveInfo } from "../api/flowLogs";
+import { getFlowLogs, deleteFlowLogs, deleteFlowLogsByDate, listFlowArchives, getFlowArchive, deleteFlowArchive, deleteFlowArchivesByDate, type FlowLogRow, type FlowArchiveInfo } from "../api/flowLogs";
 import { useMqttSettingsReady } from "../hooks/useMqttSettingsReady";
 import WeatherWidget from "../components/WeatherWidget";
 
@@ -1296,6 +1296,27 @@ function FlowLogModal({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // 현재 검색창의 날짜 범위(from~to)가 걸치는 주간 압축 아카이브를 한 번에 삭제
+  const handleDeleteArchivesByDateRange = async () => {
+    const fromStr = toYMD(fromDate);
+    const toStr = toYMD(toDate);
+    if (!window.confirm(
+      `${fromStr} ~ ${toStr} 기간이 걸치는 압축 보관 파일을 모두 삭제하시겠습니까?\n` +
+      `(주 단위 파일이라 기간에 조금이라도 걸치는 주는 통째로 삭제됩니다)\n되돌릴 수 없습니다.`
+    )) return;
+    const res = await deleteFlowArchivesByDate(fromStr, toStr);
+    if (res.success) {
+      alert(`${res.deleted ?? 0}개 파일이 삭제되었습니다.`);
+      if (expandedArchive && res.files?.includes(expandedArchive)) {
+        setExpandedArchive(null);
+        setArchiveRows([]);
+      }
+      loadArchives();
+    } else {
+      alert(res.message || "삭제 실패");
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3" onClick={onClose}>
       <div
@@ -1390,7 +1411,17 @@ function FlowLogModal({ onClose }: { onClose: () => void }) {
 
           {/* 압축 보관함 (1주일 지난 데이터가 매주 월요일 자동 압축됨) */}
           <div>
-            <div className="text-[11px] font-bold text-gray-600 mb-1">📦 압축 보관함 (매주 자동 보관)</div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-bold text-gray-600">📦 압축 보관함 (매주 자동 보관)</span>
+              <button
+                onClick={handleDeleteArchivesByDateRange}
+                disabled={archives.length === 0}
+                className="text-[10px] font-bold text-red-600 disabled:text-gray-300"
+                title="위 검색 날짜 범위가 걸치는 압축 파일을 한 번에 삭제"
+              >
+                📅🗑 기간 아카이브 삭제
+              </button>
+            </div>
             {archives.length === 0 ? (
               <p className="text-center text-gray-400 text-xs py-3 border border-gray-200 rounded">아직 압축 보관된 로그가 없습니다</p>
             ) : (
