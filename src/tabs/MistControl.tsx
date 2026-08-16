@@ -1,7 +1,10 @@
 import { useEffect, useState, useRef } from "react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import type { MistZoneConfig, MistMode, MistScheduleSettings, HumidityControl } from "../types";
 import { getMqttClient, isMqttConnected, onConnectionChange, subscribeToTopic } from "../mqtt/mqttClient";
 import { saveDeviceSettings } from "../api/deviceControl";
+import { getFlowLogs, deleteFlowLogs, listFlowArchives, getFlowArchive, deleteFlowArchive, type FlowLogRow, type FlowArchiveInfo } from "../api/flowLogs";
 import { useMqttSettingsReady } from "../hooks/useMqttSettingsReady";
 import WeatherWidget from "../components/WeatherWidget";
 
@@ -63,6 +66,8 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
   const [flowHourlyTotal, setFlowHourlyTotal] = useState<number | null>(null);
   const [flowSessionHistory, setFlowSessionHistory] = useState<Array<{ startedAt: number; endedAt: number; durationSec: number; liters: number }>>([]);
   const [flowNoFlowHistory, setFlowNoFlowHistory] = useState<Array<{ time: number; bypassTriggered: boolean }>>([]);
+  // 유량 로그 전체 조회(날짜검색/삭제/압축보관함) 모달
+  const [showFlowLogModal, setShowFlowLogModal] = useState(false);
   // 구역A 바이패스 모드 (메인밸브 valve1 고장 시 바이패스밸브 valve3으로 전환)
   const [zoneABypass, setZoneABypass] = useState(false);
   const zoneABypassRef = useRef(false);
@@ -769,7 +774,16 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
               </div>
             </div>
           )}
+
+          <button
+            onClick={() => setShowFlowLogModal(true)}
+            className="mt-2 w-full text-[11px] font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded py-1.5"
+          >
+            📋 유량 로그 전체 보기 (날짜검색 · 삭제 · 압축보관함)
+          </button>
         </div>
+
+        {showFlowLogModal && <FlowLogModal onClose={() => setShowFlowLogModal(false)} />}
 
         {zones.map((zone) => {
           const modeColor = getModeColor(zone.mode);
@@ -1103,6 +1117,269 @@ export default function MistControl({ zones, setZones }: MistControlProps) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ── 유량 로그 전체 보기 모달 (날짜 검색 / 삭제 / 주간 압축 보관함) ────────────
+function toYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatFlowLogAt(logAt: string): string {
+  const d = new Date(logAt.replace(" ", "T"));
+  if (isNaN(d.getTime())) return logAt;
+  return d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function FlowLogRowView({ row, selected, onToggleSelect }: { row: FlowLogRow; selected: boolean; onToggleSelect?: (id: number) => void }) {
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] border-b border-gray-100 last:border-b-0">
+      {row.source === "db" && row.id !== undefined ? (
+        <input type="checkbox" checked={selected} onChange={() => onToggleSelect?.(row.id!)} className="shrink-0" />
+      ) : (
+        <span className="shrink-0 w-3.5" />
+      )}
+      <span className="text-gray-500 w-28 shrink-0">{formatFlowLogAt(row.log_at)}</span>
+      {row.log_type === "session" ? (
+        <>
+          <span className="text-sky-700 font-bold w-16 shrink-0">세션</span>
+          <span className="text-gray-700 w-14 shrink-0">{row.duration_sec ?? "—"}초</span>
+          <span className="text-gray-900 font-bold w-16 shrink-0">{row.liters != null ? `${Number(row.liters).toFixed(2)}L` : "—"}</span>
+        </>
+      ) : (
+        <>
+          <span className="text-amber-700 font-bold w-16 shrink-0">무유량</span>
+          <span className={`font-bold ${row.bypass_triggered ? "text-red-600" : "text-amber-600"}`}>
+            {row.bypass_triggered ? "바이패스 전환" : "알림만"}
+          </span>
+        </>
+      )}
+      <span className="ml-auto shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+        {row.source === "db" ? "최근" : `압축(${row.archive_file})`}
+      </span>
+    </div>
+  );
+}
+
+function FlowLogModal({ onClose }: { onClose: () => void }) {
+  const [fromDate, setFromDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d;
+  });
+  const [toDate, setToDate] = useState<Date>(new Date());
+  const [logTypeFilter, setLogTypeFilter] = useState<"all" | "session" | "noflow">("all");
+  const [rows, setRows] = useState<FlowLogRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const [archives, setArchives] = useState<FlowArchiveInfo[]>([]);
+  const [expandedArchive, setExpandedArchive] = useState<string | null>(null);
+  const [archiveRows, setArchiveRows] = useState<FlowLogRow[]>([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+
+  const search = async () => {
+    setLoading(true);
+    try {
+      const res = await getFlowLogs({
+        zoneId: "zone_a",
+        from: toYMD(fromDate),
+        to: toYMD(toDate),
+        logType: logTypeFilter === "all" ? undefined : logTypeFilter,
+      });
+      if (res.success && res.data) {
+        setRows(res.data);
+        setSelectedIds(new Set());
+      } else {
+        alert(res.message || "조회 실패");
+      }
+    } catch (e) {
+      alert("조회 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadArchives = async () => {
+    const res = await listFlowArchives();
+    if (res.success && res.data) setArchives(res.data);
+  };
+
+  useEffect(() => {
+    search();
+    loadArchives();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`선택한 ${selectedIds.size}건을 삭제하시겠습니까?\n되돌릴 수 없습니다.`)) return;
+    const res = await deleteFlowLogs(Array.from(selectedIds));
+    if (res.success) {
+      search();
+    } else {
+      alert(res.message || "삭제 실패");
+    }
+  };
+
+  const toggleArchive = async (file: string) => {
+    if (expandedArchive === file) {
+      setExpandedArchive(null);
+      setArchiveRows([]);
+      return;
+    }
+    setExpandedArchive(file);
+    setArchiveLoading(true);
+    try {
+      const res = await getFlowArchive(file, "zone_a");
+      setArchiveRows(res.success && res.data ? res.data : []);
+    } finally {
+      setArchiveLoading(false);
+    }
+  };
+
+  const handleDeleteArchive = async (file: string) => {
+    if (!window.confirm(`압축 보관 파일 "${file}"을(를) 삭제하시겠습니까?\n안의 데이터가 모두 사라지며 되돌릴 수 없습니다.`)) return;
+    const res = await deleteFlowArchive(file);
+    if (res.success) {
+      if (expandedArchive === file) {
+        setExpandedArchive(null);
+        setArchiveRows([]);
+      }
+      loadArchives();
+    } else {
+      alert(res.message || "삭제 실패");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3" onClick={onClose}>
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-3 py-2.5 bg-farm-500 shrink-0">
+          <span className="text-sm font-bold text-gray-900">🌊 유량 로그 (구역A 메인밸브)</span>
+          <button onClick={onClose} className="text-gray-700 font-bold px-2">✕</button>
+        </div>
+
+        <div className="p-3 overflow-y-auto">
+          {/* 날짜 범위 검색 */}
+          <div className="mb-3">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <DatePicker
+                selected={fromDate}
+                onChange={(d) => d && setFromDate(d)}
+                dateFormat="yyyy-MM-dd"
+                className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+              />
+              <span className="text-gray-400 text-xs">~</span>
+              <DatePicker
+                selected={toDate}
+                onChange={(d) => d && setToDate(d)}
+                dateFormat="yyyy-MM-dd"
+                className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={logTypeFilter}
+                onChange={(e) => setLogTypeFilter(e.target.value as "all" | "session" | "noflow")}
+                className="text-xs border border-gray-300 rounded px-2 py-1.5"
+              >
+                <option value="all">전체</option>
+                <option value="session">세션만</option>
+                <option value="noflow">무유량만</option>
+              </select>
+              <button
+                onClick={search}
+                disabled={loading}
+                className="flex-1 text-xs font-bold bg-farm-500 hover:bg-farm-600 disabled:bg-gray-300 text-white rounded py-1.5"
+              >
+                {loading ? "검색 중..." : "🔍 검색"}
+              </button>
+            </div>
+          </div>
+
+          {/* 검색 결과 */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-bold text-gray-600">검색 결과 {rows.length}건</span>
+              <button
+                onClick={handleDeleteSelected}
+                disabled={selectedIds.size === 0}
+                className="text-[10px] font-bold text-red-600 disabled:text-gray-300"
+              >
+                🗑 선택 삭제 ({selectedIds.size})
+              </button>
+            </div>
+            <div className="rounded border border-gray-200 max-h-56 overflow-y-auto">
+              {rows.length === 0 ? (
+                <p className="text-center text-gray-400 text-xs py-4">해당 기간에 기록이 없습니다</p>
+              ) : (
+                rows.map((r, i) => (
+                  <FlowLogRowView
+                    key={r.source === "db" ? `db-${r.id}` : `arc-${r.archive_file}-${i}`}
+                    row={r}
+                    selected={r.id !== undefined && selectedIds.has(r.id)}
+                    onToggleSelect={toggleSelect}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* 압축 보관함 (1주일 지난 데이터가 매주 월요일 자동 압축됨) */}
+          <div>
+            <div className="text-[11px] font-bold text-gray-600 mb-1">📦 압축 보관함 (매주 자동 보관)</div>
+            {archives.length === 0 ? (
+              <p className="text-center text-gray-400 text-xs py-3 border border-gray-200 rounded">아직 압축 보관된 로그가 없습니다</p>
+            ) : (
+              <div className="rounded border border-gray-200 divide-y divide-gray-100">
+                {archives.map((a) => (
+                  <div key={a.file}>
+                    <div className="flex items-center gap-2 px-2 py-1.5 text-[11px]">
+                      <span className="text-gray-700 flex-1">
+                        {a.week_start} ~ {a.week_end}
+                        <span className="text-gray-400 ml-1">({a.count ?? "?"}건, {(a.size_bytes / 1024).toFixed(1)}KB)</span>
+                      </span>
+                      <button onClick={() => toggleArchive(a.file)} className="text-sky-700 font-bold shrink-0">
+                        {expandedArchive === a.file ? "닫기" : "보기"}
+                      </button>
+                      <button onClick={() => handleDeleteArchive(a.file)} className="text-red-600 font-bold shrink-0">삭제</button>
+                    </div>
+                    {expandedArchive === a.file && (
+                      <div className="bg-gray-50 max-h-40 overflow-y-auto">
+                        {archiveLoading ? (
+                          <p className="text-center text-gray-400 text-xs py-2">불러오는 중...</p>
+                        ) : archiveRows.length === 0 ? (
+                          <p className="text-center text-gray-400 text-xs py-2">내용이 없습니다</p>
+                        ) : (
+                          archiveRows.map((r, i) => (
+                            <FlowLogRowView key={`arc-view-${i}`} row={r} selected={false} />
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

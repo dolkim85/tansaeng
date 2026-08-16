@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-08-16 — 분무수경 유량 로그 영구 저장 + 날짜검색 + 삭제 + 주간 압축 보관 추가
+
+> 배경: "유량 로그기록은 제대로 작동하는거야?"라는 질문에서 시작. 조사 결과 기존 유량 로그(분무 세션 이력·무유량 이벤트)는 `config/flow_stats.json`에 최근 30/20건만 남기는 롤링 캐시로만 저장되고 있어, 기록 자체는 정상이지만 오래된 데이터는 영구 삭제되어 날짜별 검색이 애초에 불가능했음.
+
+- **DB (`tansaeng_db`)**: 신규 테이블 `mist_flow_logs` 추가 — 세션/무유량 이벤트를 `log_type` 컬럼으로 통합, `log_at`을 검색 기준 컬럼으로 사용.
+- **PHP API (서버 `api/smartfarm/`, git 미추적)**: `log_flow_event.php`(데몬→DB insert), `get_flow_logs.php`(날짜범위 검색, DB+압축아카이브 투명 병합), `delete_flow_log.php`(DB 행 삭제), `list_flow_archives.php`/`get_flow_archive.php`/`delete_flow_archive.php`(압축 아카이브 목록/읽기/삭제, 파일명 정규식 검증으로 경로조작 방지) 신규 작성.
+- **cron (`scripts/weekly_flow_log_archive.php`)**: `monthly_sensor_backup.php` 패턴을 따름. `created_at`이 7일 지난 행을 ISO 주차별로 그룹핑해 `backups/flow_logs/flow_logs_{연도}-W{주차}.json.gz`로 압축 저장(재실행해도 기존 아카이브와 id기준 중복없이 병합) 후 DB에서 삭제. `10 0 * * 1`(매주 월요일 00:10) crontab 등록.
+- **데몬 (`daemons/smartfarm_mist_daemon.cjs`)**: `endFlowSession()`/`recordNoFlowEvent()`에서 기존 `flow_stats.json` 롤링 캐시는 그대로 유지하면서, 추가로 `log_flow_event.php`에 비동기 HTTP POST(기존 `saveMistLog`와 동일 패턴, 실패해도 데몬 동작에 영향 없음)해 영구 저장.
+- **UI (`src/tabs/MistControl.tsx`, 신규 `src/api/flowLogs.ts`)**: 구역A 카드에 "유량 로그 전체 보기" 버튼 → 모달에서 날짜범위 검색(react-datepicker)/종류 필터/선택삭제, 압축 보관함 목록(주차·기간·건수·용량)에서 펼쳐보기·삭제 가능.
+- 배포 후 실제 분무 세션 2건이 DB에 정상 insert되는 것을 프로덕션에서 직접 확인(`get_flow_logs.php` 응답으로 검증).
+
+---
+
 ## 2026-08-13 — 분무수경 AUTO 설정값 초기화 레이스 컨디션 수정
 
 > 발견 경위: 메인밸브 ESP32(ctlr-0004)가 12:35~16:41 사이 최소 9회 온/오프라인을 반복(하드웨어/WiFi 단절로 추정, 서버 데몬 3개는 재시작·크래시 없이 하루 종일 정상). 사용자가 이 문제를 확인하러 분무수경 화면에 접속한 뒤 천창/측창/팬/메인밸브/포깅/바이패스의 AUTO 설정값이 초기화된 것을 발견 — 신고.

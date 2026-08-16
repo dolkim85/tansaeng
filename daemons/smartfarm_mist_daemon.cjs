@@ -210,6 +210,14 @@ function endFlowSession() {
   statsDirty = true;
   log(`[구역A] 분무 세션 종료: ${entry.durationSec}초, ${entry.liters}L`);
   publishFlowStats();
+  logFlowEvent({
+    zone_id:     'zone_a',
+    log_type:    'session',
+    startedAt:   entry.startedAt,
+    endedAt:     entry.endedAt,
+    durationSec: entry.durationSec,
+    liters:      entry.liters,
+  });
 }
 
 function recordNoFlowEvent(time, bypassTriggered) {
@@ -219,6 +227,12 @@ function recordNoFlowEvent(time, bypassTriggered) {
   if (gClient) {
     gClient.publish('tansaeng/ctlr-0004/flow1/noFlowHistory', JSON.stringify(flowStats.noFlowEvents), { qos: 1, retain: true });
   }
+  logFlowEvent({
+    zone_id:   'zone_a',
+    log_type:  'noflow',
+    eventTime: time,
+    bypassTriggered,
+  });
 }
 
 function publishFlowStats() {
@@ -362,6 +376,24 @@ function saveMistLog(zoneId, zoneName, eventType, mode) {
       headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
     });
     req.on('error', (e) => log(`[LOG DB 오류] ${e.message}`));
+    req.write(body);
+    req.end();
+  } catch (_) {}
+}
+
+// ─── DB 유량 로그(분무 세션/무유량 이벤트 영구 저장) ─────────────────────────
+// flow_stats.json 롤링 캐시(최근 30/20건)와 별개로 mist_flow_logs 테이블에 영구 기록 —
+// 날짜별 검색/삭제/주간 압축 아카이브(scripts/weekly_flow_log_archive.php)의 원본 데이터.
+function logFlowEvent(payload) {
+  try {
+    const body = JSON.stringify(payload);
+    const req = https.request({
+      hostname: 'www.tansaeng.com',
+      path:     '/api/smartfarm/log_flow_event.php',
+      method:   'POST',
+      headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+    });
+    req.on('error', (e) => log(`[유량 로그 DB 오류] ${e.message}`));
     req.write(body);
     req.end();
   } catch (_) {}
