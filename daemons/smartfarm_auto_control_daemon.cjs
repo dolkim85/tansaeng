@@ -78,6 +78,7 @@ const hp = {
   },
   lastCmd:     { hp_pump: null, hp_heater: null, hp_fan: null },
   lastOffTime: { hp_pump: 0,    hp_heater: 0,    hp_fan: 0    },
+  heaterPostRunUntil: 0, // 냉각기 OFF 시각 + 후순환시간(ms) — 이 시각까지 펌프/팬 강제 ON (2026-08-18: ESP32 온보드 후순환 로직 제거하며 서버로 이전)
   dayNight: {
     enabled: false,
     dayStart: '06:00',
@@ -177,6 +178,7 @@ function handleControllerStatus(controllerId, payload, client, startupComplete) 
   (CTRL_TO_FAN_IDS[controllerId] || []).forEach(id => { delete fan.lastCmd[id]; });
   if (controllerId === 'ctlr-heat-001') {
     hp.lastCmd.hp_pump = null; hp.lastCmd.hp_heater = null; hp.lastCmd.hp_fan = null;
+    hp.heaterPostRunUntil = 0;
   }
   (CTRL_TO_SCREEN[controllerId] || []).forEach(({ key, id }) => { delete ctrl[key].lastTarget[id]; });
   sendAlert(`reconnect_${controllerId}`, '🔌 장치 재연결 감지',
@@ -597,9 +599,11 @@ function runHpAutoControl(mqttClient, avgTemp) {
     activeRanges = hp.ranges;
   }
 
+  // hp_heater를 먼저 평가해야 이번 사이클에 OFF로 전환될 때 펌프/팬이 같은 사이클에서
+  // 바로 후순환을 반영받는다(배열 순서가 곧 평가 순서).
   const devices = [
-    { key: 'hp_pump',   mqttId: 'pump',   name: '히트펌프 순환펌프', temp: avgTemp   },
     { key: 'hp_heater', mqttId: 'heater', name: '양액혼합통 냉각기',   temp: waterTemp },
+    { key: 'hp_pump',   mqttId: 'pump',   name: '히트펌프 순환펌프', temp: avgTemp   },
     { key: 'hp_fan',    mqttId: 'fan',    name: '열교환기 팬',       temp: roomTemp  },
   ];
 
@@ -607,44 +611,58 @@ function runHpAutoControl(mqttClient, avgTemp) {
   const HP_HYST    = { hp_pump: 0.5, hp_heater: 1.0, hp_fan: 0.5 };
   // 최소 정지시간: hp_heater 컴프레서 3분(180초), 나머지 없음
   const HP_MIN_OFF = { hp_heater: 180000 };
+  // 냉각기 OFF 후 펌프/팬 후순환 시간 — 급정지로 인한 열충격 방지
+  // (2026-08-18: ESP32 온보드 POSTRUN 로직 제거하면서 서버로 이전, 값은 기존과 동일 60초)
+  const HP_POSTRUN_MS = 60000;
 
   devices.forEach(({ key, mqttId, name, temp }) => {
-    if (temp === null) {
-      log(`[HP] ${name}: 온도 데이터 없음 — OFF 명령`);
-      if (hp.lastCmd[key] !== 'OFF') {
-        hp.lastCmd[key] = 'OFF';
-        hp.lastOffTime[key] = Date.now();
-        mqttClient.publish(`tansaeng/ctlr-heat-001/${mqttId}/cmd`, 'OFF', { qos: 1 });
-      }
-      return;
-    }
-    const range = activeRanges[key] ?? hp.ranges[key];
-    if (!range) return;
-    const { low, high } = range;
-    const hyst      = HP_HYST[key]    ?? 0.5;
-    const minOffMs  = HP_MIN_OFF[key] ?? 0;
+    const inPostRun = key !== 'hp_heater' && Date.now() < hp.heaterPostRunUntil;
 
     let cmd;
-    if (hp.lastCmd[key] === 'ON') {
-      // ON 상태: 범위 ± hyst 벗어날 때만 OFF (경계 진동 방지)
-      cmd = (temp < low - hyst || temp > high + hyst) ? 'OFF' : 'ON';
+    if (inPostRun) {
+      cmd = 'ON';
     } else {
-      // OFF 상태: 최소 정지시간 확인 후 범위 내 진입 시 ON
-      const elapsed = Date.now() - (hp.lastOffTime[key] ?? 0);
-      if (elapsed < minOffMs) {
-        const remain = Math.ceil((minOffMs - elapsed) / 1000);
-        log(`[HP] ${name}: 최소 정지시간 대기 중 (${remain}초 남음)`);
+      if (temp === null) {
+        log(`[HP] ${name}: 온도 데이터 없음 — OFF 명령`);
+        if (hp.lastCmd[key] !== 'OFF') {
+          hp.lastCmd[key] = 'OFF';
+          hp.lastOffTime[key] = Date.now();
+          mqttClient.publish(`tansaeng/ctlr-heat-001/${mqttId}/cmd`, 'OFF', { qos: 1 });
+        }
         return;
       }
-      cmd = (temp >= low && temp <= high) ? 'ON' : 'OFF';
+      const range = activeRanges[key] ?? hp.ranges[key];
+      if (!range) return;
+      const { low, high } = range;
+      const hyst      = HP_HYST[key]    ?? 0.5;
+      const minOffMs  = HP_MIN_OFF[key] ?? 0;
+
+      if (hp.lastCmd[key] === 'ON') {
+        // ON 상태: 범위 ± hyst 벗어날 때만 OFF (경계 진동 방지)
+        cmd = (temp < low - hyst || temp > high + hyst) ? 'OFF' : 'ON';
+      } else {
+        // OFF 상태: 최소 정지시간 확인 후 범위 내 진입 시 ON
+        const elapsed = Date.now() - (hp.lastOffTime[key] ?? 0);
+        if (elapsed < minOffMs) {
+          const remain = Math.ceil((minOffMs - elapsed) / 1000);
+          log(`[HP] ${name}: 최소 정지시간 대기 중 (${remain}초 남음)`);
+          return;
+        }
+        cmd = (temp >= low && temp <= high) ? 'ON' : 'OFF';
+      }
+    }
+
+    if (key === 'hp_heater' && hp.lastCmd[key] === 'ON' && cmd === 'OFF') {
+      hp.heaterPostRunUntil = Date.now() + HP_POSTRUN_MS;
+      log(`[HP] 냉각기 OFF → 펌프/팬 후순환 ${HP_POSTRUN_MS / 1000}초 시작`);
     }
 
     if (hp.lastCmd[key] !== cmd) {
       if (cmd === 'OFF') hp.lastOffTime[key] = Date.now();
       hp.lastCmd[key] = cmd;
       mqttClient.publish(`tansaeng/ctlr-heat-001/${mqttId}/cmd`, cmd, { qos: 1 });
-      log(`[HP] ${name}: ${cmd} (온도 ${temp.toFixed(1)}°C, 범위 ${low}~${high}°C)`);
-      sendAlert(`hp_${key}`, `🔥 히트펌프 AUTO ${cmd === 'ON' ? '가동' : '정지'}`, `${name}: ${cmd}\n현재 ${temp.toFixed(1)}°C (범위 ${low}~${high}°C)`);
+      log(`[HP] ${name}: ${cmd}${inPostRun ? ' (후순환)' : ` (온도 ${temp.toFixed(1)}°C, 범위 ${activeRanges[key]?.low ?? hp.ranges[key].low}~${activeRanges[key]?.high ?? hp.ranges[key].high}°C)`}`);
+      sendAlert(`hp_${key}`, `🔥 히트펌프 AUTO ${cmd === 'ON' ? '가동' : '정지'}`, `${name}: ${cmd}${inPostRun ? ' (후순환)' : `\n현재 ${temp.toFixed(1)}°C`}`);
     }
   });
 }
@@ -1121,6 +1139,7 @@ function main() {
       log(`[HP] autoActive: ${hp.autoActive}`);
       if (hp.autoActive && startupComplete) {
         hp.lastCmd = { hp_pump: null, hp_heater: null, hp_fan: null };
+        hp.heaterPostRunUntil = 0;
         setTimeout(() => runAutoControl(client), 500);
       }
 
@@ -1132,6 +1151,7 @@ function main() {
           if (parsed.hp_heater) hp.ranges.hp_heater = parsed.hp_heater;
           if (parsed.hp_fan)    hp.ranges.hp_fan    = parsed.hp_fan;
           hp.lastCmd = { hp_pump: null, hp_heater: null, hp_fan: null };
+          hp.heaterPostRunUntil = 0;
           log(`[HP] 온도 범위 업데이트: ${JSON.stringify(hp.ranges)}`);
         }
       } catch (_) {}

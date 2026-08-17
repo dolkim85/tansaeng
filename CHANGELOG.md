@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-08-18 — ctlr-heat-001 ESP32 온보드 AUTO 로직 제거 (실사고 확인 및 수정) + 후순환 서버 이전
+
+> 배경: 장치제어실 ESP32(ctlr-heat-001) 코드 리뷰 요청. 라이브 MQTT를 직접 구독해 확인한 결과 `tansaeng/ctlr-heat-001/mode/state`(retain)가 실제로 `AUTO`로 고정되어 있었음 — ESP32가 서버 데몬의 개별 pump/heater/fan 명령을 무시하고 자체 하드코딩 기준값(공기 18/20°C, 물 22/25°C)으로 펌프·히터·팬을 하나로 묶어 작동시키던 사고가 실제로 진행 중이었음.
+
+- **즉시 조치**: `tansaeng/ctlr-heat-001/mode/cmd`에 `MANUAL`을 retain 발행해 라이브 상태 즉시 정상화(확인 완료 — `mode/state=MANUAL`로 전환됨).
+- **ESP32 (`esp32_firmware/esp32_heatpump_valve.ino`)**: 저장소에 있던 버전은 로컬 브로커(`192.168.0.10:1883`, 평문)로 되어 있어 실제로 사용 불가능한 상태였음 — 실제 운용 중인 HiveMQ Cloud(TLS, 8883) 설정으로 갱신. 온보드 `Mode`/`handleAutoControl()`(AUTO 로직) 전면 제거, 자기 자신의 retain된 `mode/state`를 구독해 복원하던 로직도 제거(사고 원인). ESP32는 이제 순수 명령 실행기로만 동작하며, 재연결마다 `mode/state`를 `MANUAL`로 강제 재발행해 과거에 남아있을 수 있는 잘못된 AUTO retain도 자동 정정. `mqtt.setBufferSize(512)` 추가(기본 256바이트로는 heartbeat JSON이 조용히 발행 실패했을 가능성), `PIN_DS18B20` 15→5 변경(배선 재작업), DS18B20 값 유효범위 체크(`-100~150°C`) 추가.
+- **데몬 (`daemons/smartfarm_auto_control_daemon.cjs`)**: ESP32에서 제거한 "히터 OFF 후 펌프/팬 60초 후순환"(열충격 방지) 안전장치를 `runHpAutoControl()`로 이전 — `hp.heaterPostRunUntil` 도입, 매 사이클에서 hp_heater를 먼저 평가해 OFF 전환 시 펌프/팬을 같은 사이클부터 강제 ON. 재연결/autoActive 토글/ranges 변경 시 리셋되는 기존 `hp.lastCmd` 초기화 지점에 `heaterPostRunUntil` 리셋도 함께 추가.
+- 배포: 데몬은 개별 파일 rsync + `systemctl restart tansaeng-autocontrol.service`로 즉시 반영·정상 기동 확인. ESP32 펌웨어는 현장에서 재플래시 필요(사용자 확인 대기).
+
+---
+
 ## 2026-08-16 — 분무수경 유량 로그 영구 저장 + 날짜검색 + 삭제 + 주간 압축 보관 추가
 
 > 배경: "유량 로그기록은 제대로 작동하는거야?"라는 질문에서 시작. 조사 결과 기존 유량 로그(분무 세션 이력·무유량 이벤트)는 `config/flow_stats.json`에 최근 30/20건만 남기는 롤링 캐시로만 저장되고 있어, 기록 자체는 정상이지만 오래된 데이터는 영구 삭제되어 날짜별 검색이 애초에 불가능했음.

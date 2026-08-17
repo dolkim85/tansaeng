@@ -1,17 +1,18 @@
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <DHT.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
 // ===================== 사용자 설정 =====================
-const char* WIFI_SSID     = "U+Net5FA0";
-const char* WIFI_PASSWORD = "82C@6HA4D3";
+const char* WIFI_SSID     = "KT_GiGA_4619";
+const char* WIFI_PASSWORD = "add68bb834";
 
-const char* MQTT_BROKER   = "192.168.0.10";
-const int   MQTT_PORT     = 1883;
-const char* MQTT_USER     = "";
-const char* MQTT_PASS     = "";
+const char* MQTT_BROKER   = "22ada06fd6cf4059bd700ddbf6004d68.s1.eu.hivemq.cloud";
+const int   MQTT_PORT     = 8883;
+const char* MQTT_USER     = "esp32-client-01";
+const char* MQTT_PASS     = "Qjawns3445";
 
 // 탄생 스마트팜 UI와 일치하는 컨트롤러 ID
 // 토픽 패턴: tansaeng/<CONTROLLER_ID>/<device>/cmd|state
@@ -22,7 +23,7 @@ const int PIN_PUMP    = 18;   // 순환펌프 릴레이
 const int PIN_HEATER  = 19;   // 전기온열기 릴레이
 const int PIN_FAN     = 23;   // 열교환기 팬 릴레이
 const int PIN_DHT     = 4;    // DHT22 DATA
-const int PIN_DS18B20 = 15;   // DS18B20 DATA
+const int PIN_DS18B20 = 5;    // DS18B20 DATA (2026-08-18: GPIO4 24V 직결 손상으로 GPIO15 → GPIO5 변경)
 
 // 출력 논리 (LOW 트리거 릴레이 모듈이면 OUTPUT_ON_LEVEL = LOW 로 변경)
 const bool OUTPUT_ON_LEVEL  = HIGH;
@@ -31,28 +32,33 @@ const bool OUTPUT_OFF_LEVEL = LOW;
 // 센서 타입
 #define DHTTYPE DHT22
 
-// AUTO 제어 기준값
-const float AIR_TEMP_ON_C    = 18.0;  // 공기온도 이하 → 난방 시작
-const float AIR_TEMP_OFF_C   = 20.0;  // 공기온도 이상 → 난방 정지
-
-const float WATER_TEMP_ON_C  = 22.0;  // 물온도 이하 → 난방 시작
-const float WATER_TEMP_OFF_C = 25.0;  // 물온도 이상 → 난방 정지
-
-// 후순환 시간 (히터 OFF 후 펌프·팬 계속 가동)
-const unsigned long POSTRUN_MS = 60000;   // 60초
-
 // 주기 설정
 const unsigned long SENSOR_MS    = 3000;   // 센서 읽기 주기
 const unsigned long HEARTBEAT_MS = 60000;  // 하트비트 발행 주기
 const unsigned long STATUS_MS    = 30000;  // 상태 재발행 주기
 
 // ======================================================
+// ★ AUTO 판단은 서버 데몬(smartfarm_auto_control_daemon.cjs, tansaeng/hp-control/*)이
+//   전담한다. ESP32는 순수 명령 실행기(system ON/OFF + 개별 pump/heater/fan cmd 적용)로만
+//   동작하며, 온보드 AUTO 로직은 두지 않는다.
+//
+//   [2026-08-18 수정 이유] 예전 버전은 ESP32 자체에 mode(AUTO/MANUAL) 상태를 두고,
+//   재부팅 시 자기 자신이 과거에 발행한 retain 값(tansaeng/ctlr-heat-001/mode/state)을
+//   구독해 복원했다. 그런데 개발 초기에 한 번 "AUTO"가 발행된 retain 값이 브로커에 계속
+//   남아있어서, 재부팅 때마다 온보드 AUTO가 되살아나 서버가 보내는 개별 pump/heater/fan
+//   명령을 전부 무시하고 하드코딩된 기준값(공기 18/20도, 물 22/25도)으로 펌프·히터·팬을
+//   하나로 묶어 작동시키는 사고가 실제로 발생 중이었다(라이브로 확인됨). mode 개념 자체를
+//   없애 이 사고 유형을 구조적으로 차단한다.
+//
+//   히터 OFF 후 펌프/팬을 잠시 더 돌리던 후순환(POSTRUN) 안전장치는
+//   daemons/smartfarm_auto_control_daemon.cjs의 runHpAutoControl()로 이전했다.
+// ======================================================
 
 // MQTT 토픽 (탄생 UI와 동일한 tansaeng/ prefix)
 String topicSystemCmd   = "tansaeng/" + String(CONTROLLER_ID) + "/system/cmd";   // UI 전원 스위치
 String topicSystemState = "tansaeng/" + String(CONTROLLER_ID) + "/system/state"; // 전원 상태 공유
-String topicModeCmd     = "tansaeng/" + String(CONTROLLER_ID) + "/mode/cmd";
-String topicModeState   = "tansaeng/" + String(CONTROLLER_ID) + "/mode/state";   // 모드 상태 공유
+String topicModeCmd     = "tansaeng/" + String(CONTROLLER_ID) + "/mode/cmd";     // UI 호환용 — 항상 MANUAL로만 응답
+String topicModeState   = "tansaeng/" + String(CONTROLLER_ID) + "/mode/state";
 String topicPumpCmd     = "tansaeng/" + String(CONTROLLER_ID) + "/pump/cmd";
 String topicHeaterCmd   = "tansaeng/" + String(CONTROLLER_ID) + "/heater/cmd";
 String topicFanCmd      = "tansaeng/" + String(CONTROLLER_ID) + "/fan/cmd";
@@ -69,29 +75,23 @@ String topicStatus      = "tansaeng/" + String(CONTROLLER_ID) + "/status";
 String topicHeartbeat   = "tansaeng/" + String(CONTROLLER_ID) + "/heartbeat";
 
 // 객체
-WiFiClient espClient;
+WiFiClientSecure espClient;
 PubSubClient mqtt(espClient);
 DHT dht(PIN_DHT, DHTTYPE);
 OneWire oneWire(PIN_DS18B20);
 DallasTemperature ds18b20(&oneWire);
 
 // 상태
-enum Mode { AUTO_MODE, MANUAL_MODE };
-Mode mode = MANUAL_MODE;  // 재부팅 후 AUTO 오작동 방지: 항상 MANUAL로 시작
-
 bool systemOn  = false;   // 재부팅 후 자동 가동 방지: UI에서 명시적으로 ON 해야 동작
 
 bool pumpOn   = false;
 bool heaterOn = false;
 bool fanOn    = false;
 
-bool manualPump   = false;
-bool manualHeater = false;
-bool manualFan    = false;
-
-bool heatDemand    = false;
-bool postRunActive = false;
-unsigned long postRunStart = 0;
+// 마지막으로 수신한 개별 명령 — system이 다시 ON될 때 재적용용
+bool pumpCmd   = false;
+bool heaterCmd = false;
+bool fanCmd    = false;
 
 float lastAirTemp   = NAN;
 float lastAirHum    = NAN;
@@ -130,6 +130,12 @@ void setFan(bool on) {
   Serial.printf("[FAN] %s\n", on ? "ON" : "OFF");
 }
 
+void allOff() {
+  setHeater(false);
+  setPump(false);
+  setFan(false);
+}
+
 // ===================== 상태 발행 =====================
 void publishSensor() {
   char buf[16];
@@ -151,7 +157,7 @@ void publishSensor() {
 // 모든 공유 상태를 retain 으로 발행 (다른 브라우저/기기가 접속 시 즉시 동기화)
 void publishStates() {
   mqtt.publish(topicSystemState.c_str(), systemOn ? "ON" : "OFF", true);
-  mqtt.publish(topicModeState.c_str(),   mode == AUTO_MODE ? "AUTO" : "MANUAL", true);
+  mqtt.publish(topicModeState.c_str(),   "MANUAL", true);  // 항상 MANUAL 고정 (서버가 AUTO 판단 전담)
   mqtt.publish(topicPumpState.c_str(),   pumpOn   ? "ON" : "OFF", true);
   mqtt.publish(topicHeaterState.c_str(), heaterOn ? "ON" : "OFF", true);
   mqtt.publish(topicFanState.c_str(),    fanOn    ? "ON" : "OFF", true);
@@ -161,7 +167,7 @@ void publishHeartbeat() {
   char payload[320];
   snprintf(payload, sizeof(payload),
     "{\"system\":\"%s\","
-    "\"mode\":\"%s\","
+    "\"mode\":\"MANUAL\","
     "\"pump\":\"%s\","
     "\"heater\":\"%s\","
     "\"fan\":\"%s\","
@@ -170,7 +176,6 @@ void publishHeartbeat() {
     "\"water_temp\":%.2f,"
     "\"uptime\":%lu}",
     systemOn ? "ON" : "OFF",
-    mode == AUTO_MODE ? "AUTO" : "MANUAL",
     pumpOn   ? "ON" : "OFF",
     heaterOn ? "ON" : "OFF",
     fanOn    ? "ON" : "OFF",
@@ -185,81 +190,6 @@ void publishHeartbeat() {
   Serial.println("[HEARTBEAT] published");
 }
 
-// ===================== AUTO 로직 =====================
-void handleAutoControl() {
-  // 시스템 전원이 OFF이면 전부 끔
-  if (!systemOn) {
-    setHeater(false);
-    setPump(false);
-    setFan(false);
-    heatDemand    = false;
-    postRunActive = false;
-    return;
-  }
-
-  bool airValid   = !isnan(lastAirTemp);
-  bool waterValid = !isnan(lastWaterTemp);
-
-  // 센서 둘 다 실패면 보수적으로 전부 OFF
-  if (!airValid && !waterValid) {
-    setHeater(false);
-    setPump(false);
-    setFan(false);
-    heatDemand    = false;
-    postRunActive = false;
-    Serial.println("[AUTO] sensor fail -> all OFF");
-    return;
-  }
-
-  bool needHeatOn  = false;
-  bool needHeatOff = false;
-
-  // ON 조건: 공기온도 또는 물온도 중 하나라도 기준 이하
-  if (airValid   && lastAirTemp   <= AIR_TEMP_ON_C)   needHeatOn = true;
-  if (waterValid && lastWaterTemp <= WATER_TEMP_ON_C)  needHeatOn = true;
-
-  // OFF 조건: 유효한 센서가 모두 OFF 기준 이상
-  bool airRecovered   = (!airValid)   || (lastAirTemp   >= AIR_TEMP_OFF_C);
-  bool waterRecovered = (!waterValid) || (lastWaterTemp >= WATER_TEMP_OFF_C);
-  needHeatOff = airRecovered && waterRecovered;
-
-  if (!heatDemand && needHeatOn) {
-    heatDemand    = true;
-    postRunActive = false;
-    Serial.println("[AUTO] heat demand ON");
-  }
-
-  if (heatDemand && needHeatOff) {
-    heatDemand    = false;
-    postRunActive = true;
-    postRunStart  = millis();
-    Serial.println("[AUTO] heat demand OFF -> postrun start");
-  }
-
-  if (heatDemand) {
-    setHeater(true);
-    setPump(true);
-    setFan(true);
-  } else {
-    setHeater(false);
-
-    if (postRunActive) {
-      if (millis() - postRunStart < POSTRUN_MS) {
-        setPump(true);
-        setFan(true);
-      } else {
-        postRunActive = false;
-        setPump(false);
-        setFan(false);
-        Serial.println("[AUTO] postrun complete -> all OFF");
-      }
-    } else {
-      setPump(false);
-      setFan(false);
-    }
-  }
-}
-
 // ===================== MQTT 콜백 =====================
 void mqttCallback(char* topic, byte* payload, unsigned int len) {
   String t(topic);
@@ -270,13 +200,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
 
   Serial.printf("[MQTT IN] %s => %s\n", t.c_str(), msg.c_str());
 
-  // ── 재부팅 후 retain된 상태 복원 (state 토픽에서 읽어 초기화) ──
-  if (t == topicModeState) {
-    if (msg == "AUTO")   mode = AUTO_MODE;
-    else                 mode = MANUAL_MODE;
-    Serial.printf("[RESTORE] 모드 복원: %s\n", msg.c_str());
-    return;
-  }
+  // 재부팅 후 마지막 시스템 전원 상태 복원 (retain된 state 토픽에서)
   if (t == topicSystemState) {
     systemOn = (msg == "ON");
     Serial.printf("[RESTORE] 시스템전원 복원: %s\n", msg.c_str());
@@ -289,80 +213,44 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
       systemOn = true;
       mqtt.publish(topicSystemState.c_str(), "ON", true);
       Serial.println("[SYSTEM] ON");
-      // 시스템 ON 시 현재 모드로 재가동
-      if (mode == AUTO_MODE) {
-        handleAutoControl();
-      } else {
-        setPump(manualPump);
-        setHeater(manualHeater);
-        setFan(manualFan);
-      }
+      // 마지막으로 받은 개별 명령 재적용
+      setPump(pumpCmd);
+      setHeater(heaterCmd);
+      setFan(fanCmd);
     } else if (msg == "OFF") {
       systemOn = false;
       mqtt.publish(topicSystemState.c_str(), "OFF", true);
       Serial.println("[SYSTEM] OFF -> all OFF");
-      setHeater(false);
-      setPump(false);
-      setFan(false);
-      heatDemand    = false;
-      postRunActive = false;
+      allOff();
     }
     return;
   }
 
-  // 모드 전환 (모든 브라우저와 공유)
+  // ★ mode/cmd — 어떤 값이 와도 온보드 AUTO로 전환하지 않고 항상 MANUAL로 재확인 발행만 함
   if (t == topicModeCmd) {
-    if (msg == "AUTO") {
-      mode = AUTO_MODE;
-      mqtt.publish(topicModeState.c_str(), "AUTO", true);
-      Serial.println("[MODE] AUTO");
-      if (systemOn) handleAutoControl();
-    } else if (msg == "MANUAL") {
-      mode = MANUAL_MODE;
-      mqtt.publish(topicModeState.c_str(), "MANUAL", true);
-      Serial.println("[MODE] MANUAL");
-      if (systemOn) {
-        setPump(manualPump);
-        setHeater(manualHeater);
-        setFan(manualFan);
-      }
-    }
+    mqtt.publish(topicModeState.c_str(), "MANUAL", true);
+    Serial.printf("[MODE] '%s' 수신 -> MANUAL 고정 응답 (온보드 AUTO 비활성화됨)\n", msg.c_str());
     return;
   }
 
   // 펌프 명령
   if (t == topicPumpCmd) {
-    if (msg == "ON") {
-      manualPump = true;
-      if (mode == MANUAL_MODE && systemOn) setPump(true);
-    } else if (msg == "OFF") {
-      manualPump = false;
-      if (mode == MANUAL_MODE && systemOn) setPump(false);
-    }
+    pumpCmd = (msg == "ON");
+    if (systemOn) setPump(pumpCmd);
     return;
   }
 
   // 히터 명령
   if (t == topicHeaterCmd) {
-    if (msg == "ON") {
-      manualHeater = true;
-      if (mode == MANUAL_MODE && systemOn) setHeater(true);
-    } else if (msg == "OFF") {
-      manualHeater = false;
-      if (mode == MANUAL_MODE && systemOn) setHeater(false);
-    }
+    heaterCmd = (msg == "ON");
+    if (systemOn) setHeater(heaterCmd);
     return;
   }
 
   // 팬 명령
   if (t == topicFanCmd) {
-    if (msg == "ON") {
-      manualFan = true;
-      if (mode == MANUAL_MODE && systemOn) setFan(true);
-    } else if (msg == "OFF") {
-      manualFan = false;
-      if (mode == MANUAL_MODE && systemOn) setFan(false);
-    }
+    fanCmd = (msg == "ON");
+    if (systemOn) setFan(fanCmd);
     return;
   }
 }
@@ -389,36 +277,32 @@ void connectMQTT() {
     clientId += "-";
     clientId += String((uint32_t)ESP.getEfuseMac(), HEX);
 
-    bool ok;
-    if (strlen(MQTT_USER) == 0) {
-      ok = mqtt.connect(clientId.c_str(), topicStatus.c_str(), 0, false, "offline");
-    } else {
-      ok = mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASS,
-                        topicStatus.c_str(), 0, false, "offline");
-    }
+    bool ok = mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASS,
+                           topicStatus.c_str(), 0, false, "offline");
 
     if (ok) {
       Serial.println("connected");
       mqtt.publish(topicStatus.c_str(), "online", false);
 
-      // 재부팅 후 마지막 상태 복원: retain된 state 토픽 구독 (수신 즉시 상태에 반영)
-      // mqttCallback에서 topicModeState/topicSystemState 수신 시 mode/systemOn을 복원함
-      mqtt.subscribe(topicModeState.c_str(),   1);  // 마지막 모드 복원
-      mqtt.subscribe(topicSystemState.c_str(), 1);  // 마지막 시스템 전원 복원
+      // 재부팅 후 마지막 시스템 전원 상태 복원용 구독
+      mqtt.subscribe(topicSystemState.c_str(), 1);
 
       // 명령 토픽 구독
-      mqtt.subscribe(topicSystemCmd.c_str(), 1);  // 시스템 전원
-      mqtt.subscribe(topicModeCmd.c_str(),   1);  // 모드
+      mqtt.subscribe(topicSystemCmd.c_str(), 1);
+      mqtt.subscribe(topicModeCmd.c_str(),   1);
       mqtt.subscribe(topicPumpCmd.c_str(),   1);
       mqtt.subscribe(topicHeaterCmd.c_str(), 1);
       mqtt.subscribe(topicFanCmd.c_str(),    1);
 
-      // retain 메시지 수신 대기 후 상태 발행 (200ms 대기)
+      // retain 메시지 수신 대기 (200ms)
       unsigned long waitStart = millis();
       while (millis() - waitStart < 200) {
         mqtt.loop();
         delay(10);
       }
+
+      // 예전에 잘못 남아있을 수 있는 mode retain 값을 즉시 MANUAL로 덮어써 정정
+      mqtt.publish(topicModeState.c_str(), "MANUAL", true);
 
       // 현재 상태 전체 발행 (UI가 접속하면 즉시 동기화)
       publishStates();
@@ -447,8 +331,12 @@ void setup() {
   ds18b20.begin();
 
   connectWiFi();
+
+  espClient.setInsecure();
   mqtt.setServer(MQTT_BROKER, MQTT_PORT);
   mqtt.setCallback(mqttCallback);
+  mqtt.setBufferSize(512);
+
   connectMQTT();
 }
 
@@ -478,7 +366,7 @@ void loop() {
     // DS18B20 물온도
     ds18b20.requestTemperatures();
     float wt = ds18b20.getTempCByIndex(0);
-    if (wt != DEVICE_DISCONNECTED_C) {
+    if (wt != DEVICE_DISCONNECTED_C && wt > -100.0 && wt < 150.0) {
       lastWaterTemp = wt;
       Serial.printf("[DS18B20] Water Temp=%.1fC\n", wt);
     } else {
@@ -487,10 +375,6 @@ void loop() {
     }
 
     publishSensor();
-
-    if (mode == AUTO_MODE) {
-      handleAutoControl();
-    }
   }
 
   // 상태 재발행
