@@ -288,6 +288,25 @@ function zoneCmd(zoneId) {
   return `tansaeng/${ZONES[zoneId].controllerId}/${effectiveDeviceId(zoneId)}/cmd`;
 }
 
+// ─── 구역A 로컬재생 캐시 발행 (유선 게이트웨이 프로젝트, smartfarm-wired-controller) ──────
+// 인터넷/MQTT 장기 장애 시에도 구역A 관수가 끊기지 않도록, 메인 노드가 확정 오프라인
+// 상태에서 재생할 "지금 실제 적용 중인" 단순 분무/정지 주기를 retain으로 발행해둔다.
+// 포깅은 습도조건이 있어 대상 아님(온보드가 서버 로직을 흉내내면 이중권한 문제 재발 위험 —
+// smartfarm-wired-controller/docs/open-decisions.md 1번 참고). enabled=false면 메인
+// 노드가 로컬재생을 하지 않는다 — 구역A가 정지되거나 AUTO가 아니게 되면 반드시 즉시
+// false로 재발행해 오래된 스케줄이 나중에 되살아나지 않게 한다.
+function publishZoneALocalReplayCache(mqttClient, enabled, sprayDurationSeconds, stopDurationSeconds) {
+  if (!mqttClient) return;
+  const payload = {
+    enabled,
+    sprayDurationSeconds: enabled ? sprayDurationSeconds : 0,
+    stopDurationSeconds: enabled ? stopDurationSeconds : 0,
+    bypassActive: bypassState['zone_a'] || false,
+    updatedAt: Date.now(),
+  };
+  mqttClient.publish('tansaeng/ctlr-0004/valve1/localReplay', JSON.stringify(payload), { qos: 1, retain: true });
+}
+
 // ─── 존별 상태 (isRunning / 스케줄 / 습도 설정 보관) ────────────────────────
 const zoneState = {};
 Object.keys(ZONES).forEach(id => {
@@ -471,7 +490,11 @@ function stopAllCycles() {
 // ─── 특정 구역 독립 사이클 시작 (자기 스케줄대로 분무/정지 반복) ─────────────
 function startZoneCycle(mqttClient, zoneId) {
   const st = zoneState[zoneId];
-  if (!st.isRunning || st.mode !== 'AUTO') { stopZoneCycle(zoneId); return; }
+  if (!st.isRunning || st.mode !== 'AUTO') {
+    stopZoneCycle(zoneId);
+    if (zoneId === 'zone_a') publishZoneALocalReplayCache(mqttClient, false, 0, 0);
+    return;
+  }
 
   const zc = zoneCycle[zoneId];
   if (zc.cycling) return;        // 이미 사이클 진행 중 — 중복 시작 방지 (닫기 타이머 유실 차단)
@@ -499,8 +522,11 @@ function startZoneCycle(mqttClient, zoneId) {
       log(`[${ZONES[zoneId].name}] sprayDurationSeconds 미설정 — 사이클 불가`);
       closeZoneValveIfOpen(zoneId);
       zc.cycling = false;
+      if (zoneId === 'zone_a') publishZoneALocalReplayCache(mqttClient, false, 0, 0);
       return;
     }
+
+    if (zoneId === 'zone_a') publishZoneALocalReplayCache(mqttClient, true, sprayMs / 1000, stopMs / 1000);
 
     const ts = Date.now();
     const avgH = getAvgHumidity();
@@ -668,6 +694,16 @@ function main() {
         gClient.publish('tansaeng/ctlr-0004/valve3/cmd', 'CLOSE', { qos: 1 });
         const zc = zoneCycle['zone_a'];
         if (zc) zc.valveOpen = false;
+      }
+      // 로컬재생 캐시의 bypassActive 필드도 즉시 갱신(메인 노드가 재생 대상 밸브를 올바르게 알도록)
+      if (gClient) {
+        const st = zoneState['zone_a'];
+        const schedule = (st.isRunning && st.mode === 'AUTO') ? getCurrentSchedule(st) : null;
+        if (schedule && (schedule.sprayDurationSeconds ?? 0) > 0) {
+          publishZoneALocalReplayCache(gClient, true, schedule.sprayDurationSeconds, schedule.stopDurationSeconds ?? 0);
+        } else {
+          publishZoneALocalReplayCache(gClient, false, 0, 0);
+        }
       }
       return;
     }
