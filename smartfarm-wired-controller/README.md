@@ -54,7 +54,7 @@ Arduino IDE(특히 Windows)가 스케치 폴더 밖(`../../shared/...`)을 가�
 |---|---|---|---|
 | eModbus | v1.7.4.stable | Modbus RTU (Master/Slave 논블로킹) | Arduino: Library Manager에서 "eModbus" 검색. PlatformIO: `lib_deps = eModbus/eModbus@^1.7.4` |
 | Ethernet (고전 Arduino Ethernet 라이브러리) | Arduino IDE 기본 제공 `Ethernet.h`/`Dns.h` | W5500 SPI 이더넷 + DNS 조회(`DNSClient`, 별도 설치 불필요 — Ethernet 라이브러리에 포함) | Library Manager에 이미 포함되어 있는 경우가 많음(없으면 "Ethernet" by Arduino 검색) |
-| SSLClient | govorox/SSLClient (GitHub `master` 기준, W5500 호환 커밋 포함된 버전) | `EthernetClient`에 TLS(BearSSL)를 씌워 MQTTS 가능하게 함 — ESP32+W5500 호환성 확인됨(changelog에 "Add workaround for W5500 Ethernet failing" 포함) | Arduino: Library Manager에서 "SSLClient" (govorox) 검색 — 없으면 GitHub에서 ZIP 다운로드 후 "라이브러리 추가(.ZIP)". PlatformIO: `lib_deps = https://github.com/govorox/SSLClient.git` |
+| SSLClient | GovoroxSSLClient 1.3.2 | `EthernetClient`에 TLS(mbedTLS)를 씌워 MQTTS 가능하게 함 | ⚠️ **설치 불필요** — `firmware/main_eth_8di_8ro/src/SSLClient/`에 이미 vendoring돼 있음(2026-08-23, W5500_WORKAROUND가 Library Manager 설치본에서는 실제로 활성화되지 않는 문제를 로컬 사본에서 수정 — `src/SSLClient/VENDORED_FROM.md` 참고). Library Manager로 별도 설치하면 안 됨(중복 정의 방지, `mqtt_manager.h`가 상대경로로 로컬 사본만 include함) |
 | PubSubClient | 기존 프로젝트와 동일 버전 | MQTT | Library Manager |
 | ArduinoJson | v7.4.x | `localReplay` JSON 페이로드 파싱 | Library Manager 또는 `lib_deps = bblanchon/ArduinoJson@^7.4.3` |
 | AsyncTCP | v1.1.4 | eModbus가 TCP/비동기 변형(`ModbusClientTCPasync` 등)도 함께 컴파일하기 때문에 필요(RTU만 쓰지만 라이브러리 구조상 의존성이 걸림) — **실제 컴파일 검증 중 발견됨(2026-08-23)** | Library Manager에서 "AsyncTCP" (dvarrel 또는 ESP32Async 계열) 검색 |

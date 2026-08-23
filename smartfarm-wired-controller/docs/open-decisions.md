@@ -51,7 +51,9 @@ PubSubClient::connect() → SSLClient::connect(domain,port)
     → DNSClient::getHostByName() 실패 시 별다른 에러 없이 그냥 0 반환
 ```
 
-PC에서 8883 TCP 포트가 열려도(방화벽/서버는 문제없음), ESP32의 DNS 조회(UDP 53, `Ethernet.dnsServerIP()`가 가리키는 서버로 질의)가 실패하면 TLS 단계에 도달하기도 전에 조용히 rc=-2가 났던 것. 사용자가 시도한 `W5500_WORKAROUND`는 TLS handshake 재시도 루프에만 영향을 주는 매크로라 이 단계와는 무관했음(게다가 `_W5500_H_`가 이미 자동 정의되어 사실상 중복).
+PC에서 8883 TCP 포트가 열려도(방화벽/서버는 문제없음), ESP32의 DNS 조회(UDP 53, `Ethernet.dnsServerIP()`가 가리키는 서버로 질의)가 실패하면 TLS 단계에 도달하기도 전에 조용히 rc=-2가 났던 것. 사용자가 시도한 `W5500_WORKAROUND`는 TLS handshake 재시도 루프에만 영향을 주는 매크로라 이 단계와는 무관하다고 판단했었음.
+
+> ⚠️ **[2026-08-23 정정]** 위 "`_W5500_H_`가 이미 자동 정의되어 사실상 중복"이라는 문장은 **틀린 추측**이었습니다. 실제로는 `_W5500_H_`도 `W5500_WORKAROUND`도 어디에서도 정의되지 않아, W5500 handshake 재시도 우회 코드 자체가 한 번도 컴파일된 적이 없었습니다. `arduino-cli --verbose`로 실제 컴파일 커맨드라인을 확인해 반증했습니다 — 상세는 "15. W5500_WORKAROUND 미적용 확정 및 로컬 vendoring 수정" 항목 참고.
 
 **수정**: DNS를 명시적으로 먼저 조회해 로그로 남기고, 이후 MQTT 연결은 해석된 IP로 직접(호스트명 재조회 없이) 시도. 상세: `firmware/main_eth_8di_8ro/mqtt_manager.h` 상단 주석, `docs/mqtt-topics.md` "MQTT 연결 진단 로그" 절.
 
@@ -153,3 +155,27 @@ DNS/TCP는 정상이고, 실제 연결 시도가 2.7초간 진행된 뒤 실패�
 - 실패 로그에 "Arduino IDE Tools > Core Debug Level을 Verbose로 설정 후 재빌드/재업로드"하라는 안내를 추가 — `ssl__client.cpp`의 `log_e()`/`log_v()` 호출이 `CORE_DEBUG_LEVEL` 컴파일 옵션에 따라 컴파일 시점에 활성/비활성되므로(런타임에 바꿀 수 없음), 라이브러리를 수정하지 않고 실제 mbedTLS 단계/에러코드를 볼 수 있는 유일한 방법
 
 **다음 단계(사용자 조치 필요)**: Arduino IDE Tools 메뉴에서 Core Debug Level을 "Verbose"(정보량 최대) 또는 최소 "Error"로 바꾼 뒤 재업로드하고, 같은 실패를 재현해 시리얼 로그 전체(특히 `E (...)` 또는 `[ssl__client.cpp:NNN]` 형태로 찍히는 줄)를 확인. 이 정보 없이는 다음 수정 방향(예: mbedTLS 버퍼 크기 부족, 힙 부족, 실제 handshake 프로토콜 문제, cleanup 시점 문제 등)을 근거 없이 추측하지 않기로 함 — 이번 턴에서는 "고쳤다"고 주장하지 않고 진단을 더 좁히는 것까지만 진행.
+
+> ⚠️ **[2026-08-23 후속]** 사용자가 실제로 Core Debug Level을 Verbose로 바꿔 재현했지만 `ssl__client.cpp` 내부 로그가 **전혀** 출력되지 않았습니다. 이 증상 자체가 다음 항목(15번)에서 밝혀진 "라이브러리가 스케치와 별도 translation unit이라 스케치의 매크로가 전달되지 않는다"는 문제와 같은 계열의 원인(라이브러리 코드가 우리 예상과 다르게 컴파일/링크되고 있었음)일 가능성이 있습니다.
+
+## 15. W5500_WORKAROUND 미적용 확정 및 로컬 vendoring 수정 (확정됨 — 2026-08-23)
+
+**의혹 제기**: 사용자가 GovoroxSSLClient 1.3.2 소스를 직접 재검토해, `mqtt_manager.h`의 `#define W5500_WORKAROUND` 후 `#include <SSLClient.h>`가 실제로는 `ssl__client.cpp`(라이브러리의 별도 `.cpp` 파일)의 컴파일에 전혀 영향을 주지 못한다는 가설을 제기함 — C/C++의 분리 컴파일 원칙상 한 translation unit의 `#define`은 다른 translation unit에 전달되지 않기 때문.
+
+**검증(추측이 아니라 실제 컴파일 커맨드라인으로 확인)**: `arduino-cli compile --verbose`로 `ssl__client.cpp`를 컴파일하는 실제 gcc 커맨드라인을 확보해 `-D` 플래그를 전수 확인:
+```
+-DARDUINO ... -DARDUINO_VARIANT ... -DCORE_DEBUG_LEVEL=0 ... -DF_CPU=240000000L
+```
+`-DW5500_WORKAROUND`는 **없음**. 또한 저장소/모든 설치된 라이브러리 전체를 `_W5500_H_`로 검색한 결과 실제로 이 매크로를 정의(`#define`)하는 헤더는 어디에도 없음(`platformio.ini`의 주석 처리된 예시, `ssl__client.cpp`의 `#if defined(...)` 검사 자체, 그리고 우리 문서의 설명문에만 문자열로 등장). **결론: 두 매크로 모두 정의되지 않은 채로 빌드돼, `ssl__client.cpp`의 W5500 handshake 재시도 우회 코드(`perform_ssl_handshake()`의 `#if defined(_W5500_H_) || defined(W5500_WORKAROUND)` 블록)가 실제 바이너리에서 한 번도 컴파일된 적이 없었습니다.** 7번 항목에 적었던 "`_W5500_H_`가 이미 자동 정의되어 있다"는 설명도 이번에 틀렸음이 확인되어 정정했습니다.
+
+**해결 구조 선택 — vendoring(옵션 A)**: 전역 컴파일 플래그(옵션 B, 예: `build_opt.h`나 `platform.local.txt` 전역 수정)는 사용자 PC마다 수동 설정이 필요하거나 Arduino IDE 설정 파일을 직접 건드려야 해서 "재현 가능하고 저장소에 보존" 요구조건과 맞지 않았습니다. 대신 GovoroxSSLClient 1.3.2 소스 전체를 `firmware/main_eth_8di_8ro/src/SSLClient/`에 그대로 복사(vendoring)하고, 그 로컬 사본에서만 4가지를 수정했습니다:
+1. `ssl__client.cpp` 최상단에서 `W5500_WORKAROUND`를 무조건 활성화
+2. `start_ssl_client()` 진입 시 `Serial.println("[TLS] W5500_WORKAROUND active")`를 무조건 출력(ESP-IDF `log_*` 매크로가 아니라 순수 `Serial` — Core Debug Level 설정과 무관하게 항상 보임. Core Debug Level을 Verbose로 올려도 아무 로그가 안 보였던 위 후속 문제도 이 방식이면 우회됨)
+3. 각 TLS 초기화 단계 실패 시 단계 이름을 기록해 `outFailedStep` 출력 파라미터로 반환(`ssl__client.h`/`.cpp`)
+4. 실패 시 항상 `return 0;`으로 실제 코드를 지우던 것을 `return ret;`(진짜 mbedTLS/내부 코드)로 변경, `SSLClient.h`/`.cpp`에 `_lastFailedStep`/`lastFailedStep()` 추가해 `mqtt_manager.cpp`가 `[TLS] 실패 단계=...` / `[TLS] 실제 mbedTLS 오류번호=...` / `[TLS] 오류 문자열=...`을 출력할 수 있게 함
+
+Arduino 빌드 규칙상 `<스케치폴더>/src/`의 `.c/.cpp` 파일은 스케치 자신의 소스로 자동 컴파일되므로, 별도 라이브러리 설치나 빌드 플래그 없이 `main_eth_8di_8ro.ino`를 열어 컴파일 버튼만 누르면 이 사본이 사용됩니다. `mqtt_manager.h`의 `#include <SSLClient.h>`(각괄호, 전역 라이브러리 탐색)를 `#include "src/SSLClient/SSLClient.h"`(스케치 상대경로, 파일시스템으로 직접 지정)로 바꿔 전역 Library Manager의 `SSLClient`가 이 프로젝트 빌드에 전혀 관여하지 않게 했습니다 — 중복 심볼 위험이 없습니다(전역 라이브러리 폴더 자체는 건드리지 않았고, 다른 프로젝트에는 영향 없음).
+
+**라이선스/출처 보존**: `src/SSLClient/LICENSE`(원본 GPLv3 그대로), `src/SSLClient/VENDORED_FROM.md`(원본 저장소 URL, 가져온 커밋 해시, 버전, 변경사항 4가지 diff 요약 기록).
+
+**안전장치**: `start_ssl_client()`의 새 반환값(`ret`)이 이론상 정확히 `1`이 될 수 있는 경우(인증서 검증 플래그가 `MBEDTLS_X509_BADCERT_EXPIRED` 하나만 켜졌을 때, `flags==1`)에는 성공 신호(`1`)와 혼동되지 않도록 `-1`로 치환해 반환합니다.

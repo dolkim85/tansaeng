@@ -46,12 +46,44 @@
 // 용도로만 남기고, **실제 TLS/MQTT 연결은 반드시 원래 호스트명 문자열로** 시도해
 // SNI를 지킨다(EthernetClient가 내부적으로 DNS를 한 번 더 조회하게 되는 비용을
 // 감수한다 — 현장에서 이미 DNS가 정상 동작함을 확인했으므로 안전한 트레이드오프).
+//
+// [2026-08-23 3차 진단 — W5500_WORKAROUND가 실제로는 한 번도 활성화된 적 없었음]
+// 2차 수정(SNI) 적용 후에도 현장에서 handshake 실패가 재현됐다(`lastError code=0`).
+// 사용자가 원래 시도했던 `#define W5500_WORKAROUND` 후 `#include <SSLClient.h>`가
+// 왜 효과가 없었는지 arduino-cli --verbose로 실제 컴파일 커맨드라인을 확인:
+// `ssl__client.cpp`(라이브러리의 별도 translation unit) 컴파일 시 `-DW5500_WORKAROUND`
+// 도 `-D_W5500_H_`도 전혀 존재하지 않았다 — 스케치 헤더의 #define은 스케치 자신의
+// TU에만 적용되고 라이브러리의 독립된 .cpp에는 절대 전달되지 않는다(C/C++ 분리
+// 컴파일의 기본 원리). 즉 W5500 handshake 재시도 우회 코드가 **한 번도 실제
+// 바이너리에 들어간 적이 없었다.** (참고: 예전 문서에 "_W5500_H_가 이미 자동
+// 정의되어 있다"고 적었던 것도 틀린 추측이었음 — 실제로는 어디에도 정의되지 않음.)
+//
+// 해결: 전역 Library Manager의 SSLClient는 그대로 두고(다른 프로젝트에 영향 없음),
+// 이 스케치 폴더 안 `src/SSLClient/`에 GovoroxSSLClient 1.3.2 소스를 그대로
+// vendoring한 뒤 그 로컬 사본에서만 W5500_WORKAROUND를 무조건 활성화했다. Arduino
+// 빌드 규칙상 `<스케치>/src/`의 .c/.cpp는 스케치 자신의 소스로 자동 컴파일되므로
+// 별도 설정 없이 `main_eth_8di_8ro.ino`를 열어 컴파일하면 그대로 적용된다. 상세
+// 근거/라이선스/변경내역: `src/SSLClient/VENDORED_FROM.md`.
+//
+// 같은 로컬 사본에서 start_ssl_client()가 실패 원인을 0으로 뭉개던 것도 고쳐,
+// 실제 mbedTLS/내부 에러코드와 실패 단계 이름을 `SSLClient::lastError()`/
+// `lastFailedStep()`으로 꺼내볼 수 있게 했다(아래 attemptConnect_() 참고).
 
 #include <Arduino.h>
 #include <Ethernet.h>
 #include <Dns.h>
 #include <PubSubClient.h>
-#include <SSLClient.h>
+// ⚠️ [2026-08-23] 전역 Library Manager의 SSLClient가 아니라 이 스케치 폴더 안에
+// vendoring한 로컬 사본을 명시적 상대경로로 include한다 — 이유: mqtt_manager.h가
+// #define W5500_WORKAROUND 후 <SSLClient.h>를 포함해도, 이 매크로는 스케치 자신의
+// translation unit에만 적용되고 SSLClient의 별도 .cpp(ssl__client.cpp)에는 전달되지
+// 않는다(arduino-cli --verbose 실측: 그 파일 컴파일 커맨드라인에 -DW5500_WORKAROUND도
+// -D_W5500_H_도 없었음 — W5500 handshake 재시도 우회 코드가 실제로는 한 번도 컴파일된
+// 적이 없었다). 로컬 사본에서는 이 매크로를 무조건 활성화해뒀다. 상세: src/SSLClient/
+// VENDORED_FROM.md. 이 상대경로 include는 전역 라이브러리와 겹치지 않아(파일시스템
+// 경로로 직접 지정) 중복 심볼 링크 문제가 생기지 않는다 — 전역 SSLClient 라이브러리는
+// 이 프로젝트에서 더 이상 어디에서도 참조되지 않는다.
+#include "src/SSLClient/SSLClient.h"
 
 typedef void (*MqttMessageCallback)(char* topic, byte* payload, unsigned int length);
 

@@ -134,17 +134,17 @@ void MqttManager::attemptConnect_() {
     return;
   }
 
-  // 실패 직후 lastError 조회. ⚠️ GovoroxSSLClient 1.3.2의 start_ssl_client()는
-  // 실패 원인이 무엇이든(TCP/handshake/인증서 등 어느 단계든) 최종 반환값을 항상
-  // 정확히 0으로 뭉갠다(ssl__client.cpp: 성공이 아니면 handle_error(ret) 호출 후
-  // 무조건 return 0) — 그래서 lastError()도 실패 시 대부분 0이 나온다.
-  // **0이라고 "에러 없음/성공"으로 오해하면 안 된다** — 상세 mbedtls 코드는
-  // 라이브러리 내부 log_e()로만 나가고(ESP32 Core Debug Level을 올려야 시리얼에
-  // 보임) lastError()로는 전달되지 않는 구조적 한계다.
+  // 실패 직후 lastError/lastFailedStep 조회. [2026-08-23] 원본 GovoroxSSLClient
+  // 1.3.2는 start_ssl_client()가 실패 원인이 무엇이든 최종 반환값을 항상 정확히
+  // 0으로 뭉개(ssl__client.cpp) lastError()도 대부분 0만 나왔다. 이제
+  // firmware/main_eth_8di_8ro/src/SSLClient/(로컬 사본, VENDORED_FROM.md 참고)가
+  // 실제 mbedTLS/내부 에러코드와 실패 단계 이름을 보존하도록 패치돼 있어 여기서
+  // 의미 있는 값을 볼 수 있다.
   char errBuf[100] = {0};
   int sslErr = sslClient_.lastError(errBuf, sizeof(errBuf));
-  Serial.printf("[TLS] lastError code=%d, detail=%s\n", sslErr,
-                errBuf[0] ? errBuf : "(상세 없음 - SSLClient가 0으로 축약함, 실패 자체는 확실함)");
+  Serial.printf("[TLS] 실패 단계=%s\n", sslClient_.lastFailedStep());
+  Serial.printf("[TLS] 실제 mbedTLS 오류번호=%d\n", sslErr);
+  Serial.printf("[TLS] 오류 문자열=%s\n", errBuf[0] ? errBuf : "(문자열 없음 - 내부 코드가 mbedtls 표준 코드 범위 밖일 수 있음)");
 
   uint32_t heapAfter = ESP.getFreeHeap();
   Serial.printf("[TLS] 힙 여유: 시도전=%u, 시도후=%u bytes\n", (unsigned int)heapBefore, (unsigned int)heapAfter);
@@ -164,13 +164,13 @@ void MqttManager::attemptConnect_() {
   } else {
     Serial.println("[TLS] handshake/secure transport failed");
     Serial.println("[MQTT] CONNECT not sent");
-    // lastError()가 항상 0으로 뭉개지는 SSLClient 1.3.2의 구조적 한계 때문에, 지금
-    // 시리얼에 보이는 정보만으로는 TCP-재연결/hostname설정/handshake/인증서검증 중
-    // 정확히 어느 단계에서 실패했는지 알 수 없다. 이 이상 파고들려면 Arduino IDE
-    // "Tools > Core Debug Level"을 Verbose(또는 최소 Error)로 올려 재빌드/재업로드해야
-    // ssl__client.cpp 내부 log_e()/log_v() 메시지(실제 mbedTLS 단계+에러코드)가
-    // 시리얼에 추가로 찍힌다 — 코드/라이브러리 수정 없이 가능한 유일한 방법이다.
-    Serial.println("[TLS] 상세 원인 확인 필요: Arduino IDE Tools > Core Debug Level을 'Verbose'로 설정 후 재빌드/재업로드하면 실제 mbedTLS 단계/에러코드가 추가로 출력됩니다");
+    // [2026-08-23] 이전에는 여기서 "Core Debug Level을 올리라"고 안내했으나, 그것만
+    // 으로는 부족했다(사용자가 실제로 Verbose로 올려 재현했는데도 ssl__client.cpp
+    // 내부 로그가 전혀 안 보였음 — 라이브러리가 별도 translation unit이라 스케치의
+    // #define이 전달되지 않는 문제와 별개로, 캐시된 라이브러리 오브젝트가 재사용됐을
+    // 가능성도 있음). 이제는 위 "[TLS] 실패 단계"/"[TLS] 실제 mbedTLS 오류번호" 로그
+    // 자체가 로컬 SSLClient 사본(src/SSLClient/, VENDORED_FROM.md 참고)이 직접
+    // 보존해 주므로 Core Debug Level 설정과 무관하게 항상 확인 가능하다.
   }
 
   // 실패가 반복되면 재시도 간격을 지수적으로 늘려(최대 RECONNECT_INTERVAL_MS_MAX)
