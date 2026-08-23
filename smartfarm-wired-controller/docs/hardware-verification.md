@@ -45,11 +45,10 @@
 
 **Ethernet 라이브러리**: 고전 Arduino `Ethernet.h`(W5100/W5500 계열 SPI 지원) 사용 확인. `Ethernet.init(CS_PIN)` 후 `SPI.begin(SCLK, MISO, MOSI, CS)`, `Ethernet.begin(mac)`(DHCP) 패턴.
 
-### 유량계(DI1) 관련 중요 사항
+### DI1~8 — 2026-08-23부로 유량계 용도 폐지, 전부 미사용(예비)
 
-- DI1(GPIO4)은 **직접 GPIO**이므로 `attachInterrupt()` 사용 가능 — YF-B10-S 최대 펄스 주파수(약 100Hz 이하)를 인터럽트로 놓칠 걱정은 낮음.
-- **active-low** 특성이므로 기존 `ctlr-0004` 코드의 `RISING` 인터럽트를 그대로 쓰면 안 되고, 실제 배선/극성에 맞춰 `FALLING` 또는 `CHANGE`로 조정하고 **실물 벤치 테스트로 펄스 카운트가 맞는지 반드시 확인**해야 합니다 (NEEDS_HARDWARE_TEST — `test/flow_pulse_generator` 참고).
-- 유량계 신호(기존 24V 라인)를 **DI1의 절연 입력**에 연결 — 기존 `ctlr-0004` 사고(GPIO 24V 직결 손상)처럼 ESP32 GPIO에 직접 24V를 물리면 안 됩니다. DI1은 옵토아이솔레이션이라 이 문제 자체가 구조적으로 방지되지만, 배선 시 극성/전압 규격은 실물 확인 필요.
+- 이전 버전에서는 DI1(GPIO4)을 유량계(YF-B10-S) 펄스 입력으로 썼으나, **밸브와 유량계가 현장에서 물리적으로 가까워 팔 노드(ESP32-S3-Relay-6CH)에서 직접 측정하는 구조로 이전**했습니다. 새 유량계 GPIO 확인 상황은 "2-1. ESP32-S3-Relay-6CH — 유량계 입력용 여유 GPIO" 절을 참고하세요(`NEEDS_HARDWARE_CONFIRMATION`).
+- 메인 노드 DI1~8은 이번 버전에서 전부 미사용/예비이며, `firmware/main_eth_8di_8ro/board_pins.h`에도 그렇게 반영되어 있습니다. DI1이 옵토아이솔레이션·active-low라는 전기적 특성 자체는 유효하므로, 추후 다른 용도로 DI1~8을 쓰게 되면 이 표의 값(GPIO4~11, active-low, INPUT_PULLUP)을 그대로 참고할 수 있습니다.
 
 ---
 
@@ -78,6 +77,24 @@ RS485 통신 관련: 기본 보드레이트 9600, **120Ω 종단저항이 온보
 출처: [검색 결과 종합](https://www.waveshare.com/wiki/ESP32-S3-Relay-6CH-RS485)
 
 ---
+
+## 2-1. ESP32-S3-Relay-6CH — 유량계 입력용 여유 GPIO (2026-08-23 조사)
+
+**결론: `NEEDS_HARDWARE_CONFIRMATION`** — 근거 없이 임의의 GPIO를 확정하지 않았습니다.
+
+조사 결과, 이 보드에는 **라즈베리파이 Pico HAT 호환 40핀 헤더가 내부에 2개 존재**하며 RTC/CAN/RS232/LoRa/센서 등 확장용으로 GPIO를 추가로 노출한다는 점은 3개 독립 출처에서 확인했습니다:
+- [CNX Software: "6-channel ESP32-S3-based WiFi relay module... supports Raspberry Pi Pico HATs"](https://www.cnx-software.com/2024/04/02/6-channel-esp32-s3-wifi-relay-module-rs485-raspberry-pi-pico-hat/)
+- [Waveshare 제품 페이지](https://www.waveshare.com/esp32-s3-relay-6ch.htm) — "Onboard RS485 / Pico HAT interfaces"
+- [Spotpear 사용자 가이드](https://spotpear.com/wiki/ESP32-S3-WROOM-1U-N8-WIFI-RS485-Bluetooth-Industrial-6-Channel-Relay-IOT.html) — 동일 문구 확인, 모듈이 **ESP32-S3-WROOM-1U-N8(PSRAM 없음)**임을 확인(→ GPIO33~37이 PSRAM용으로 예약되어 있지 않을 가능성이 높다는 간접 근거는 있으나, 이 헤더에 실제로 어떤 GPIO가 배선되어 있는지의 **정확한 핀맵 표는 어느 출처에도 없었음**)
+
+즉 "여유 GPIO를 노출하는 커넥터가 존재한다"는 확인했지만, **그 커넥터의 정확한 핀 배치(어느 헤더 위치가 어느 GPIO인지)는 찾지 못했습니다.** Waveshare 공식 위키(`waveshare.com/wiki/ESP32-S3-Relay-6CH`)가 스크래핑 차단(HTTP 403)으로 직접 확인이 안 됐고, 회로도 PDF도 접근하지 못했습니다.
+
+**사용자가 확인해야 할 것:**
+1. 보드 실물에서 "Pico HAT 호환 40핀 헤더" 2개의 실크스크린 라벨 사진(핀 번호/GPIO 번호가 보드에 인쇄되어 있을 가능성이 높음)
+2. Waveshare 공식 위키의 회로도(schematic) PDF 다운로드 링크 — `waveshare.com/wiki/ESP32-S3-Relay-6CH` 페이지 하단 "Resource" 섹션에서 확인
+3. (대안) 실물 보드에서 미사용 핀에 멀티미터로 직접 연속성 테스트를 하거나, 간단한 테스트 스케치로 각 후보 GPIO에 `pinMode(OUTPUT)` + 토글 후 오실로스코프/LED로 실제 그 핀이 헤더의 어느 위치에 나오는지 역추적
+
+**소프트웨어 설계 방침**: 위 확인 전까지는 GPIO 번호를 하드코딩하지 않고 `config.h`의 `FLOW_PULSE_PIN` 설정값으로 분리했습니다(기본값 미정의 — 확인 후 사용자가 직접 채워 넣어야 컴파일되도록 `#error`로 막아둠). 후보로 참고할 만한(★ 미확정) 값: 이미 사용 중인 GPIO(1,2,17,18,21,38,41,42,45,46)와 부트/스트래핑(0,3,45,46은 이미 릴레이로 사용 중이라 제외), USB(19,20), UART0(43,44)를 제외하면 GPIO4~16, 33~37, 39, 40, 47, 48이 이론적으로는 비어있으나 — **이 중 실제로 Pico HAT 헤더에 물리적으로 나와 있는 핀은 사진/회로도 확인 전까지 알 수 없습니다.**
 
 ## 3. 확정 사항 요약
 

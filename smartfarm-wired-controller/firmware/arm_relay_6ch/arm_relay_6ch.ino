@@ -8,10 +8,12 @@
 #include "board_pins.h"
 #include "relay_controller.h"
 #include "safety_manager.h"
+#include "flow_sensor.h"
 #include "rs485_slave.h"
 
 RelayController relays;
 SafetyManager safety;
+FlowSensor flow;
 Rs485Slave rs485;
 
 void setup() {
@@ -32,7 +34,10 @@ void setup() {
   safety.setValveTimeoutMs(COIL_CH6_SPARE, CH6_SAFETY_TIMEOUT_MS);
   safety.setCommWatchdogTimeoutMs(COMM_WATCHDOG_TIMEOUT_MS);
 
-  rs485.begin(MY_SLAVE_ADDRESS, &relays, &safety);
+  // 유량계 — 밸브 실측 상태를 읽어 이상감지에 쓰므로 relays 포인터를 전달
+  flow.begin(&relays);
+
+  rs485.begin(MY_SLAVE_ADDRESS, &relays, &safety, &flow);
 
   Serial.printf("RS485 슬레이브 주소: %d, 통신워치독: %lums\n", MY_SLAVE_ADDRESS, (unsigned long)COMM_WATCHDOG_TIMEOUT_MS);
   Serial.println("=== 초기화 완료 — 대기 중 ===");
@@ -40,10 +45,12 @@ void setup() {
 
 void loop() {
   // eModbus ModbusServerRTU는 자체 FreeRTOS 태스크에서 통신을 처리하므로
-  // 여기서는 안전 감시만 millis() 기반으로 주기적으로 수행하면 된다.
-  // 블로킹 delay/while 없음 (작업지시서 11번 요구사항).
+  // 여기서는 안전 감시 + 유량 계산만 millis() 기반으로 주기적으로 수행하면 된다.
+  // 블로킹 delay/while 없음 (작업지시서 11번 요구사항). 유량 계산 오류가 있어도
+  // checkValveTimeouts/checkCommWatchdog는 항상 먼저·독립적으로 실행된다.
   safety.checkValveTimeouts();
   safety.checkCommWatchdog();
+  flow.update();
 
   // CPU를 100% 점유하지 않도록 짧게 양보 (블로킹 delay가 아니라 워치독 검사 주기 조절용)
   delay(50);

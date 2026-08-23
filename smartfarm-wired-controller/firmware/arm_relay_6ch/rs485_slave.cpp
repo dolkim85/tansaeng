@@ -9,6 +9,7 @@ using std::vector;
 static ModbusServerRTU MBserver(RS485_RESPONSE_TIMEOUT_MS);
 static RelayController* g_relays = nullptr;
 static SafetyManager* g_safety = nullptr;
+static FlowSensor* g_flow = nullptr;
 static uint16_t g_lastCmdSequence = 0; // HR_CMD_SEQUENCE에 마지막으로 쓰인 값 (순수 진단용)
 
 // ── FC01: READ_COIL — 현재 릴레이 실측 상태를 비트로 반환 ────────────────────
@@ -97,6 +98,31 @@ static ModbusMessage handleReadInputRegister(ModbusMessage request) {
   regs[IR_UPTIME_HIGH]      = (uint16_t)(uptimeSec >> 16);
   regs[IR_FIRMWARE_VERSION] = FIRMWARE_VERSION_CODE;
   regs[IR_LAST_CMD_SEQ]     = g_lastCmdSequence;
+  regs[IR_PROTOCOL_VERSION] = PROTOCOL_VERSION;
+
+  // 유량 블록 — FlowSensor::getSnapshot()이 seqlock으로 일관된 스냅샷을 준다.
+  // 이 함수 호출 자체가 eModbus 워커 태스크 안에서 "한 번에" 일어나므로, 아래
+  // regs[]를 채우는 동안 값이 바뀌어 레지스터끼리 서로 다른 시점이 섞이는 일은 없다
+  // (docs/modbus-map.md "원자성" 참고).
+  FlowSnapshot fs;
+  if (g_flow) {
+    g_flow->getSnapshot(fs);
+  }
+  regs[IR_FLOW_SEQ]                = g_flow ? g_flow->getSeq() : 0; // 폴링마다 값이 바뀌는지로 유량계산 태스크 생존 확인(진단용)
+  regs[IR_FLOW_RATE_MLPM_HI]       = (uint16_t)(fs.rateMlPerMin >> 16);
+  regs[IR_FLOW_RATE_MLPM_LO]       = (uint16_t)(fs.rateMlPerMin & 0xFFFF);
+  regs[IR_FLOW_INTERVAL_ML_HI]     = (uint16_t)(fs.intervalMl >> 16);
+  regs[IR_FLOW_INTERVAL_ML_LO]     = (uint16_t)(fs.intervalMl & 0xFFFF);
+  regs[IR_FLOW_TOTAL_ML_W0]        = (uint16_t)((fs.totalMl >> 48) & 0xFFFF);
+  regs[IR_FLOW_TOTAL_ML_W1]        = (uint16_t)((fs.totalMl >> 32) & 0xFFFF);
+  regs[IR_FLOW_TOTAL_ML_W2]        = (uint16_t)((fs.totalMl >> 16) & 0xFFFF);
+  regs[IR_FLOW_TOTAL_ML_W3]        = (uint16_t)(fs.totalMl & 0xFFFF);
+  regs[IR_FLOW_MS_SINCE_PULSE_HI]  = (uint16_t)(fs.msSincePulse >> 16);
+  regs[IR_FLOW_MS_SINCE_PULSE_LO]  = (uint16_t)(fs.msSincePulse & 0xFFFF);
+  regs[IR_FLOW_DIAG_FLAGS]         = fs.diagFlags;
+  regs[IR_FLOW_PULSES_PER_LITER]   = fs.pulsesPerLiter;
+  regs[IR_FLOW_RAW_PULSES_HI]      = (uint16_t)(fs.rawPulseCount >> 16);
+  regs[IR_FLOW_RAW_PULSES_LO]      = (uint16_t)(fs.rawPulseCount & 0xFFFF);
 
   response.add(request.getServerID(), request.getFunctionCode(), (uint8_t)(numRegs * 2));
   for (uint16_t i = start; i < start + numRegs; i++) {
@@ -140,9 +166,10 @@ static ModbusMessage handleWriteHoldingRegister(ModbusMessage request) {
   return response;
 }
 
-void Rs485Slave::begin(uint8_t slaveAddress, RelayController* relays, SafetyManager* safety) {
+void Rs485Slave::begin(uint8_t slaveAddress, RelayController* relays, SafetyManager* safety, FlowSensor* flow) {
   g_relays = relays;
   g_safety = safety;
+  g_flow = flow;
 
   // RS485는 하드웨어 자동 방향제어라 DE/RE 핀 설정이 필요 없음(hardware-verification.md)
   RTUutils::prepareHardwareSerial(Serial1);

@@ -9,8 +9,6 @@
 #include "ethernet_manager.h"
 #include "mqtt_manager.h"
 #include "rs485_master.h"
-#include "flow_meter.h"
-#include "storage.h"
 #include "controller.h"
 #include "../../shared/protocol_version.h"
 #include <ArduinoJson.h>  // v7.x — localReplay JSON 페이로드 파싱용
@@ -18,15 +16,13 @@
 EthernetManager ethMgr;
 MqttManager mqttMgr;
 Rs485Master rs485;
-FlowMeter flowMeter;
-Storage storage;
 Controller controller;
 
 // ── MQTT 토픽 (기존과 완전 동일 — docs/mqtt-topics.md) ──────────────────────
 String topicValve1Cmd, topicValve1State;
 String topicValve2Cmd, topicValve2State;
 String topicValve3Cmd, topicValve3State;
-String topicFlow1Rate, topicFlow1Total, topicFlow1Pulses, topicFlow1PinLevel;
+String topicFlow1Rate, topicFlow1Total, topicFlow1Pulses;
 String topicStatus, topicRestart;
 // 신규 진단 토픽
 String topicNetworkEthernet, topicRs485Status, topicRs485LastSeen, topicFault, topicUptime;
@@ -35,14 +31,34 @@ String topicValve1LocalReplay;
 
 bool lastValve1Reported = false, lastValve2Reported = false, lastValve3Reported = false;
 
-unsigned long lastFlowSaveMs = 0;
-const unsigned long FLOW_SAVE_INTERVAL_MS = 5UL * 60UL * 1000UL; // 5분마다 NVS 저장 (Flash 마모 방지)
-
 unsigned long lastStatusPublishMs = 0;
 const unsigned long STATUS_PUBLISH_INTERVAL_MS = 30000;
 unsigned long lastRs485StatusPublishMs = 0;
 const unsigned long RS485_STATUS_PUBLISH_INTERVAL_MS = 5000;
 bool lastRs485Online = false;
+
+unsigned long lastFlowPublishMs = 0;
+const unsigned long FLOW_PUBLISH_INTERVAL_MS_MAIN = 1000; // 기존과 동일한 1초 주기 유지
+bool loggedFlowUnsupportedOnce = false;
+
+void publishFlowSnapshot() {
+  // mL -> L, mL/min -> L/min 변환만 하고 계산/누적은 절대 하지 않는다(단일 기준
+  // 원장은 팔 노드). 기존 UI가 받던 필드/단위(L, L/min)를 그대로 유지한다.
+  char buf[24];
+  dtostrf(rs485.getFlowRateMlPerMin() / 1000.0, 0, 2, buf);
+  mqttMgr.publish(topicFlow1Rate.c_str(), buf, true);
+
+  // 누적량은 mL 단위 uint64라 L 변환 시 double로도 마지막 몇 자리가 근사값이 될 수
+  // 있으나, 기존 프론트엔드가 소수점 3자리(mL 단위)까지만 쓰므로 실용상 문제없다.
+  double totalLiters = (double)rs485.getFlowTotalMl() / 1000.0;
+  dtostrf(totalLiters, 0, 3, buf);
+  mqttMgr.publish(topicFlow1Total.c_str(), buf, true);
+
+  // 원시 누적 펄스카운트(진단용, 비-retain) — 의미는 기존과 동일하게 유지(그대로 "펄스" 값)
+  char pulsesBuf[16];
+  snprintf(pulsesBuf, sizeof(pulsesBuf), "%lu", (unsigned long)rs485.getFlowRawPulses());
+  mqttMgr.publish(topicFlow1Pulses.c_str(), pulsesBuf, false);
+}
 
 void buildTopics() {
   String prefix = "tansaeng/" + String(CONTROLLER_ID) + "/";
@@ -55,7 +71,9 @@ void buildTopics() {
   topicFlow1Rate     = prefix + "flow1/rate";
   topicFlow1Total    = prefix + "flow1/total";
   topicFlow1Pulses   = prefix + "flow1/pulses";
-  topicFlow1PinLevel = prefix + "flow1/pinLevel";
+  // flow1/pinLevel(DI4 순간레벨 진단용)은 유량계가 팔 노드로 이전되며 더 이상
+  // 발행하지 않는다 — 그 자리를 대신할 진단 정보는 팔 노드 IR_FLOW_DIAG_FLAGS를
+  // 반영하는 topicFault로 대체(docs/mqtt-topics.md 참고, 의도적 변경사항).
   topicStatus  = prefix + "status";
   topicRestart = prefix + "restart";
 
@@ -123,17 +141,20 @@ void setup() {
 
   buildTopics();
 
-  storage.begin();
-  double restoredTotal = storage.loadFlowTotal();
-  flowMeter.begin();
-  flowMeter.restoreTotalLiters(restoredTotal);
+  // [2026-08-23] 유량계는 팔 노드로 이전 — 메인 노드는 더 이상 자체 측정/저장하지
+  // 않는다(NVS storage.begin()/flowMeter.begin() 호출 삭제됨). rs485.begin()이
+  // 유량 데이터도 함께 폴링해온다.
 
   ethMgr.begin();
 
   rs485.begin(ARM_NODE_SLAVE_ADDRESS);
   controller.begin(&rs485);
 
-  mqttMgr.begin(MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD, CONTROLLER_ID,
+  // clientId 접두사는 CONTROLLER_ID("ctlr-0004", 토픽/UI 호환용)와는 별개다.
+  // MqttManager::begin()이 여기에 MAC 접미사를 붙여 장치별 고유 clientId를 만든다 —
+  // 기존 WiFi ctlr-0004와 전환/롤백 테스트 중 동시에 켜져 있어도 clientId 충돌로
+  // 브로커가 어느 한쪽을 끊어버리는 사고를 방지한다(2026-08-23 수정).
+  mqttMgr.begin(MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD, CONTROLLER_ID "-eth",
                 topicStatus.c_str(), mqttCallback);
 
   Serial.println("=== 초기화 완료 — 연결 대기 중 ===");
@@ -155,6 +176,8 @@ void loop() {
     mqttMgr.subscribe(topicRestart.c_str());
     mqttMgr.subscribe(topicValve1LocalReplay.c_str());
     Serial.println("[MQTT] 토픽 구독 완료");
+    // MQTT 복구 직후 현재 유량 스냅샷을 즉시 재발행 — 다음 정기 주기까지 기다리지 않음
+    if (rs485.isFlowSupported()) publishFlowSnapshot();
   }
   wasConnectedForSub = mqttConnected;
 
@@ -170,24 +193,33 @@ void loop() {
     if (v3 != lastValve3Reported) { mqttMgr.publish(topicValve3State.c_str(), v3 ? "OPEN" : "CLOSE", true); lastValve3Reported = v3; }
   }
 
-  // ── 유량계 (1초 주기) ──
-  if (flowMeter.update() && mqttConnected) {
-    char buf[16];
-    dtostrf(flowMeter.getRateLpm(), 0, 2, buf);
-    mqttMgr.publish(topicFlow1Rate.c_str(), buf, true);
-    dtostrf(flowMeter.getTotalLiters(), 0, 3, buf);
-    mqttMgr.publish(topicFlow1Total.c_str(), buf, true);
-
-    char pulsesBuf[12];
-    itoa((int)flowMeter.getLastIntervalPulses(), pulsesBuf, 10);
-    mqttMgr.publish(topicFlow1Pulses.c_str(), pulsesBuf, false);
-  }
-
-  // 유량 누적값 NVS 저장 (5분 주기 — 매 펄스/매초 저장 금지, 작업지시서 7번)
   unsigned long now = millis();
-  if (now - lastFlowSaveMs >= FLOW_SAVE_INTERVAL_MS) {
-    lastFlowSaveMs = now;
-    storage.saveFlowTotal(flowMeter.getTotalLiters());
+
+  // ── 유량계 — 팔 노드가 계산한 값을 RS485로 읽어와 그대로 중계 (1초 주기, 기존과 동일 간격) ──
+  // 메인 노드는 재계산/재누적을 하지 않는다(단일 기준 원장 = 팔 노드). RS485가
+  // 끊기면(rs485.isNodeOnline()==false) 새로 발행하지 않아 retain된 마지막 값이
+  // 그대로 유지된다 — "값이 계속 증가하는 것처럼 보이는" 사고를 방지.
+  if (mqttConnected && rs485.isNodeOnline() && now - lastFlowPublishMs >= FLOW_PUBLISH_INTERVAL_MS_MAIN) {
+    if (rs485.isFlowSupported()) {
+      lastFlowPublishMs = now;
+      publishFlowSnapshot();
+
+      // 유량 진단 플래그(누수 의심/무유량 등)를 fault 토픽으로 중계
+      uint16_t diag = rs485.getFlowDiagFlags();
+      if (diag != 0) {
+        char faultMsg[96];
+        snprintf(faultMsg, sizeof(faultMsg),
+                 "{\"code\":\"flow_diag\",\"flags\":%u,\"unexpectedFlow\":%s,\"noFlowTimeout\":%s}",
+                 diag,
+                 (diag & (1 << FLOW_DIAG_BIT_UNEXPECTED_FLOW)) ? "true" : "false",
+                 (diag & (1 << FLOW_DIAG_BIT_NO_FLOW_TIMEOUT)) ? "true" : "false");
+        mqttMgr.publish(topicFault.c_str(), faultMsg, false);
+      }
+    } else if (!loggedFlowUnsupportedOnce) {
+      loggedFlowUnsupportedOnce = true;
+      Serial.printf("[FLOW] 팔 노드 프로토콜 버전(%u)이 메인이 기대하는 값(%u)보다 낮음 — 유량 기능 미지원으로 처리\n",
+                    rs485.remoteProtocolVersion(), (unsigned)PROTOCOL_VERSION);
+    }
   }
 
   // ── RS485 팔 노드 상태 진단 발행 (상태 변화 시 + 주기적) ──

@@ -95,9 +95,45 @@ void Rs485Master::onPollSuccess(const uint16_t regs[]) {
     Serial.println("[RS485] 팔 노드 응답 복구됨");
     online_ = true;
   }
+
+  remoteProtocolVersion_ = regs[IR_PROTOCOL_VERSION];
+
+  // 팔 노드 재부팅 감지 — uptime이 이전보다 줄어들면 그 사이 재부팅된 것.
+  // (메인 자신은 유량 총량을 들고 있지 않으므로, 메인이 재부팅되는 것과는 별개로
+  //  이 감지는 순수히 "팔 노드 쪽 사건을 로그로 남기는" 용도)
+  uint32_t remoteUptimeSec = ((uint32_t)regs[IR_UPTIME_HIGH] << 16) | regs[IR_UPTIME_LOW];
+  if (sawFirstPoll_ && remoteUptimeSec < lastRemoteUptimeSec_) {
+    Serial.println("[RS485] 팔 노드 uptime이 감소함 — 팔 노드가 그 사이 재부팅된 것으로 보임");
+  }
+  lastRemoteUptimeSec_ = remoteUptimeSec;
+  sawFirstPoll_ = true;
+
+  // 유량 블록 — PROTOCOL_VERSION이 메인이 아는 값(shared/protocol_version.h)보다
+  // 낮은 구버전 팔 노드면 이 블록 자체가 없거나 의미가 다를 수 있으므로 안전하게
+  // 미지원 처리(값을 신뢰하지 않음). 같거나 높으면(향후 호환 확장 가정) 읽는다.
+  if (isFlowSupported()) {
+    flowRateMlPerMin_  = ((uint32_t)regs[IR_FLOW_RATE_MLPM_HI] << 16) | regs[IR_FLOW_RATE_MLPM_LO];
+    flowIntervalMl_    = ((uint32_t)regs[IR_FLOW_INTERVAL_ML_HI] << 16) | regs[IR_FLOW_INTERVAL_ML_LO];
+    flowTotalMl_       = ((uint64_t)regs[IR_FLOW_TOTAL_ML_W0] << 48) |
+                          ((uint64_t)regs[IR_FLOW_TOTAL_ML_W1] << 32) |
+                          ((uint64_t)regs[IR_FLOW_TOTAL_ML_W2] << 16) |
+                          ((uint64_t)regs[IR_FLOW_TOTAL_ML_W3]);
+    flowMsSincePulse_  = ((uint32_t)regs[IR_FLOW_MS_SINCE_PULSE_HI] << 16) | regs[IR_FLOW_MS_SINCE_PULSE_LO];
+    flowDiagFlags_     = regs[IR_FLOW_DIAG_FLAGS];
+    flowPulsesPerLiter_ = regs[IR_FLOW_PULSES_PER_LITER];
+    flowRawPulses_     = ((uint32_t)regs[IR_FLOW_RAW_PULSES_HI] << 16) | regs[IR_FLOW_RAW_PULSES_LO];
+  }
 }
 
 void Rs485Master::onCommError() {
   // 통신 상태(online_)는 lastGoodResponseMs_ 타임아웃 기준으로만 판정한다
   // (에러 1건으로 즉시 offline 처리하지 않음 — 일시적 잡음/충돌 재시도로 회복 가능하므로)
+}
+
+unsigned long Rs485Master::msSinceLastGoodResponse() const {
+  return millis() - lastGoodResponseMs_;
+}
+
+bool Rs485Master::isFlowSupported() const {
+  return remoteProtocolVersion_ >= PROTOCOL_VERSION;
 }

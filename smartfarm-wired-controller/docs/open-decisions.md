@@ -28,14 +28,41 @@
 
 작업지시서 3.1번 지침대로 1차 버전에서는 구현하지 않고 예비로 둡니다. TCA9554 I2C 확장기 초기화는 하되(부팅 시 전부 OFF), 실제 제어 로직은 연결하지 않습니다.
 
-## 5. NEEDS_HARDWARE_TEST 항목 (실물 없이는 확정 불가)
+## 5. NEEDS_HARDWARE_TEST / NEEDS_HARDWARE_CONFIRMATION 항목 (실물 없이는 확정 불가)
 
-- `docs/hardware-verification.md`에 "중간 신뢰도"로 표시한 W5500 RESET 핀(GPIO39 추정)
+- `docs/hardware-verification.md`에 표시한 W5500 RESET 핀(GPIO39) — "Not exposed on this board"라는 원저자 주석의 정확한 의미(자동 파워온리셋으로 추정) 실물 확인
 - 사용자 보드가 정확히 `ESP32-S3-ETH-8DI-8RO`(RS485, `-C` 아님)인지 실물 라벨 확인
-- DI1(유량계) 실제 극성(active-low 추정) 및 인터럽트 엣지 방향(`FALLING` 추정) — 알려진 주파수 펄스 발생기로 벤치 테스트 필요(`test/flow_pulse_generator`)
+- **[2026-08-23]** `FLOW_PULSE_PIN`(팔 노드 유량계 입력) — Pico HAT 40핀 헤더의 정확한 GPIO 매핑을 못 찾음. `docs/hardware-verification.md` "2-1"절 참고. **`NEEDS_HARDWARE_CONFIRMATION`**
+- **[2026-08-23]** 유량계(YF-B10-S) 실제 공급전압/오픈컬렉터 극성/엣지방향 — 검색 근거는 확보했으나 이 현장의 실제 배선은 실측 필요. `docs/wiring.md` "유량계 배선"절 참고
 - Relay-6CH 릴레이 활성화 레벨(active-high로 추정) 실물 확인
 - RS485 A/B 극성 실제 배선 시 반전 여부(뒤바뀌어도 대개 무응답으로 나타나며 손상은 없음 — 테스트로 확인)
 
 ## 6. TLS 인증서 정책
 
 작업지시서 10번은 최종 펌웨어에서 `setInsecure()` 미사용을 요구합니다. **1차 버전은 기존 시스템 전체(다른 모든 ESP32/데몬)와 동일하게 `setInsecure()`를 사용**하기로 잠정 결정했습니다 — 이유: 이 프로젝트의 다른 모든 구성요소가 이미 이 방식이라 여기만 CA 인증서 검증을 추가하면 일관성이 깨지고, NTP 시각동기화 실패 시 TLS 자체가 안 되는 새로운 장애 요인이 생깁니다. HiveMQ Cloud CA 고정은 컴파일 플래그(`USE_TLS_VERIFY`)로 분리해 나중에 전체 시스템을 함께 강화할 때 켤 수 있게 구조만 마련합니다.
+
+## 7. MQTT rc=-2 근본원인 (확정됨 — 2026-08-23)
+
+라이브러리 소스(eModbus 아님, SSLClient+고전 Ethernet.h)를 직접 추적해 확인:
+
+```
+PubSubClient::connect() → SSLClient::connect(domain,port)
+  → start_ssl_client() → init_tcp_connection() → EthernetClient::connect(host,port)
+    → DNSClient::getHostByName() 실패 시 별다른 에러 없이 그냥 0 반환
+```
+
+PC에서 8883 TCP 포트가 열려도(방화벽/서버는 문제없음), ESP32의 DNS 조회(UDP 53, `Ethernet.dnsServerIP()`가 가리키는 서버로 질의)가 실패하면 TLS 단계에 도달하기도 전에 조용히 rc=-2가 났던 것. 사용자가 시도한 `W5500_WORKAROUND`는 TLS handshake 재시도 루프에만 영향을 주는 매크로라 이 단계와는 무관했음(게다가 `_W5500_H_`가 이미 자동 정의되어 사실상 중복).
+
+**수정**: DNS를 명시적으로 먼저 조회해 로그로 남기고, 이후 MQTT 연결은 해석된 IP로 직접(호스트명 재조회 없이) 시도. 상세: `firmware/main_eth_8di_8ro/mqtt_manager.h` 상단 주석, `docs/mqtt-topics.md` "MQTT 연결 진단 로그" 절.
+
+**부가 수정**: MQTT 네트워크 clientId가 기존에 `CONTROLLER_ID`("ctlr-0004")를 그대로 썼던 버그도 발견해 수정 — 기존 WiFi ctlr-0004와 clientId가 겹쳐서 브로커가 한쪽을 끊어버릴 수 있는 잠재적 사고였음(전환/롤백 테스트 중 두 장치가 동시에 켜지는 상황에서 발현). MAC 기반 접미사로 분리.
+
+## 8. 유량 누적값 마이그레이션 정책 (확정됨 — 2026-08-23)
+
+이전 버전(메인 노드가 DI1로 직접 측정)에서 NVS에 저장하던 유량 누적값과, 새 팔 노드가 처음부터 새로 쌓는 누적값을 **자동으로 합산하지 않기로** 결정했습니다. 이유: 이전 값이 실제로 정확히 측정된 것인지 검증되지 않은 상태였고(하드웨어 확인 대기 중이었음), 자동 합산은 이중계산/오류 전파 위험이 더 큽니다.
+
+대신 `firmware/arm_relay_6ch/config.h`에 `FLOW_TOTAL_ML_SEED`(mL)를 선택적으로 정의할 수 있게 했습니다 — **팔 노드가 정말 최초 부팅(NVS에 저장된 값이 없음)일 때 한 번만** 이 값에서 시작하고, 이후 부팅부터는 팔 노드 자체 누적값을 그대로 씁니다. 기본은 정의하지 않음(0에서 시작).
+
+## 9. 유량 데이터 원자성 — seqlock 채택 (확정됨 — 2026-08-23)
+
+팔 노드의 유량 계산(메인 `loop()` 컨텍스트)과 Modbus 응답 생성(eModbus 백그라운드 FreeRTOS 태스크)이 서로 다른 실행 컨텍스트에서 같은 데이터에 접근합니다. mutex/세마포어 대신 **seqlock**(짝수/홀수 시퀀스 카운터로 쓰기 중임을 표시, 읽는 쪽은 시작/끝 시퀀스가 같고 짝수일 때만 유효한 복사로 인정)을 채택했습니다 — 이유: 쓰는 쪽(유량 계산, 1초 주기)이 읽는 쪽(Modbus 폴링)을 블로킹하지 않아야 밸브 안전제어에 지연이 생기지 않고, ESP32 임베디드 환경에서 흔히 쓰이는 락프리 기법이라 구현/검증이 상대적으로 단순합니다. 상세: `firmware/arm_relay_6ch/flow_sensor.h/.cpp`, `docs/modbus-map.md` "원자성" 절.

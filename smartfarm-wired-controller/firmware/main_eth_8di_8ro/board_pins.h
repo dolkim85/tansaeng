@@ -25,7 +25,11 @@
 #define TCA9554_I2C_ADDR 0x20
 
 // ── 절연 디지털 입력 (DI1~DI8, 직접 GPIO, active-low, INPUT_PULLUP) ────────
-#define PIN_DI1  4   // ★ 유량계(YF-B10-S) 신호 연결 대상
+// [2026-08-23] 유량계(YF-B10-S)는 밸브/유량계가 팔 노드와 현장에서 더 가깝다는
+// 이유로 팔 노드 쪽으로 이전했다(firmware/arm_relay_6ch/flow_sensor.cpp,
+// FLOW_PULSE_PIN — NEEDS_HARDWARE_CONFIRMATION). 메인 노드 DI1~8은 이번 버전에서
+// 전부 미사용(예비)이다.
+#define PIN_DI1  4
 #define PIN_DI2  5
 #define PIN_DI3  6
 #define PIN_DI4  7
@@ -33,7 +37,3 @@
 #define PIN_DI6  9
 #define PIN_DI7  10
 #define PIN_DI8  11
-
-// DI 신호 특성: 옵토아이솔레이션, active-low. 실제 극성/엣지 방향은
-// NEEDS_HARDWARE_TEST — test/flow_pulse_generator로 검증 후 flow_meter.cpp의
-// attachInterrupt 엣지 설정(FALLING 추정)을 확정할 것.

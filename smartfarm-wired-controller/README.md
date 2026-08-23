@@ -39,11 +39,16 @@ smartfarm-wired-controller/
 | 라이브러리 | 버전 | 용도 | 설치 |
 |---|---|---|---|
 | eModbus | v1.7.4.stable | Modbus RTU (Master/Slave 논블로킹) | Arduino: Library Manager에서 "eModbus" 검색. PlatformIO: `lib_deps = eModbus/eModbus@^1.7.4` |
-| Ethernet (고전 Arduino Ethernet 라이브러리) | Arduino IDE 기본 제공 `Ethernet.h` | W5500 SPI 이더넷 | Library Manager에 이미 포함되어 있는 경우가 많음(없으면 "Ethernet" by Arduino 검색) |
-| SSLClient | govorox/SSLClient (최신) | `EthernetClient`에 TLS(BearSSL)를 씌워 MQTTS 가능하게 함 — ESP32+W5500 호환성 확인됨 | Arduino: Library Manager에서 "SSLClient" (govorox) 검색. PlatformIO: `lib_deps = govorox/SSLClient` |
+| Ethernet (고전 Arduino Ethernet 라이브러리) | Arduino IDE 기본 제공 `Ethernet.h`/`Dns.h` | W5500 SPI 이더넷 + DNS 조회(`DNSClient`, 별도 설치 불필요 — Ethernet 라이브러리에 포함) | Library Manager에 이미 포함되어 있는 경우가 많음(없으면 "Ethernet" by Arduino 검색) |
+| SSLClient | govorox/SSLClient (GitHub `master` 기준, W5500 호환 커밋 포함된 버전) | `EthernetClient`에 TLS(BearSSL)를 씌워 MQTTS 가능하게 함 — ESP32+W5500 호환성 확인됨(changelog에 "Add workaround for W5500 Ethernet failing" 포함) | Arduino: Library Manager에서 "SSLClient" (govorox) 검색 — 없으면 GitHub에서 ZIP 다운로드 후 "라이브러리 추가(.ZIP)". PlatformIO: `lib_deps = https://github.com/govorox/SSLClient.git` |
 | PubSubClient | 기존 프로젝트와 동일 버전 | MQTT | Library Manager |
 | ArduinoJson | v7.4.x | `localReplay` JSON 페이로드 파싱 | Library Manager 또는 `lib_deps = bblanchon/ArduinoJson@^7.4.3` |
+| AsyncTCP | v1.1.4 | eModbus가 TCP/비동기 변형(`ModbusClientTCPasync` 등)도 함께 컴파일하기 때문에 필요(RTU만 쓰지만 라이브러리 구조상 의존성이 걸림) — **실제 컴파일 검증 중 발견됨(2026-08-23)** | Library Manager에서 "AsyncTCP" (dvarrel 또는 ESP32Async 계열) 검색 |
 | PCA9554/TCA9554 GPIO 확장 | 필요 시 검색 | 메인 노드 릴레이 확장(1차 버전 미사용, 초기화만 필요하면 나중에 추가) | 1차 버전 미포함 |
+
+### ✅ 실제 컴파일 검증 완료 (2026-08-23)
+
+`arduino-cli` + ESP32 core 3.3.11 + 위 라이브러리 조합으로 **메인/팔 노드 펌웨어 모두 실제로 컴파일 성공**을 확인했습니다(보드: `esp32:esp32:esp32s3`, "ESP32S3 Dev Module"). 경고도 없습니다. 이 과정에서 `ethernet_manager.cpp`에 `esp_mac.h` include 누락 버그를 발견해 수정했습니다. 상세 결과는 `docs/test-procedure.md` 참고.
 
 ## Arduino IDE로 업로드하는 법 (초보자용)
 

@@ -3,6 +3,7 @@
 #include "config.h"
 #include <SPI.h>
 #include <Ethernet.h>
+#include <esp_mac.h> // esp_read_mac()/ESP_MAC_ETH — 컴파일 검증(2026-08-23) 중 누락 발견해 추가
 
 // ⚠️ 알려진 제약: 고전 Arduino Ethernet 라이브러리의 Ethernet.begin(mac)은 내부적으로
 // DHCP 협상을 동기(블로킹)로 수행한다(기본 타임아웃 약 60초). 부팅 시 1회 호출은
@@ -25,13 +26,15 @@ void EthernetManager::begin() {
   esp_read_mac(mac, ESP_MAC_ETH); // ESP32 내장 MAC 사용(eFuse) — 근거: hardware-verification.md 참고 예제와 동일 패턴
 
   Serial.println("[ETH] W5500 초기화 및 DHCP 시도 중...");
+  Serial.printf("[ETH] Link: %s\n", Ethernet.linkStatus() == LinkON ? "UP" : "DOWN");
 #if ETH_USE_DHCP
   if (Ethernet.begin(mac) == 0) {
     Serial.println("[ETH] 부팅 시 DHCP 실패 — 재부팅하지 않고 계속 진행, update()에서 주기적으로 재시도");
     state_ = State::LINK_DOWN;
   } else {
-    Serial.print("[ETH] IP 획득: ");
-    Serial.println(Ethernet.localIP());
+    Serial.printf("[ETH] IP: %s\n", Ethernet.localIP().toString().c_str());
+    Serial.printf("[ETH] Gateway: %s\n", Ethernet.gatewayIP().toString().c_str());
+    Serial.printf("[ETH] DNS: %s\n", Ethernet.dnsServerIP().toString().c_str());
     state_ = State::CONNECTED;
   }
 #else
@@ -40,8 +43,7 @@ void EthernetManager::begin() {
   IPAddress gw(ETH_STATIC_GW);
   IPAddress sn(ETH_STATIC_SUBNET);
   Ethernet.begin(mac, ip, dns, gw, sn);
-  Serial.print("[ETH] 고정IP 설정: ");
-  Serial.println(ip);
+  Serial.printf("[ETH] IP(고정): %s, Gateway: %s, DNS: %s\n", ip.toString().c_str(), gw.toString().c_str(), dns.toString().c_str());
   state_ = State::CONNECTED;
 #endif
 

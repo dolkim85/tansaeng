@@ -10,10 +10,11 @@
 #include <Arduino.h>
 #include "relay_controller.h"
 #include "safety_manager.h"
+#include "flow_sensor.h"
 
 class Rs485Slave {
 public:
-  void begin(uint8_t slaveAddress, RelayController* relays, SafetyManager* safety);
+  void begin(uint8_t slaveAddress, RelayController* relays, SafetyManager* safety, FlowSensor* flow);
 
 private:
   static uint16_t lastCmdSequence_;
