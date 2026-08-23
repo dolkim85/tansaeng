@@ -34,9 +34,11 @@
 | `tansaeng/ctlr-0004/fault` | 메인→서버 (비-retain) | JSON | 안전타임아웃 발동, CRC 연속실패 등. **[2026-08-23 추가]** 유량 진단 플래그도 이 토픽으로 중계됨: `{"code":"flow_diag","flags":N,"unexpectedFlow":bool,"noFlowTimeout":bool}` — 원본은 팔 노드 IR_FLOW_DIAG_FLAGS(`docs/modbus-map.md`) |
 | `tansaeng/ctlr-0004/system/uptime` | 메인→서버 (retain) | 초 | |
 
-## MQTT 연결 진단 로그 (시리얼, 2026-08-23 rc=-2 대응 추가)
+## MQTT 연결 진단 로그 (시리얼, 2026-08-23 rc=-2 대응, 2026-08-23 현장 재진단으로 갱신)
 
 MQTT로 발행되는 토픽은 아니고, 메인 노드 시리얼(115200bps)에 계층별로 남는 로그입니다(`firmware/main_eth_8di_8ro/mqtt_manager.cpp`). 문제 발생 시 어느 단계에서 막혔는지 바로 알 수 있습니다.
+
+> **2026-08-23 재진단**: 1차 수정(DNS 사전조회 + IP로 직접 연결)은 현장에서 DNS/TCP까지는 성공했지만 rc=-2가 계속 재현됐습니다. 원인은 "해석된 IP를 SSLClient에 직접 넘기면 TLS SNI도 그 IP 문자열이 되어버려 HiveMQ Cloud의 SNI 기반 TLS 종단에서 handshake가 실패"하는 것이었습니다(`mqtt_manager.h` 상단 주석에 라이브러리 소스 추적 전문 기록). 지금은 DNS 사전조회/TCP 사전테스트는 **진단 전용**으로만 쓰고, **실제 TLS/MQTT 연결은 항상 원래 호스트명 문자열로** 시도해 SNI를 지킵니다. 로그 포맷도 "rejected"(브로커가 실제 응답)와 "TLS/전송 실패"(브로커에 도달도 못함)를 구분하도록 바뀌었습니다.
 
 성공 시:
 ```text
@@ -47,17 +49,25 @@ MQTT로 발행되는 토픽은 아니고, 메인 노드 시리얼(115200bps)에 
 [DNS] 사용 중인 DNS 서버: 192.168.219.1
 [DNS] MQTT host resolved: xxxx.hivemq.cloud -> 3.xx.xx.xx
 [TCP] 3.xx.xx.xx:8883 connected
+[MQTT] 연결 시도 소요시간: NNNNms
 [TLS] handshake success
 [MQTT] connected, clientId=ctlr-0004-eth-XXXXXXXXXXXX
 ```
 
 실패 시(단계별로 구분됨):
 ```text
-[DNS] resolution failed                              (← DNS 조회 실패, 공유기 DNS 문제)
-[TCP] connect failed (3.xx.xx.xx:8883)                (← 방화벽/포트차단/서버다운)
-[TLS] handshake failed: <mbedtls 에러메시지> (code N)  (← 실제 TLS 문제)
-[MQTT] CONNECT rejected: rc=N                         (← TCP/TLS는 됐는데 MQTT 인증/프로토콜 거부)
+[DNS] resolution failed                                (← DNS 조회 실패, 공유기 DNS 문제. 진단 전용 조회 — 실제 연결은 아래에서 호스트명으로 재시도)
+[TCP] connect failed (3.xx.xx.xx:8883)                  (← 방화벽/포트차단/서버다운. 진단 전용 소켓)
+[MQTT] ⚠️ 연결 시도에 NNNNms 소요(...)                    (← 3초 이상 걸리면 경고로 표시, RS485 워치독 10초와 비교용)
+[TLS] lastError code=N, detail=...                       (← code=0이면 "에러 없음"이 아니라 SSLClient가 상세코드를 0으로 뭉갠 것일 뿐 — 실패는 확실함)
+[TLS] handshake/secure transport failed                  (← TCP/TLS 단계 자체가 실패, MQTT CONNECT를 보내지도 못함)
+[MQTT] CONNECT not sent
 ```
+또는(브로커가 실제로 CONNACK을 보내고 거절한 경우에만):
+```text
+[MQTT] CONNECT rejected: rc=N   (← N은 1~5: BAD_PROTOCOL/BAD_CLIENT_ID/UNAVAILABLE/BAD_CREDENTIALS/UNAUTHORIZED)
+```
+**rc=-2(그 외 음수값 포함)는 "rejected"가 아닙니다** — PubSubClient 소스 확인 결과, 하위 전송(SSLClient)이 실패하면 MQTT CONNECT 패킷 자체를 보내지 않고 곧바로 이 상태값을 설정합니다. 브로커는 관여하지 않았습니다.
 
 ## 신규: 구역A 로컬재생용 스케줄 캐시 (데몬 → 메인 노드)
 

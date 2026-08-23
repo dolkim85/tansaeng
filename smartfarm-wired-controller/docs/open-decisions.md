@@ -57,6 +57,8 @@ PC에서 8883 TCP 포트가 열려도(방화벽/서버는 문제없음), ESP32�
 
 **부가 수정**: MQTT 네트워크 clientId가 기존에 `CONTROLLER_ID`("ctlr-0004")를 그대로 썼던 버그도 발견해 수정 — 기존 WiFi ctlr-0004와 clientId가 겹쳐서 브로커가 한쪽을 끊어버릴 수 있는 잠재적 사고였음(전환/롤백 테스트 중 두 장치가 동시에 켜지는 상황에서 발현). MAC 기반 접미사로 분리.
 
+> ⚠️ **[2026-08-23] 이 진단은 불완전했음이 현장에서 드러남 — "13. MQTT rc=-2 2차 진단" 항목 참고.** 위 수정(DNS 사전조회 + IP로 직접 연결)을 실제 현장에 올려본 결과 DNS/TCP는 정상인데도 rc=-2가 계속 재현됐고, 진짜 원인은 "IP를 SSLClient에 직접 넘기면 TLS SNI가 깨진다"는 것이었다.
+
 ## 8. 유량 누적값 마이그레이션 정책 (확정됨 — 2026-08-23)
 
 이전 버전(메인 노드가 DI1로 직접 측정)에서 NVS에 저장하던 유량 누적값과, 새 팔 노드가 처음부터 새로 쌓는 누적값을 **자동으로 합산하지 않기로** 결정했습니다. 이유: 이전 값이 실제로 정확히 측정된 것인지 검증되지 않은 상태였고(하드웨어 확인 대기 중이었음), 자동 합산은 이중계산/오류 전파 위험이 더 큽니다.
@@ -101,3 +103,30 @@ PC에서 8883 TCP 포트가 열려도(방화벽/서버는 문제없음), ESP32�
 **런타임 버전 비교는 그대로 유지됨**: 매크로 이름(`PROTOCOL_VERSION`)과 값은 세 파일 모두 동일하므로, `rs485_master.cpp`가 매 RS485 폴링 주기마다 팔 노드가 보고하는 `IR_PROTOCOL_VERSION`과 메인 노드 자신의 `PROTOCOL_VERSION`을 비교하는 기존 로직(`Rs485Master::isFlowSupported()`)은 파일 구조 변경과 무관하게 동작합니다 — 코드 로직은 손대지 않았습니다.
 
 이 사본들은 자동 생성 파일이지만 **git에 커밋되는 일반 소스 파일**입니다(Arduino IDE가 빌드 시점에 참조해야 하므로 `.gitignore` 대상이 아님). `shared/protocol_version.h`만 편집하고 사본 갱신을 잊는 실수를 막기 위해, 코드 수정 후에는 항상 `scripts/sync_protocol_version.sh`를 실행하는 것을 표준 절차로 합니다.
+
+## 13. MQTT rc=-2 2차 진단 — IP 직접 연결이 TLS SNI를 깨뜨림 (확정됨 — 2026-08-23)
+
+7번 항목의 1차 수정(DNS 사전조회 + 해석된 IP로 직접 연결)을 실제 메인 노드에 올려 확인한 결과, 현장 로그상 `[DNS] MQTT host resolved: ... -> IP`와 `[TCP] IP:8883 connected`까지는 정상이었는데도 `[MQTT] CONNECT rejected: rc=-2`가 계속 반복됐습니다. 즉 DNS/TCP는 실제로 문제가 아니었고, 1차 진단은 **불완전**했습니다.
+
+**근본원인**: govorox/SSLClient 1.3.2 소스를 직접 추적:
+
+```
+SSLClient::connect(IPAddress ip, port)
+  → connect(ip.toString().c_str(), port, ...)          // IP를 문자열로 변환해 "host"로 사용
+    → ssl__client.cpp: start_ssl_client(..., host, ...)
+        Step1 init_tcp_connection(ssl_client, host, port)     // TCP 연결에 host 사용
+        Step5 set_hostname_for_tls(ssl_client, host)          // ★ 같은 host를 TLS SNI로도 사용
+            → mbedtls_ssl_set_hostname(&ssl_ctx, host)
+```
+
+해석된 IP를 `PubSubClient::setServer(IPAddress, port)`로 넘기면, 이 IP 문자열이 TLS ClientHello의 SNI(Server Name Indication)로 그대로 전송됩니다. HiveMQ Cloud는 여러 클러스터가 같은 로드밸런서/포트를 공유하는 SNI 기반 TLS 종단이라, SNI가 실제 호스트명이 아니라 IP 문자열이면 handshake 자체가 깊은 단계(mbedTLS 내부)에서 실패합니다. `setInsecure()`로 인증서 검증을 꺼도 SNI 전송 자체는 영향받지 않으므로 이 문제와 무관합니다.
+
+**부가 확인**: `start_ssl_client()`는 실패 원인이 무엇이든 최종 반환값을 항상 정확히 `0`으로 뭉갭니다(`ssl__client.cpp`: 성공이 아니면 `handle_error(ret)` 호출 후 무조건 `return 0`). 그래서 `SSLClient::lastError()`도 실패 시 대부분 `0`을 반환합니다 — **`0`을 "에러 없음"으로 오해하면 안 됩니다.** 또한 `PubSubClient::connect()` 소스 확인 결과, 하위 전송(`_client->connect(...)`)이 1이 아니면 MQTT CONNECT 패킷 자체를 보내지 않고 곧바로 `_state=MQTT_CONNECT_FAILED(-2)`로 설정합니다 — 즉 rc=-2는 "브로커가 CONNECT를 거절"한 게 아니라 "CONNECT를 보내지도 못했다"는 뜻입니다. 브로커가 실제로 CONNACK을 보내고 거절한 경우에만 상태값이 1~5가 됩니다.
+
+**수정**: `resolveHost_()`(DNS 사전조회)와 `tcpPreTest_()`(순수 TCP 도달성 확인, 실제 SSLClient와 별도의 임시 `EthernetClient` 사용)는 **진단 목적으로만** 유지합니다. **실제 TLS/MQTT 연결은 반드시 원래 호스트명 문자열로** 시도합니다(`mqttClient_.setServer(host_, port_)` — `PubSubClient::setServer(const char*, port)` 오버로드, 내부적으로 `_client->connect(domain, port)` 경로를 타 SNI가 유지됨). 이 경로는 `EthernetClient`가 내부적으로 DNS를 한 번 더 조회하게 되지만(7번 항목에서 다뤘던 그 경로), 현장에서 이미 DNS가 정상 동작함을 확인했으므로 이 비용을 감수하는 쪽이 안전합니다. 상세: `firmware/main_eth_8di_8ro/mqtt_manager.h`/`.cpp`, `docs/mqtt-topics.md` "MQTT 연결 진단 로그" 절.
+
+**로그 분류도 함께 수정**: `[MQTT] CONNECT rejected: rc=N`은 브로커가 실제로 응답한 경우(상태값 1~5)에만 출력하고, 그 외(-1~-4)는 `[TLS] handshake/secure transport failed` + `[MQTT] CONNECT not sent`로 구분합니다. 실패 시 `sslClient_.lastError()`도 `[TLS] lastError code=N, detail=...`로 출력하되, `code=0`이 "성공"을 뜻하지 않는다는 것을 로그 문구에도 명시합니다.
+
+**블로킹 시간 재검토**: 현장 로그상 연결 시도 1회에 약 2.3초가 걸렸습니다 — 이전 보고의 "완전 논블로킹"은 부정확했습니다(실제로는 "재시도 간격만 논블로킹"). `sslClient_.setHandshakeTimeout()`을 8초→5초, `mqttClient_.setSocketTimeout()`을 10초→5초로 낮춰 최악의 경우에도 팔 노드의 `RS485_COMM_TIMEOUT_MS`(10초)에 뚜렷한 여유를 두도록 했습니다. eModbus는 별도 FreeRTOS 태스크에서 RS485 UART 송수신을 하므로 `loop()`가 블로킹되는 동안에도 이미 큐에 들어간 요청은 계속 처리되고, `rs485.update()`의 폴링 트리거는 `millis()` 기반이라 지연 후 즉시 따라잡습니다 — 다만 이번에 타임아웃을 줄여 최악의 시나리오에서도 안전 마진을 명시적으로 확보했습니다. 연결 시도마다 소요시간을 로그로 남겨(`[MQTT] 연결 시도 소요시간: Nms` / 3초 이상이면 경고) 향후 실측으로 계속 확인할 수 있게 했습니다.
+
+**재시도 빈도 제한**: 실패가 반복되면 재연결 간격을 5초→최대 60초까지 지수적으로 늘리는 제한된 backoff를 적용했습니다(성공 시 5초로 리셋) — 브로커를 무제한 5초 간격으로 계속 두드리지 않도록.

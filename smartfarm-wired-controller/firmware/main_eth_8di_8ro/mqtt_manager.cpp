@@ -31,11 +31,15 @@ void MqttManager::begin(const char* host, uint16_t port, const char* user, const
   sslClient_.setInsecure(); // 1차 버전: 기존 시스템 전체와 동일한 정책. 평문(1883)으로
                               // 우회하지 않는다 — 데이터는 여전히 TLS로 암호화된다.
 #endif
-  sslClient_.setHandshakeTimeout(8); // 초 — 기본값이 너무 길면 재연결 주기와 충돌해 부팅이 오래 걸림
+  // handshake(5s) + socket timeout(5s) 합이 팔 노드의 RS485_COMM_TIMEOUT_MS(10초,
+  // shared/protocol_version.h)보다 뚜렷이 작도록 잡는다 — 연결 시도 중 loop()가
+  // 지연되는 동안에도 RS485 워치독에 여유가 남도록(2026-08-23 현장 실측 후 조정,
+  // 기존 8s/10s 조합은 최악의 경우 워치독 창에 너무 근접할 수 있었음).
+  sslClient_.setHandshakeTimeout(5);
 
   mqttClient_.setCallback(callback);
   mqttClient_.setBufferSize(512); // 기존 ctlr-heat-001 사고 교훈(작은 기본버퍼로 heartbeat 조용히 실패) 반영
-  mqttClient_.setSocketTimeout(10);
+  mqttClient_.setSocketTimeout(5);
   mqttClient_.setKeepAlive(30);
 
   lastAttemptMs_ = 0; // 즉시 첫 연결 시도
@@ -67,10 +71,12 @@ bool MqttManager::resolveHost_(IPAddress& outIp) {
   return false;
 }
 
-// 순수 TCP 연결성만 별도 소켓으로 확인(TLS 이전 단계를 분리해서 보기 위함).
+// 순수 TCP 연결성만 "진단 전용 임시 소켓"으로 확인한다. 반드시 실제 MQTT에 쓰는
+// ethClient_/sslClient_와는 별개의 EthernetClient 인스턴스를 써야 한다 — 같은
+// 소켓을 공유하면 이 사전테스트가 실제 SSLClient의 연결 상태를 깨뜨릴 수 있다.
 // 성공하면 즉시 닫아서 W5500의 8개 하드웨어 소켓 중 하나를 계속 점유하지 않는다.
 bool MqttManager::tcpPreTest_(const IPAddress& ip) {
-  EthernetClient testClient;
+  EthernetClient testClient; // ethClient_와 무관한 별도 객체(요구사항: 소켓 공유 금지)
   bool ok = testClient.connect(ip, port_);
   if (ok) {
     Serial.printf("[TCP] %s:%u connected\n", ip.toString().c_str(), port_);
@@ -83,40 +89,74 @@ bool MqttManager::tcpPreTest_(const IPAddress& ip) {
 
 void MqttManager::attemptConnect_() {
   Serial.println("[MQTT] ── 연결 시도 ──");
+  unsigned long attemptStartMs = millis();
 
   IPAddress resolvedIp;
   if (!resolveHost_(resolvedIp)) {
-    return; // DNS 실패 — RECONNECT_INTERVAL_MS 후 재시도
+    return; // DNS 실패 — 진단 목적. 아래 backoff에 따라 재시도
   }
 
   if (!tcpPreTest_(resolvedIp)) {
-    return; // DNS는 됐지만 서버 도달 불가(방화벽/포트차단/서버다운 등)
+    return; // DNS는 됐지만 서버 도달 불가(방화벽/포트차단/서버다운 등) — 순수 진단용 별도 소켓
   }
 
-  // 실제 MQTT 연결은 해석된 IP로 직접 시도 — EthernetClient가 connect(host,port)에서
-  // 매번 다시 DNS를 조회하는 경로를 건너뛴다(그 경로가 바로 rc=-2의 원인이었음).
-  mqttClient_.setServer(resolvedIp, port_);
+  // ⚠️ 실제 TLS/MQTT 연결은 반드시 "원래 호스트명 문자열"로 시도한다 — 위에서 구한
+  // IPAddress를 SSLClient/PubSubClient에 직접 넘기지 않는다. 이유(mqtt_manager.h
+  // 상단 [2026-08-23 2차 진단] 참고): SSLClient::connect(IPAddress,...)는 내부에서
+  // ip.toString()을 그대로 TLS SNI(mbedtls_ssl_set_hostname)에도 사용해버려 HiveMQ
+  // Cloud 같은 SNI 기반 TLS 종단에서 handshake 자체가 실패한다. DNS를 한 번 더
+  // 소비하더라도(EthernetClient가 host_로 내부 재조회) SNI를 지키는 쪽이 안전하다 —
+  // 위에서 이미 DNS가 정상 동작함을 확인했다.
+  mqttClient_.setServer(host_, port_);
 
   bool ok = mqttClient_.connect(clientId_, user_, pass_, lwtTopic_, 0, true, "offline");
+
+  unsigned long elapsedMs = millis() - attemptStartMs;
+  if (elapsedMs >= 3000) {
+    // 팔 노드 RS485_COMM_TIMEOUT_MS(10초)와 비교할 수 있도록 항상 계측해 남긴다 —
+    // "완전 논블로킹"이 아니므로(mqtt_manager.h 참고) 실제 소요시간을 눈으로 볼 수 있어야 한다.
+    Serial.printf("[MQTT] ⚠️ 연결 시도에 %lums 소요(RS485 워치독 10000ms 대비 여유 확인 필요)\n", elapsedMs);
+  } else {
+    Serial.printf("[MQTT] 연결 시도 소요시간: %lums\n", elapsedMs);
+  }
+
   if (ok) {
     Serial.println("[TLS] handshake success");
     Serial.printf("[MQTT] connected, clientId=%s\n", clientId_);
     mqttClient_.publish(lwtTopic_, "online", true);
+    reconnectIntervalMs_ = RECONNECT_INTERVAL_MS_BASE; // 성공 시 backoff 리셋
     return;
   }
 
+  // 실패 직후 lastError 조회. ⚠️ GovoroxSSLClient 1.3.2의 start_ssl_client()는
+  // 실패 원인이 무엇이든(TCP/handshake/인증서 등 어느 단계든) 최종 반환값을 항상
+  // 정확히 0으로 뭉갠다(ssl__client.cpp: 성공이 아니면 handle_error(ret) 호출 후
+  // 무조건 return 0) — 그래서 lastError()도 실패 시 대부분 0이 나온다.
+  // **0이라고 "에러 없음/성공"으로 오해하면 안 된다** — 상세 mbedtls 코드는
+  // 라이브러리 내부 log_e()로만 나가고(ESP32 Core Debug Level을 올려야 시리얼에
+  // 보임) lastError()로는 전달되지 않는 구조적 한계다.
   char errBuf[100] = {0};
   int sslErr = sslClient_.lastError(errBuf, sizeof(errBuf));
-  if (sslErr == -2) {
-    // ssl__client.cpp의 init_tcp_connection()이 반환하는 내부 코드(TLS 이전 단계,
-    // SSLClient가 자기 소켓을 여는 과정 실패). 방금 TCP 사전테스트는 성공했으므로
-    // W5500 소켓 일시 고갈/타이밍 문제일 가능성이 높다 — 재시도로 보통 해소된다.
-    Serial.println("[TLS] handshake failed: TCP 재연결 단계 실패(SSLClient 내부 -2, W5500 소켓 일시 고갈 가능성)");
-  } else if (sslErr != 0) {
-    Serial.printf("[TLS] handshake failed: %s (code %d)\n", errBuf, sslErr);
+  Serial.printf("[TLS] lastError code=%d, detail=%s\n", sslErr,
+                errBuf[0] ? errBuf : "(상세 없음 - SSLClient가 0으로 축약함, 실패 자체는 확실함)");
+
+  // PubSubClient 상태값 중 1~5(MQTT_CONNECT_BAD_PROTOCOL ~ MQTT_CONNECT_UNAUTHORIZED)만
+  // "브로커가 실제로 CONNACK을 보내고 거절"한 경우다. PubSubClient::connect() 소스
+  // 확인 결과, _client->connect(...)(SSLClient, 즉 TCP/TLS 단계)가 1이 아니면 MQTT
+  // CONNECT 패킷 자체를 보내지 않고 곧바로 _state=MQTT_CONNECT_FAILED(-2)로 리턴한다
+  // — 그 외 상태(-1/-2/-3/-4)는 CONNACK을 아예 받아본 적이 없다는 뜻이므로
+  // "rejected"라고 부르면 안 된다.
+  int state = mqttClient_.state();
+  if (state >= 1 && state <= 5) {
+    Serial.printf("[MQTT] CONNECT rejected: rc=%d\n", state);
   } else {
-    Serial.printf("[MQTT] CONNECT rejected: rc=%d\n", mqttClient_.state());
+    Serial.println("[TLS] handshake/secure transport failed");
+    Serial.println("[MQTT] CONNECT not sent");
   }
+
+  // 실패가 반복되면 재시도 간격을 지수적으로 늘려(최대 RECONNECT_INTERVAL_MS_MAX)
+  // 브로커를 과도하게 두드리지 않는다.
+  reconnectIntervalMs_ = min(reconnectIntervalMs_ * 2, RECONNECT_INTERVAL_MS_MAX);
 }
 
 void MqttManager::update() {
@@ -126,7 +166,7 @@ void MqttManager::update() {
   }
 
   unsigned long now = millis();
-  if (now - lastAttemptMs_ >= RECONNECT_INTERVAL_MS) {
+  if (now - lastAttemptMs_ >= reconnectIntervalMs_) {
     lastAttemptMs_ = now;
     attemptConnect_();
   }

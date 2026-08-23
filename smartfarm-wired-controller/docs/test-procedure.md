@@ -11,8 +11,10 @@
 | 재부팅 중 릴레이 순간 ON 여부 | 순간적으로도 켜지지 않아야 함 | |
 | 메인 보드 W5500 DHCP 연결 | IP 할당받음, 시리얼로 `[ETH] IP: ...` 확인 | |
 | 이더넷 케이블 단절/복구 | 단절 시 감지, 재연결 시 자동 복구(재부팅 없이) | |
-| **MQTT 계층별 진단 로그** | `[DNS]`→`[TCP]`→`[TLS]`→`[MQTT]` 순서로 각 단계 성공 로그 확인(`docs/mqtt-topics.md` 참고) | |
+| **MQTT 계층별 진단 로그** | `[DNS]`→`[TCP]`→`[TLS] handshake success`→`[MQTT] connected` 순서로 성공 로그 확인(`docs/mqtt-topics.md` 참고) | |
 | **MQTT clientId 고유성** | 시리얼에서 `[MQTT] clientId: ctlr-0004-eth-XXXXXXXXXXXX` 확인, 기존 WiFi ctlr-0004와 다른 값인지 | |
+| **(2026-08-23 추가) MQTT 연결 소요시간** | `[MQTT] 연결 시도 소요시간: Nms` 확인, 3초 이상이면 경고 로그가 뜨는지, RS485 워치독(10초) 대비 여유가 있는지 | |
+| **(2026-08-23 추가) rc=-2와 실제 rejected 구분** | 연결 실패 시 `[TLS] handshake/secure transport failed`+`[MQTT] CONNECT not sent`(전송 자체 실패)와 `[MQTT] CONNECT rejected: rc=1~5`(브로커 실제 응답)가 로그상 명확히 구분되는지 | |
 
 ## 단계 2: RS485 시험
 
