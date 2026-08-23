@@ -130,3 +130,26 @@ SSLClient::connect(IPAddress ip, port)
 **블로킹 시간 재검토**: 현장 로그상 연결 시도 1회에 약 2.3초가 걸렸습니다 — 이전 보고의 "완전 논블로킹"은 부정확했습니다(실제로는 "재시도 간격만 논블로킹"). `sslClient_.setHandshakeTimeout()`을 8초→5초, `mqttClient_.setSocketTimeout()`을 10초→5초로 낮춰 최악의 경우에도 팔 노드의 `RS485_COMM_TIMEOUT_MS`(10초)에 뚜렷한 여유를 두도록 했습니다. eModbus는 별도 FreeRTOS 태스크에서 RS485 UART 송수신을 하므로 `loop()`가 블로킹되는 동안에도 이미 큐에 들어간 요청은 계속 처리되고, `rs485.update()`의 폴링 트리거는 `millis()` 기반이라 지연 후 즉시 따라잡습니다 — 다만 이번에 타임아웃을 줄여 최악의 시나리오에서도 안전 마진을 명시적으로 확보했습니다. 연결 시도마다 소요시간을 로그로 남겨(`[MQTT] 연결 시도 소요시간: Nms` / 3초 이상이면 경고) 향후 실측으로 계속 확인할 수 있게 했습니다.
 
 **재시도 빈도 제한**: 실패가 반복되면 재연결 간격을 5초→최대 60초까지 지수적으로 늘리는 제한된 backoff를 적용했습니다(성공 시 5초로 리셋) — 브로커를 무제한 5초 간격으로 계속 두드리지 않도록.
+
+## 14. MQTT rc=-2 3차 현장 재현 — SNI 수정 이후에도 handshake 실패 지속, 원인 미확정 (진행 중 — 2026-08-23)
+
+13번 항목의 SNI 수정(호스트명 문자열로 연결)을 실제 메인 노드에 올려 재현한 결과:
+
+```
+[DNS] MQTT host resolved: ...hivemq.cloud -> 46.137.47.218
+[TCP] 46.137.47.218:8883 connected
+[MQTT] 연결 시도 소요시간: 2748ms
+[TLS] lastError code=0, detail=(상세 없음 - SSLClient가 0으로 축약함, 실패 자체는 확실함)
+[TLS] handshake/secure transport failed
+[MQTT] CONNECT not sent
+```
+
+DNS/TCP는 정상이고, 실제 연결 시도가 2.7초간 진행된 뒤 실패했습니다(IP를 직접 넘기던 이전 버전과 비슷한 소요시간 — 즉 SNI 문제였다면 훨씬 더 빨리 실패했을 가능성도 있어 완전히 배제할 수 없지만, hostname 경로로 실제 handshake를 시도한 흔적은 있음). **SNI 수정 자체는 근거가 명확하고(라이브러리 소스로 직접 추적) 필요한 수정이었지만, 이번 재현으로 볼 때 그것만으로는 충분하지 않았을 가능성이 있습니다.**
+
+**문제**: `SSLClient::lastError()`가 실패 시 항상 `0`으로 뭉개진다는 구조적 한계(13번 항목) 때문에, 지금 시리얼 로그만으로는 TCP-재연결/hostname설정/handshake/인증서검증 중 정확히 어느 단계에서 실패하는지 알 수 없습니다.
+
+**추가한 진단(코드 수정, 라이브러리는 건드리지 않음)**:
+- `mqtt_manager.cpp`에 handshake 시도 전/후 `ESP.getFreeHeap()`을 로그로 남겨(`[TLS] 힙 여유: 시도전=..., 시도후=... bytes`) 메모리 부족(TLS 세션 컨텍스트는 수십 KB를 요구할 수 있음)이 원인일 가능성을 별도로 확인할 수 있게 함
+- 실패 로그에 "Arduino IDE Tools > Core Debug Level을 Verbose로 설정 후 재빌드/재업로드"하라는 안내를 추가 — `ssl__client.cpp`의 `log_e()`/`log_v()` 호출이 `CORE_DEBUG_LEVEL` 컴파일 옵션에 따라 컴파일 시점에 활성/비활성되므로(런타임에 바꿀 수 없음), 라이브러리를 수정하지 않고 실제 mbedTLS 단계/에러코드를 볼 수 있는 유일한 방법
+
+**다음 단계(사용자 조치 필요)**: Arduino IDE Tools 메뉴에서 Core Debug Level을 "Verbose"(정보량 최대) 또는 최소 "Error"로 바꾼 뒤 재업로드하고, 같은 실패를 재현해 시리얼 로그 전체(특히 `E (...)` 또는 `[ssl__client.cpp:NNN]` 형태로 찍히는 줄)를 확인. 이 정보 없이는 다음 수정 방향(예: mbedTLS 버퍼 크기 부족, 힙 부족, 실제 handshake 프로토콜 문제, cleanup 시점 문제 등)을 근거 없이 추측하지 않기로 함 — 이번 턴에서는 "고쳤다"고 주장하지 않고 진단을 더 좁히는 것까지만 진행.

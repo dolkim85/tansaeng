@@ -15,6 +15,7 @@
 | **MQTT clientId 고유성** | 시리얼에서 `[MQTT] clientId: ctlr-0004-eth-XXXXXXXXXXXX` 확인, 기존 WiFi ctlr-0004와 다른 값인지 | |
 | **(2026-08-23 추가) MQTT 연결 소요시간** | `[MQTT] 연결 시도 소요시간: Nms` 확인, 3초 이상이면 경고 로그가 뜨는지, RS485 워치독(10초) 대비 여유가 있는지 | |
 | **(2026-08-23 추가) rc=-2와 실제 rejected 구분** | 연결 실패 시 `[TLS] handshake/secure transport failed`+`[MQTT] CONNECT not sent`(전송 자체 실패)와 `[MQTT] CONNECT rejected: rc=1~5`(브로커 실제 응답)가 로그상 명확히 구분되는지 | |
+| **(2026-08-23 추가, 미해결) Core Debug Level 상향 재현** | SNI 수정 후에도 handshake 실패가 재현됨(`docs/open-decisions.md` 14번). Arduino IDE Tools > Core Debug Level을 Verbose로 바꿔 재빌드/재업로드 후 같은 실패를 재현해 `ssl__client.cpp`의 실제 mbedTLS 단계/에러코드를 확인 — 다음 수정 방향의 필수 선행 정보 | |
 
 ## 단계 2: RS485 시험
 

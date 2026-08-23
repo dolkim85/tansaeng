@@ -109,6 +109,12 @@ void MqttManager::attemptConnect_() {
   // 위에서 이미 DNS가 정상 동작함을 확인했다.
   mqttClient_.setServer(host_, port_);
 
+  // TLS handshake는 mbedTLS 세션 컨텍스트(수 KB~수십 KB)를 힙에 할당한다 — 할당
+  // 실패도 start_ssl_client()에서는 다른 실패와 마찬가지로 0으로 뭉개지므로, 힙이
+  // 원인인지 별도로 눈으로 볼 수 있게 시도 전 여유를 남긴다(2026-08-23, SNI 수정
+  // 이후에도 handshake 실패가 재현되어 추가).
+  uint32_t heapBefore = ESP.getFreeHeap();
+
   bool ok = mqttClient_.connect(clientId_, user_, pass_, lwtTopic_, 0, true, "offline");
 
   unsigned long elapsedMs = millis() - attemptStartMs;
@@ -140,6 +146,12 @@ void MqttManager::attemptConnect_() {
   Serial.printf("[TLS] lastError code=%d, detail=%s\n", sslErr,
                 errBuf[0] ? errBuf : "(상세 없음 - SSLClient가 0으로 축약함, 실패 자체는 확실함)");
 
+  uint32_t heapAfter = ESP.getFreeHeap();
+  Serial.printf("[TLS] 힙 여유: 시도전=%u, 시도후=%u bytes\n", (unsigned int)heapBefore, (unsigned int)heapAfter);
+  if (heapAfter < 20000) {
+    Serial.println("[TLS] ⚠️ 힙 여유가 낮음 — TLS 핸드셰이크 중 메모리 할당 실패 가능성 있음");
+  }
+
   // PubSubClient 상태값 중 1~5(MQTT_CONNECT_BAD_PROTOCOL ~ MQTT_CONNECT_UNAUTHORIZED)만
   // "브로커가 실제로 CONNACK을 보내고 거절"한 경우다. PubSubClient::connect() 소스
   // 확인 결과, _client->connect(...)(SSLClient, 즉 TCP/TLS 단계)가 1이 아니면 MQTT
@@ -152,6 +164,13 @@ void MqttManager::attemptConnect_() {
   } else {
     Serial.println("[TLS] handshake/secure transport failed");
     Serial.println("[MQTT] CONNECT not sent");
+    // lastError()가 항상 0으로 뭉개지는 SSLClient 1.3.2의 구조적 한계 때문에, 지금
+    // 시리얼에 보이는 정보만으로는 TCP-재연결/hostname설정/handshake/인증서검증 중
+    // 정확히 어느 단계에서 실패했는지 알 수 없다. 이 이상 파고들려면 Arduino IDE
+    // "Tools > Core Debug Level"을 Verbose(또는 최소 Error)로 올려 재빌드/재업로드해야
+    // ssl__client.cpp 내부 log_e()/log_v() 메시지(실제 mbedTLS 단계+에러코드)가
+    // 시리얼에 추가로 찍힌다 — 코드/라이브러리 수정 없이 가능한 유일한 방법이다.
+    Serial.println("[TLS] 상세 원인 확인 필요: Arduino IDE Tools > Core Debug Level을 'Verbose'로 설정 후 재빌드/재업로드하면 실제 mbedTLS 단계/에러코드가 추가로 출력됩니다");
   }
 
   // 실패가 반복되면 재시도 간격을 지수적으로 늘려(최대 RECONNECT_INTERVAL_MS_MAX)

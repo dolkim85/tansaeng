@@ -60,9 +60,12 @@ MQTT로 발행되는 토픽은 아니고, 메인 노드 시리얼(115200bps)에 
 [TCP] connect failed (3.xx.xx.xx:8883)                  (← 방화벽/포트차단/서버다운. 진단 전용 소켓)
 [MQTT] ⚠️ 연결 시도에 NNNNms 소요(...)                    (← 3초 이상 걸리면 경고로 표시, RS485 워치독 10초와 비교용)
 [TLS] lastError code=N, detail=...                       (← code=0이면 "에러 없음"이 아니라 SSLClient가 상세코드를 0으로 뭉갠 것일 뿐 — 실패는 확실함)
+[TLS] 힙 여유: 시도전=NNNNN, 시도후=NNNNN bytes            (← 급감/저수치면 메모리 부족 의심, 2026-08-23 추가)
 [TLS] handshake/secure transport failed                  (← TCP/TLS 단계 자체가 실패, MQTT CONNECT를 보내지도 못함)
 [MQTT] CONNECT not sent
+[TLS] 상세 원인 확인 필요: Arduino IDE Tools > Core Debug Level을 'Verbose'로 설정 후 재빌드/재업로드하면 실제 mbedTLS 단계/에러코드가 추가로 출력됩니다
 ```
+**(2026-08-23, `docs/open-decisions.md` 14번 항목)** SNI 수정을 현장에 적용한 뒤에도 이 실패 패턴이 재현되어, 근본원인이 아직 완전히 확정되지 않았습니다. `lastError()`가 항상 0으로 뭉개지는 라이브러리 구조적 한계 때문에 Core Debug Level을 올리지 않고는 더 이상 좁힐 수 없습니다.
 또는(브로커가 실제로 CONNACK을 보내고 거절한 경우에만):
 ```text
 [MQTT] CONNECT rejected: rc=N   (← N은 1~5: BAD_PROTOCOL/BAD_CLIENT_ID/UNAVAILABLE/BAD_CREDENTIALS/UNAUTHORIZED)
