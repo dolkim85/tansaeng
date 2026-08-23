@@ -68,6 +68,21 @@
 // 같은 로컬 사본에서 start_ssl_client()가 실패 원인을 0으로 뭉개던 것도 고쳐,
 // 실제 mbedTLS/내부 에러코드와 실패 단계 이름을 `SSLClient::lastError()`/
 // `lastFailedStep()`으로 꺼내볼 수 있게 했다(아래 attemptConnect_() 참고).
+//
+// [2026-08-23 3차 진단(계속) — recv 콜백이 "데이터 없음"을 실제 오류로 반환하던
+// 문제] 위 vendoring 수정을 실물에 올려 재현한 결과 `실패 단계=perform_ssl_handshake`,
+// `실제 mbedTLS 오류번호=-1`, `오류 문자열=ERROR - Generic error`로 여전히
+// 실패했다. `-1`은 진짜 mbedTLS 프로토콜 에러코드가 아니라(그건 보통 큰 음수
+// hex값), W5500 `EthernetClient::read()`가 "연결은 살아있지만 아직 데이터
+// 없음"을 나타내려고 반환하는 값이었다. `mbedtls_ssl_set_bio()`가 실제로 쓰는
+// recv 콜백(`client_net_recv_timeout()`)이 이 `-1`을 `MBEDTLS_ERR_SSL_WANT_READ`
+// 로 변환하지 않고 그대로 흘려보내 mbedTLS가 실제 오류로 취급했다. 기존
+// W5500_WORKAROUND(perform_ssl_handshake()의 "ret==-1이면 200회 무지연 반복")는
+// 이 증상을 우회하려던 임시방편이었을 뿐 근본 수정이 아니었다. 근본 수정:
+// recv 콜백에서 "연결이 살아있는 -1"을 WANT_READ로 정상 변환(그러면
+// mbedtls_ssl_handshake() 자체가 더 이상 -1을 반환하지 않음), 임시방편 루프는
+// 제거하고 표준 WANT_READ/WANT_WRITE 재시도 루프만 남김. 상세:
+// `docs/open-decisions.md` 16번 항목, `src/SSLClient/VENDORED_FROM.md` "2차 수정" 절.
 
 #include <Arduino.h>
 #include <Ethernet.h>

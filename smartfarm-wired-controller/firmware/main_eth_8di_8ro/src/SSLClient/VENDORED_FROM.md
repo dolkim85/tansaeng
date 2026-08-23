@@ -51,6 +51,40 @@ Arduino의 스케치 빌드 규칙상 `<스케치폴더>/src/` 아래의 `.c/.cp
    가 `start_ssl_client()`에 `&_lastFailedStep`을 넘겨 받아온 값을 저장.
    `_lastError`에는 이제 (원본처럼 뭉개진 0이 아니라) 실제 실패 코드가 담김.
 
+## 2차 수정 (2026-08-23) — W5500 no-data(-1)를 WANT_READ로 정상 변환
+
+1차 수정만으로는 실물 현장에서 handshake가 여전히 실패했습니다(`[TLS] 실패
+단계=perform_ssl_handshake`, `실제 mbedTLS 오류번호=-1`, `오류 문자열=ERROR -
+Generic error`). 원인을 더 파고든 결과:
+
+- `mbedtls_ssl_set_bio()`는 recv 콜백으로 **`client_net_recv_timeout()`**을
+  연결합니다(`client_net_recv()`는 f_recv 슬롯에 `NULL`이 들어가 있어 실제로는
+  **호출되지 않는 죽은 코드**입니다 — `-Wunused-function` 경고도 이를 뒷받침).
+- W5500 `EthernetClient::read()`는 연결이 살아있는 상태에서도 "아직 수신 데이터
+  없음"을 `-1`로 반환할 수 있습니다(Arduino `Stream` 관례상 "데이터 없음"과
+  "에러"가 둘 다 `-1`로 뭉뚱그려짐).
+- 원본 `client_net_recv_timeout()`은 `result == 0`만 `MBEDTLS_ERR_SSL_WANT_READ`로
+  변환했고, `result == -1`은 그대로 반환했습니다. mbedTLS는 `WANT_READ`
+  상수가 아닌 이 `-1`을 실제 오류로 취급해 handshake를 즉시 실패시킵니다.
+- 기존 `perform_ssl_handshake()`의 `W5500_WORKAROUND`는 "`ret==-1`이면 지연 없이
+  최대 200회 반복"하는 임시방편이었을 뿐이라, 서버 TLS 응답이 실제로 도착하기
+  전에 200회를 소진할 수 있었습니다(횟수를 2000/20000으로 늘리는 것도 같은
+  종류의 임시방편이라 채택하지 않았습니다).
+
+**수정 내용**:
+5. **`client_net_recv_timeout()`**(실제 사용되는 콜백)과 **`client_net_recv()`**
+   (죽은 코드지만 일관성을 위해 함께 수정)에서 `read()`가 `-1`을 반환했을 때
+   `client->connected()`로 재확인해 연결이 살아있으면 `MBEDTLS_ERR_SSL_WANT_READ`
+   로 변환, 끊긴 상태면 그대로 실제 오류로 전달.
+6. **`perform_ssl_handshake()`**의 "`ret==-1`이면 200회까지 지연 없이 반복"하는
+   임시방편 루프를 제거. 이제 표준 `WANT_READ`/`WANT_WRITE` 재시도 루프(매 반복
+   `handshake_timeout` 검사 + `vTaskDelay(10ms)`로 CPU 양보)만 남음 — 근본
+   원인(콜백이 -1을 잘못 반환하던 것)을 고쳤으므로 이 루프만으로 충분함.
+7. 파일 스코프 카운터 `g_w5500NoDataToWantReadCount`를 추가해 "-1→WANT_READ
+   변환"이 몇 번 있었는지 집계. 연결 시도(`start_ssl_client()` 진입)마다
+   리셋되고, handshake 시도가 끝나면 `[TLS] W5500 no-data converted to
+   WANT_READ, count=N` 한 줄만 출력(매 반복 로그 금지 — 시리얼 도배 방지).
+
 그 외 로직/동작은 원본과 동일합니다(암묵적 TLS 정책, 인증서 처리, 소켓 처리 등
 변경 없음). SNI(hostname) 전달, `setInsecure()` 동작, 평문 폴백 없음 등은 원본
 그대로입니다.
@@ -58,5 +92,5 @@ Arduino의 스케치 빌드 규칙상 `<스케치폴더>/src/` 아래의 `.c/.cp
 ## 업스트림 갱신 시 주의사항
 
 향후 GovoroxSSLClient가 새 버전을 내면, 이 폴더 전체를 새 버전으로 교체한 뒤
-위 4가지 변경사항을 다시 적용해야 합니다(자동 병합 스크립트 없음 — 파일 수가
-적어 수동 diff로 충분).
+위 1차(4가지) + 2차(3가지) 변경사항을 다시 적용해야 합니다(자동 병합 스크립트
+없음 — 파일 수가 적어 수동 diff로 충분).

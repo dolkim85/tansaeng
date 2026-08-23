@@ -179,3 +179,20 @@ Arduino 빌드 규칙상 `<스케치폴더>/src/`의 `.c/.cpp` 파일은 스케�
 **라이선스/출처 보존**: `src/SSLClient/LICENSE`(원본 GPLv3 그대로), `src/SSLClient/VENDORED_FROM.md`(원본 저장소 URL, 가져온 커밋 해시, 버전, 변경사항 4가지 diff 요약 기록).
 
 **안전장치**: `start_ssl_client()`의 새 반환값(`ret`)이 이론상 정확히 `1`이 될 수 있는 경우(인증서 검증 플래그가 `MBEDTLS_X509_BADCERT_EXPIRED` 하나만 켜졌을 때, `flags==1`)에는 성공 신호(`1`)와 혼동되지 않도록 `-1`로 치환해 반환합니다.
+
+## 16. W5500 no-data(-1)가 recv 콜백에서 실제 오류로 잘못 반환되던 문제 수정 (확정됨 — 2026-08-23)
+
+15번 항목의 vendoring 수정을 실물에 올려 재현한 결과, `[TLS] 실패 단계=perform_ssl_handshake(TLS handshake)`, `실제 mbedTLS 오류번호=-1`, `오류 문자열=ERROR - Generic error`로 여전히 실패했습니다. `-1`이 진짜 mbedTLS 프로토콜 에러가 아니라는 점(mbedTLS 에러코드는 보통 큰 음수 hex값)에 착안해 recv 콜백을 재검토했습니다.
+
+**확인된 구조**:
+- `mbedtls_ssl_set_bio()`가 실제로 연결하는 recv 콜백은 `client_net_recv_timeout()`이며, `client_net_recv()`(non-timeout)는 f_recv 슬롯에 `NULL`이 들어가 있어 **호출되지 않는 죽은 코드**였습니다(원본의 `-Wunused-function` 경고와 일치).
+- W5500 `EthernetClient::read()`는 연결이 살아있어도 아직 수신 데이터가 없으면 `-1`을 반환할 수 있습니다(Arduino `Stream` 관례상 "데이터 없음"과 "에러"가 `-1`로 뭉뚱그려짐).
+- 원본 `client_net_recv_timeout()`은 `result==0`만 `MBEDTLS_ERR_SSL_WANT_READ`로 변환했고, `result==-1`은 그대로 반환했습니다. mbedTLS는 이 `-1`을 `WANT_READ` 상수와 다른 실제 오류로 취급해 handshake를 즉시 실패시켰습니다.
+- 기존 `perform_ssl_handshake()`의 W5500_WORKAROUND는 "`ret==-1`이면 지연 없이 최대 200회 반복"하는 임시방편이라, 서버 TLS 응답이 도착하기 전에 200회를 소진할 수 있는 구조적 결함이 있었습니다. 횟수를 늘리는 것(2000/20000)도 같은 종류의 임시방편이라 채택하지 않았습니다.
+
+**수정**(모두 `firmware/main_eth_8di_8ro/src/SSLClient/`의 vendored 사본에서만):
+1. `client_net_recv_timeout()`(실사용)과 `client_net_recv()`(죽은 코드지만 일관성 유지)에서 `read()==-1`일 때 `client->connected()`로 재확인 → 연결이 살아있으면 `MBEDTLS_ERR_SSL_WANT_READ`로 변환, 끊긴 상태면 그대로 실제 오류로 전달
+2. `perform_ssl_handshake()`의 "ret==-1이면 200회 무지연 반복" 임시방편 루프 제거 — 근본원인을 recv 콜백에서 고쳤으므로 표준 WANT_READ/WANT_WRITE 재시도 루프(매 반복 handshake_timeout 검사 + `vTaskDelay(10ms)`)만으로 충분
+3. 파일 스코프 카운터(`g_w5500NoDataToWantReadCount`)로 변환 횟수를 집계, 연결 시도마다 리셋, handshake 시도 종료 시 `[TLS] W5500 no-data converted to WANT_READ, count=N` 요약 1줄만 출력(매 반복 로그 금지)
+
+상세 diff: `src/SSLClient/VENDORED_FROM.md` "2차 수정" 절.

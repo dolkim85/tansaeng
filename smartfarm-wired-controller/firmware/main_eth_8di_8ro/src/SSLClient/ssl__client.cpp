@@ -24,6 +24,11 @@
 #define W5500_WORKAROUND
 #endif
 
+// [tansaeng 로컬 수정, 2026-08-23 — 2차] W5500 no-data(-1) → WANT_READ 변환 횟수.
+// TLS 연결 시도(start_ssl_client 1회 호출)마다 리셋되고, client_net_recv_timeout()이
+// 증가시킨다. 매 반복 로그 대신 시도당 요약 1줄만 찍기 위한 카운터.
+static uint32_t g_w5500NoDataToWantReadCount = 0;
+
 using namespace std;
 
 #if !defined(MBEDTLS_KEY_EXCHANGE_SOME_PSK_ENABLED)
@@ -77,12 +82,17 @@ static int _handle_error(int err, const char * function, int line) {
  * \return int    -2 if connect failed.
  */
 static int client_net_recv( void *ctx, unsigned char *buf, size_t len ) {
+  // ⚠️ [tansaeng 참고] mbedtls_ssl_set_bio()가 이 함수를 f_recv 슬롯에 NULL로
+  // 넘기고 client_net_recv_timeout()만 f_recv_timeout 슬롯에 실제로 연결하므로,
+  // 현재 빌드에서는 이 함수가 호출되지 않는다(원본에서도 -Wunused-function 경고
+  // 대상이었음). 그래도 향후 wiring이 바뀔 경우를 대비해 아래와 동일한 수정을
+  // 적용해둔다.
   Client *client = (Client*)ctx;
-  if (!client) { 
+  if (!client) {
     log_e("Uninitialised!");
     return -1;
   }
-  
+
   if (!client->connected()) {
     log_e("Not connected!");
     return -2;
@@ -91,10 +101,28 @@ static int client_net_recv( void *ctx, unsigned char *buf, size_t len ) {
   int result = client->read(buf, len);
   log_v("SSL client RX res=%d len=%zu", result, len);
 
+  // [tansaeng 로컬 수정, 2026-08-23 — 2차] W5500 EthernetClient::read()는 연결이
+  // 살아있는 상태에서도 아직 수신 데이터가 없으면 -1을 반환할 수 있다(Arduino
+  // Stream 관례상 "데이터 없음"과 "에러"가 -1로 뭉뚱그려짐). mbedTLS BIO recv
+  // 콜백에서 -1을 그대로 반환하면 실제 오류로 취급되므로(WANT_READ 상수와 다름),
+  // 연결이 살아있는 -1만 WANT_READ로 변환한다. 연결이 끊긴 상태의 -1은 변환하지
+  // 않고 그대로 실제 오류로 전달한다.
+#if defined(W5500_WORKAROUND)
+  if (result == -1) {
+    bool stillConnected = client->connected(); // read() 이후 재확인(도중 끊겼을 수도 있음)
+    if (stillConnected) {
+      g_w5500NoDataToWantReadCount++;
+      return MBEDTLS_ERR_SSL_WANT_READ;
+    }
+    log_e("client_net_recv: read()=-1 이고 연결도 끊김 — 실제 오류로 처리");
+    return result;
+  }
+#endif
+
   // if (result > 0) {
     //esp_log_buffer_hexdump_internal("SSL.RD", buf, (uint16_t)result, ESP_LOG_VERBOSE);
   // }
-  
+
   return result;
 }
 
@@ -141,17 +169,38 @@ int client_net_recv_timeout(void *ctx, unsigned char *buf, size_t len, uint32_t 
   } while (millis() < tms);
   
   int result = client->read(buf, len);
-  
+
+  // [tansaeng 로컬 수정, 2026-08-23 — 2차] 실제로 mbedTLS가 사용하는 recv 콜백은
+  // 이 함수(client_net_recv_timeout)다(mbedtls_ssl_set_bio가 f_recv_timeout 슬롯에
+  // 이 함수를 연결하고 f_recv는 NULL). W5500 EthernetClient::read()는 위에서 이미
+  // timeout만큼 기다렸는데도 실제로는 아직 수신 데이터가 없으면 -1을 반환할 수
+  // 있다(연결 자체는 살아있음 — Arduino Stream 관례상 "데이터 없음"과 "에러"가
+  // -1로 뭉뚱그려짐). 이 -1을 그대로 반환하면 mbedTLS는 WANT_READ가 아닌 실제
+  // 오류로 취급해 handshake가 즉시 실패한다(현장 실측: 실패단계=perform_ssl_handshake,
+  // 오류번호=-1, "ERROR - Generic error" — 이 경로였음). 연결이 살아있는 -1만
+  // WANT_READ로 변환하고, 끊긴 상태의 -1은 그대로 실제 오류로 전달한다.
+#if defined(W5500_WORKAROUND)
+  if (result == -1) {
+    bool stillConnected = client->connected(); // read() 이후 재확인
+    if (stillConnected) {
+      g_w5500NoDataToWantReadCount++;
+      return MBEDTLS_ERR_SSL_WANT_READ;
+    }
+    log_e("client_net_recv_timeout: read()=-1 이고 연결도 끊김 — 실제 오류로 처리");
+    return result;
+  }
+#endif
+
   if (!result) {
     return MBEDTLS_ERR_SSL_WANT_READ;
   }
 
   log_v("SSL client RX (received=%d expected=%zu in %lums)", result, len, millis()-start);
-  
+
   // if (result > 0) {
     //esp_log_buffer_hexdump_internal("SSL.RD", buf, (uint16_t)result, ESP_LOG_VERBOSE);
   // }
-  
+
   return result;
 }
 
@@ -315,6 +364,7 @@ int start_ssl_client(
   // [tansaeng 로컬 수정, 2026-08-23]
 #if defined(W5500_WORKAROUND)
   Serial.println("[TLS] W5500_WORKAROUND active");
+  g_w5500NoDataToWantReadCount = 0; // [tansaeng 로컬 수정] 연결 시도마다 카운터 리셋
 #endif
 
   log_v("Free internal heap before TLS %u", ESP.getFreeHeap());
@@ -770,25 +820,37 @@ int perform_ssl_handshake(sslclient__context *ssl_client, const char *cli_cert, 
   unsigned long handshake_start_time = millis();
   log_d("calling mbedtls_ssl_handshake with ssl_ctx address %p", (void *)&ssl_client->ssl_ctx);
 
-  int loopCount = 0;
+  // [tansaeng 로컬 수정, 2026-08-23 — 2차] 기존 W5500_WORKAROUND는 여기서
+  // "ret==-1이면 지연 없이 최대 200회 반복"이라는 임시방편이었다. 문제는 (1)
+  // 근본원인이 recv 콜백이 "데이터 없음"(-1)을 WANT_READ가 아닌 실제 오류로
+  // 잘못 반환하는 것이었는데 이 루프는 그 증상만 우회했고, (2) 지연 없이 반복해
+  // 서버 TLS 응답이 실제로 도착하기 전에 200회를 소진할 수 있었다(횟수를
+  // 2000/20000으로 늘리는 것도 근본 해결이 아니라 임시방편이라 채택하지 않음).
+  // 근본 수정은 client_net_recv_timeout()에서 "연결이 살아있는 -1"을 처음부터
+  // MBEDTLS_ERR_SSL_WANT_READ로 변환하는 것이다(위 함수 참고) — 그러면
+  // mbedtls_ssl_handshake() 자체가 더 이상 이 경로로 -1을 반환하지 않으므로,
+  // 아래는 표준 WANT_READ/WANT_WRITE 재시도 루프(handshake_timeout까지 대기,
+  // 매 반복 10ms 양보)만으로 충분하다. -1이 그래도 나온다면(연결이 끊긴 경우
+  // 등) 그건 이제 진짜 오류이므로 즉시 실패 처리하는 것이 맞다.
   while ((ret = mbedtls_ssl_handshake(&ssl_client->ssl_ctx)) != 0) {
-    loopCount++;
-  #if defined(_W5500_H_) || defined(W5500_WORKAROUND)
-    if (ret == -1 && loopCount < 200) {
-        continue; // Treat -1 as a non-error for up to 200 iterations
-    }
-  #endif
     if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-        break; // Break on any other error
+        break; // WANT_READ/WANT_WRITE가 아닌 다른 오류는 즉시 실패
     }
 
     if ((millis()-handshake_start_time) > ssl_client->handshake_timeout) {
       log_e("SSL handshake timeout");
       breakBothLoops = true;
-      break; 
+      break;
     }
 
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(10)); // CPU 양보, 무한루프 방지(위 handshake_timeout 체크로 상한 보장)
+  }
+
+  // [tansaeng 로컬 수정] W5500 no-data→WANT_READ 변환이 이번 시도에서 있었다면
+  // 요약 1줄만 출력(매 반복 로그는 시리얼을 도배하므로 금지 — 요구사항 6번).
+  if (g_w5500NoDataToWantReadCount > 0) {
+    Serial.printf("[TLS] W5500 no-data converted to WANT_READ, count=%u\n",
+                  (unsigned)g_w5500NoDataToWantReadCount);
   }
 
   if (breakBothLoops) {
