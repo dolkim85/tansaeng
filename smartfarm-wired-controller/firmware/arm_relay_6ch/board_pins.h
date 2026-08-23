@@ -16,7 +16,10 @@
 #define PIN_RS485_RX    18
 
 #define PIN_BUZZER      21  // 선택 사용(이번 버전 미사용)
-#define PIN_RGB_LED     38  // 선택 사용(이번 버전 미사용)
+// ESP32 코어 pins_arduino.h(esp32s3 variant)가 이미 PIN_RGB_LED(=48, 다른 값)를
+// 정의하고 있어 이름이 겹치면 컴파일 경고(redefined)가 남는다(2026-08-23 컴파일
+// 검증 중 --warnings all로 발견). 이 보드 고유 이름으로 분리했다.
+#define PIN_WS2812_RGB  38  // 선택 사용(이번 버전 미사용)
 
 // 릴레이 활성 레벨 — active-high로 확인됨(hardware-verification.md, ESPHome 설정에 inversion 없음)
 #define RELAY_ACTIVE_LEVEL    HIGH

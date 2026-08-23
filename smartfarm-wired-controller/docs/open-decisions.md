@@ -32,7 +32,7 @@
 
 - `docs/hardware-verification.md`에 표시한 W5500 RESET 핀(GPIO39) — "Not exposed on this board"라는 원저자 주석의 정확한 의미(자동 파워온리셋으로 추정) 실물 확인
 - 사용자 보드가 정확히 `ESP32-S3-ETH-8DI-8RO`(RS485, `-C` 아님)인지 실물 라벨 확인
-- **[2026-08-23]** `FLOW_PULSE_PIN`(팔 노드 유량계 입력) — Pico HAT 40핀 헤더의 정확한 GPIO 매핑을 못 찾음. `docs/hardware-verification.md` "2-1"절 참고. **`NEEDS_HARDWARE_CONFIRMATION`**
+- **[2026-08-23, GPIO 확정됨]** `FLOW_PULSE_PIN`(팔 노드 유량계 입력) = **GPIO4, 확장 헤더 H1 15번** — Waveshare 공식 회로도 PDF 넷리스트로 확정(`docs/hardware-verification.md` "2-1"절, 11번 항목). 남은 것은 GPIO 번호가 아니라 **H1 15번 핀의 물리적 방향(실크스크린 사진 대조)** 뿐 — 이 부분만 `NEEDS_HARDWARE_CONFIRMATION`으로 유지
 - **[2026-08-23]** 유량계(YF-B10-S) 실제 공급전압/오픈컬렉터 극성/엣지방향 — 검색 근거는 확보했으나 이 현장의 실제 배선은 실측 필요. `docs/wiring.md` "유량계 배선"절 참고
 - Relay-6CH 릴레이 활성화 레벨(active-high로 추정) 실물 확인
 - RS485 A/B 극성 실제 배선 시 반전 여부(뒤바뀌어도 대개 무응답으로 나타나며 손상은 없음 — 테스트로 확인)
@@ -76,3 +76,13 @@ PC에서 8883 TCP 포트가 열려도(방화벽/서버는 문제없음), ESP32�
 **수정**: R1을 제거하고 PC817 LED(+R2)가 오픈컬렉터의 풀업 부하 역할을 겸하도록 재설계했습니다(오픈컬렉터를 옵토커플러로 격리하는 표준 방식). 이제 평상시 LED OFF(`FLOW_PULSE_PIN`=HIGH), 펄스 시 LED ON(`FLOW_PULSE_PIN`=LOW)으로 `FLOW_PULSE_EDGE=FALLING` 기본값과 일치합니다. R2 저항값(5V=390Ω/12V=1kΩ/24V=2.2kΩ)은 그대로 유효하지만, 최소 권장 정격(1/4W~1W)을 새로 명시했습니다 — 특히 24V 조건은 1/4W 저항 사용 시 정격의 94%까지 차서 부적합, 1/2W 이상 필요. 상세 계산 근거: `docs/wiring.md` "권장 절연 입력회로" / "저항값(R2) 재계산" 절.
 
 이 오류는 **문서/설계 단계에서만 존재**했고(아직 실물 배선 전), 실제 하드웨어에 손상을 준 사례는 없습니다.
+
+## 11. `FLOW_PULSE_PIN` GPIO 확정 — Waveshare 공식 회로도 넷리스트 (확정됨 — 2026-08-23)
+
+기존 조사(5번 항목)에서는 Waveshare 위키 페이지 스크래핑이 막혀(HTTP 403) Pico HAT 헤더의 실제 GPIO 매핑을 찾지 못해 `NEEDS_HARDWARE_CONFIRMATION`으로 남겨뒀습니다. 위키 페이지가 아닌 **회로도 PDF 직접 링크**(`files.waveshare.com/wiki/ESP32-S3-Relay-6CH/ESP32-S3-Relay-6CH.pdf`)는 스크래핑 차단 대상이 아니어서 접근 가능했고, PDF 내부 텍스트 레이어(넷리스트)에서 핀 연결 관계를 직접 추출했습니다.
+
+**확인 결과**: 넷 `NLGPIO4`가 `PIH1015`(커넥터 H1의 15번 핀)와 `PIU404`(ESP32-S3-WROOM-1U 모듈의 4번 핀=IO4) 두 곳에만 연결되어 있고, 다른 어떤 부품/넷과도 공유되지 않습니다. 같은 회로도로 CH1~6(GPIO1/2/41/42/45/46), RS485(17/18), 부저(21), RGB(38), USB(19/20) 넷도 함께 확인해 GPIO4와 충돌이 없음을 재검증했고, 기존 `firmware/arm_relay_6ch/board_pins.h`의 핀맵과도 완전히 일치함을 확인했습니다(별도 출처로 이미 검증돼 있던 CH1~6 등의 신뢰도도 함께 재확인됨).
+
+**결정**: `FLOW_PULSE_PIN`을 `GPIO4`(물리 위치: 확장 헤더 H1 15번)로 확정하고, `firmware/arm_relay_6ch/config.example.h`에 `#define FLOW_PULSE_PIN 4`로 반영했습니다. `docs/hardware-verification.md` "2-1"절에 넷리스트 원문 발췌와 8개 충돌 확인 항목을 표로 기록했습니다.
+
+**남은 확인 사항**: 회로도는 전기적 연결만 증명하며, H1 15번 핀이 실물 보드에서 어느 물리적 위치인지는 실크스크린 라벨 사진으로 최종 대조해야 합니다(`docs/wiring.md` "팔 노드 GPIO 확정" 절). 이 대조가 끝나기 전까지는 실제 배선(통전)을 하지 않습니다 — 이 부분만 `NEEDS_HARDWARE_CONFIRMATION`으로 유지합니다.

@@ -78,23 +78,57 @@ RS485 통신 관련: 기본 보드레이트 9600, **120Ω 종단저항이 온보
 
 ---
 
-## 2-1. ESP32-S3-Relay-6CH — 유량계 입력용 여유 GPIO (2026-08-23 조사)
+## 2-1. ESP32-S3-Relay-6CH — 유량계 입력용 여유 GPIO (2026-08-23 조사, 2026-08-23 회로도로 확정)
 
-**결론: `NEEDS_HARDWARE_CONFIRMATION`** — 근거 없이 임의의 GPIO를 확정하지 않았습니다.
+**결론: `FLOW_PULSE_PIN = GPIO4` (확장 헤더 H1 15번 핀) — 공식 회로도로 확정.** 남은 것은 "GPIO 번호"가 아니라 **H1 15번 핀의 물리적 방향(실크스크린 대조)** 뿐입니다.
 
-조사 결과, 이 보드에는 **라즈베리파이 Pico HAT 호환 40핀 헤더가 내부에 2개 존재**하며 RTC/CAN/RS232/LoRa/센서 등 확장용으로 GPIO를 추가로 노출한다는 점은 3개 독립 출처에서 확인했습니다:
+### 확정 근거 — Waveshare 공식 회로도 PDF 직접 확인
+
+이전 조사(아래 "최초 조사 기록" 참고)에서는 위키 페이지 스크래핑이 막혀 회로도를 못 봤으나, 공식 회로도 PDF 직접 링크(`https://files.waveshare.com/wiki/ESP32-S3-Relay-6CH/ESP32-S3-Relay-6CH.pdf`)는 접근 가능했고, PDF 내부 텍스트 레이어(넷리스트)에서 넷 이름과 핀 번호가 그대로 추출됩니다. 아래는 실제 추출된 넷리스트 원문 발췌입니다(변형 없음):
+
+```
+PIH1015
+PIU404 NLGPIO4
+```
+
+`PIH1015` = 커넥터 `H1`의 15번 핀(`H1 Header 20`), `PIU404` = `U4`(모듈 자체, 아래 확인) 4번 핀, `NLGPIO4` = 이 둘을 연결하는 넷 이름이 "GPIO4"라는 뜻입니다. `U4`가 `ESP32-S3-WROOM-1U` 모듈이라는 것은 같은 PDF의 모듈 핀 목록에서 확인됩니다:
+
+```
+GND 1  3V3 2  EN 3  IO4 4  IO5 5  ...
+U4 ESP32-S3-WROOM-1U
+```
+
+즉 모듈의 4번 핀(`IO4`=GPIO4)이 그대로 `H1`의 15번 핀 하나에만 연결되어 있습니다. `NLGPIO4` 넷은 PDF 전체에서 이 두 핀(`PIH1015`, `PIU404`) 외에 다른 어떤 부품과도 연결되어 있지 않습니다 — 즉 CH1~6 릴레이, RS485, 부저, RGB, USB와 완전히 분리된 전용 헤더 핀입니다.
+
+### 요청하신 8개 항목 재확인 (동일 PDF 넷리스트 기준)
+
+| # | 확인 항목 | 결과 |
+|---|---|---|
+| 1 | GPIO4가 H1 15번 핀으로 노출되는가 | **예** — `PIH1015`/`PIU404`/`NLGPIO4` 넷으로 직접 확인 |
+| 2 | CH1~CH6 릴레이 GPIO와 충돌하는가 | **충돌 없음** — 회로도 "Control IO" 블록: CH1=GPIO1, CH2=GPIO2, CH3=GPIO41, CH4=GPIO42, CH5=GPIO45, CH6=GPIO46 (기존 `board_pins.h`와 완전 일치, 이번 회로도로 재확인됨). `NLGPIO4` 넷에는 이 중 어느 것도 없음 |
+| 3 | RS485 GPIO17/18과 충돌하는가 | **충돌 없음** — 넷리스트: `NLTXD1 NLGPIO17`(U7 74HC04D, U8 RS485 트랜시버 관련 핀에 연결), `NLRXD1 NLGPIO18` — GPIO4와 무관한 별도 넷 |
+| 4 | 부저 GPIO21 / RGB GPIO38 / USB GPIO19,20과 충돌하는가 | **충돌 없음** — `NLGPIO21`(부저 트랜지스터 T1 R11 경유), `NLGPIO38`(RGB_CTRL, WS2812B LED4), `NLGPIO19`/`NLGPIO20`(USB 커넥터 J2의 D-/D+에 직결, `NLD0N`/`NLD0P`) — 전부 GPIO4와 다른 독립 넷 |
+| 5 | ESP32-S3 부트 스트래핑 핀인가 | **아니오** — ESP32-S3 스트래핑 핀은 GPIO0/3/45/46뿐(이 보드에서 46은 CH6, 45는 CH5로 이미 사용 중이라 문서화됨). GPIO4는 스트래핑 핀이 아님 |
+| 6 | Flash/PSRAM과 충돌하는가 | **충돌 없음** — 모듈은 회로도 상 `ESP32-S3-WROOM-1U`(PSRAM 없는 -N8 계열, 기존 조사와 일치), PSRAM용 GPIO33~37 대역과 GPIO4는 무관. 내장 Flash SPI 핀은 모듈 내부에만 있고 애초에 외부 핀으로 노출되지 않음 |
+| 7 | 인터럽트/내부 풀업 사용 가능한가 | **가능** — ESP32-S3의 GPIO4는 입력 전용이 아닌 범용 디지털 GPIO로, `attachInterrupt()`와 `pinMode(INPUT_PULLUP)`을 모두 지원(고전 ESP32의 GPIO34~39류 입력전용 제약이 ESP32-S3에는 해당 없음). 팔 노드는 WiFi/BT를 쓰지 않으므로 ADC2 관련 제약도 무관 |
+| 8 | 저장소 전체에서 GPIO4를 다른 용도로 이미 쓰고 있는가 | **아니오** — `firmware/arm_relay_6ch/board_pins.h` 전수 확인 결과 CH1~6(1,2,41,42,45,46)/RS485(17,18)/부저(21)/RGB(38) 중 GPIO4 없음. 메인 노드(`main_eth_8di_8ro`)가 과거 DI1=GPIO4를 썼던 것은 **완전히 다른 물리 보드(ESP32-S3-ETH-8DI-8RO)**라 충돌 대상이 아님 |
+
+### 남은 확인 사항 — 물리적 방향(실크스크린 대조)
+
+회로도 넷리스트는 "H1의 15번 핀이 전기적으로 GPIO4"라는 것만 증명하며, **그 15번 핀이 실물 보드 위에서 정확히 어느 위치(좌/우, 몇 번째 구멍)인지는 실크스크린 라벨로만 확정 가능**합니다. 배선 전 반드시:
+1. H1 커넥터 옆 실크스크린에 인쇄된 핀 번호(대개 "1"과 홀수/짝수 방향 화살표 또는 사각 패드로 1번 핀 표시)를 사진으로 확인
+2. 가능하면 멀티미터 연속성 테스트로 "실크스크린이 가리키는 15번 위치"와 "GPIO4"가 실제로 이어지는지 최종 검증(모듈 자체의 IO4 핀 또는 이미 알려진 다른 GPIO4 노출점이 있다면 그쪽과 비교)
+
+이 문서/코드에서는 이제 GPIO 번호 자체는 확정값으로 다루되, 위 물리적 대조가 끝나기 전까지는 실제 배선(통전)을 하지 않습니다.
+
+### 최초 조사 기록 (2026-08-23, 회로도 확보 전 — 참고용으로 보존)
+
+당시 조사에서는 이 보드에 **라즈베리파이 Pico HAT 호환 40핀 헤더가 내부에 2개 존재**하며 확장용 GPIO를 노출한다는 점만 3개 독립 출처(간접 정보)로 확인했었습니다:
 - [CNX Software: "6-channel ESP32-S3-based WiFi relay module... supports Raspberry Pi Pico HATs"](https://www.cnx-software.com/2024/04/02/6-channel-esp32-s3-wifi-relay-module-rs485-raspberry-pi-pico-hat/)
 - [Waveshare 제품 페이지](https://www.waveshare.com/esp32-s3-relay-6ch.htm) — "Onboard RS485 / Pico HAT interfaces"
-- [Spotpear 사용자 가이드](https://spotpear.com/wiki/ESP32-S3-WROOM-1U-N8-WIFI-RS485-Bluetooth-Industrial-6-Channel-Relay-IOT.html) — 동일 문구 확인, 모듈이 **ESP32-S3-WROOM-1U-N8(PSRAM 없음)**임을 확인(→ GPIO33~37이 PSRAM용으로 예약되어 있지 않을 가능성이 높다는 간접 근거는 있으나, 이 헤더에 실제로 어떤 GPIO가 배선되어 있는지의 **정확한 핀맵 표는 어느 출처에도 없었음**)
+- [Spotpear 사용자 가이드](https://spotpear.com/wiki/ESP32-S3-WROOM-1U-N8-WIFI-RS485-Bluetooth-Industrial-6-Channel-Relay-IOT.html) — 모듈이 ESP32-S3-WROOM-1U-N8(PSRAM 없음)임을 간접 확인
 
-즉 "여유 GPIO를 노출하는 커넥터가 존재한다"는 확인했지만, **그 커넥터의 정확한 핀 배치(어느 헤더 위치가 어느 GPIO인지)는 찾지 못했습니다.** Waveshare 공식 위키(`waveshare.com/wiki/ESP32-S3-Relay-6CH`)가 스크래핑 차단(HTTP 403)으로 직접 확인이 안 됐고, 회로도 PDF도 접근하지 못했습니다.
-
-**사용자가 확인해야 할 것:**
-1. 보드 실물에서 "Pico HAT 호환 40핀 헤더" 2개의 실크스크린 라벨 사진(핀 번호/GPIO 번호가 보드에 인쇄되어 있을 가능성이 높음)
-2. Waveshare 공식 위키의 회로도(schematic) PDF 다운로드 링크 — `waveshare.com/wiki/ESP32-S3-Relay-6CH` 페이지 하단 "Resource" 섹션에서 확인
-3. (대안) 실물 보드에서 미사용 핀에 멀티미터로 직접 연속성 테스트를 하거나, 간단한 테스트 스케치로 각 후보 GPIO에 `pinMode(OUTPUT)` + 토글 후 오실로스코프/LED로 실제 그 핀이 헤더의 어느 위치에 나오는지 역추적
-
-**소프트웨어 설계 방침**: 위 확인 전까지는 GPIO 번호를 하드코딩하지 않고 `config.h`의 `FLOW_PULSE_PIN` 설정값으로 분리했습니다(기본값 미정의 — 확인 후 사용자가 직접 채워 넣어야 컴파일되도록 `#error`로 막아둠). 후보로 참고할 만한(★ 미확정) 값: 이미 사용 중인 GPIO(1,2,17,18,21,38,41,42,45,46)와 부트/스트래핑(0,3,45,46은 이미 릴레이로 사용 중이라 제외), USB(19,20), UART0(43,44)를 제외하면 GPIO4~16, 33~37, 39, 40, 47, 48이 이론적으로는 비어있으나 — **이 중 실제로 Pico HAT 헤더에 물리적으로 나와 있는 핀은 사진/회로도 확인 전까지 알 수 없습니다.**
+당시엔 Waveshare 위키 페이지(`waveshare.com/wiki/...`) 스크래핑이 막혀(HTTP 403) 회로도 PDF 원문을 확인하지 못했으나, **PDF 직접 다운로드 링크는 스크래핑 차단 대상이 아니어서 이번에 정상적으로 확보·분석했습니다.**
 
 ## 3. 확정 사항 요약
 
@@ -102,3 +136,4 @@ RS485 통신 관련: 기본 보드레이트 9600, **120Ω 종단저항이 온보
 - RS485 기본 통신: 9600 baud, 8N1 (작업지시서 5번 기본값 그대로 채택).
 - 메인 노드 릴레이 출력(RO1~8)은 TCA9554 I2C 확장기 경유 — 1차 버전에서 미사용이므로 이번 펌웨어에 구현하지 않음(예비로 문서만 남김).
 - 팔 노드 릴레이는 직접 GPIO, active-high.
+- 팔 노드 유량계 입력: `FLOW_PULSE_PIN = GPIO4`(확장 헤더 H1 15번), Waveshare 공식 회로도 넷리스트로 확정 — "2-1"절 참고. 물리적 방향(실크스크린 대조)만 배선 전 확인 필요.

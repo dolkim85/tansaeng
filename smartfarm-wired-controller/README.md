@@ -48,7 +48,7 @@ smartfarm-wired-controller/
 
 ### ✅ 실제 컴파일 검증 완료 (2026-08-23)
 
-`arduino-cli` + ESP32 core 3.3.11 + 위 라이브러리 조합으로 **메인/팔 노드 펌웨어 모두 실제로 컴파일 성공**을 확인했습니다(보드: `esp32:esp32:esp32s3`, "ESP32S3 Dev Module"). 경고도 없습니다. 이 과정에서 `ethernet_manager.cpp`에 `esp_mac.h` include 누락 버그를 발견해 수정했습니다. 상세 결과는 `docs/test-procedure.md` 참고.
+`arduino-cli` + ESP32 core 3.3.11 + 위 라이브러리 조합으로 **메인/팔 노드 펌웨어 모두 실제로 컴파일 성공**을 확인했습니다(보드: `esp32:esp32:esp32s3`, "ESP32S3 Dev Module"). `--warnings all`로도 경고 0건입니다. 이 과정에서 `ethernet_manager.cpp`의 `esp_mac.h` include 누락 버그와, `board_pins.h`의 `PIN_RGB_LED` 매크로가 ESP32 코어 내장 매크로와 이름이 겹치던 문제(`PIN_WS2812_RGB`로 개명), `flow_sensor.cpp`의 `volatile` 변수 `++` 연산자 폐기예정(C++20) 경고 2건을 발견해 모두 수정했습니다. 상세 결과는 `docs/test-procedure.md` 참고.
 
 ## Arduino IDE로 업로드하는 법 (초보자용)
 

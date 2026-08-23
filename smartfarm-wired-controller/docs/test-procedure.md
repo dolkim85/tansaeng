@@ -49,7 +49,7 @@
 
 | 항목 | 기대 결과 | 실제 결과 |
 |---|---|---|
-| `FLOW_PULSE_PIN` 확정 | `docs/hardware-verification.md` "2-1"절 확인 후 config.h에 반영 — **NEEDS_HARDWARE_CONFIRMATION 해소 전까지 빌드 안 됨(#error)** | |
+| `FLOW_PULSE_PIN` 물리적 방향 실물 대조 | GPIO4/H1 15번은 공식 회로도로 확정됨(`docs/hardware-verification.md` "2-1"절). 배선 전 H1 커넥터 실크스크린 사진으로 15번 핀 위치가 맞는지만 최종 확인(`config.example.h`에 이미 `#define FLOW_PULSE_PIN 4` 반영됨) | |
 | 알려진 주파수(1/10/50/100Hz) 펄스 입력 | `test/flow_pulse_generator` 사용, 팔 노드 시리얼에서 `[FLOW]` 로그 확인 | |
 | 순간유량(mL/min), 구간사용량(mL), 누적(mL) | 계산값과 실측 일치 | |
 | 주파수별 펄스 누락률 측정 | 낮을수록 좋음, 손실 있으면 대안 검토(`open-decisions.md`) | |
@@ -108,6 +108,6 @@
 - [ ] **(2026-08-23 추가)** MQTT 계층별 진단 로그(DNS/TCP/TLS/MQTT)가 실제로 단계별로 구분되어 나오는지
 - [ ] MQTT clientId가 `CONTROLLER_ID`와 다른 값(MAC 접미사 포함)으로 찍히는지
 - [ ] 유량계 절연 입력회로가 GPIO에 센서 공급전압을 직결하지 않는지 실측 확인
-- [ ] `FLOW_PULSE_PIN` NEEDS_HARDWARE_CONFIRMATION 해소 여부
+- [ ] `FLOW_PULSE_PIN`(GPIO4/H1 15번, 회로도로 확정됨) 물리적 방향 실크스크린 대조 완료 여부
 - [ ] 팔 노드 프로토콜 버전 불일치 시 메인 노드가 안전하게(크래시 없이) 유량 기능을 건너뛰는지
 - [ ] 메인 노드가 유량을 이중 누적하지 않는지(팔 노드만이 기준 원장)

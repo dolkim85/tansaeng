@@ -22,14 +22,21 @@
 // 유량계(YF-B10-S) — 2026-08-23 메인 노드 DI1에서 이곳으로 이전
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// ⚠️ NEEDS_HARDWARE_CONFIRMATION: 아래 FLOW_PULSE_PIN은 아직 실물로 확인되지
-// 않았습니다. docs/hardware-verification.md "2-1"절과 docs/wiring.md "유량계
-// 배선"절을 먼저 읽고, Pico HAT 헤더의 실제 GPIO를 확인한 뒤 이 값을 채우세요.
-// 확인 전에는 절대 아래 숫자를 임의로 추측해서 넣지 마세요 — 확인 전까지는
-// 주석 처리된 상태로 두면 arm_relay_6ch.ino 쪽 #ifndef 가드가 빌드를 막아서
-// 실수로 잘못된 핀에 배선/통전하는 사고를 방지합니다.
+// FLOW_PULSE_PIN = GPIO4, 물리적 위치 = 확장 헤더 H1 15번 핀
+// 근거: Waveshare 공식 ESP32-S3-Relay-6CH 회로도(PDF, files.waveshare.com/wiki/
+// ESP32-S3-Relay-6CH/ESP32-S3-Relay-6CH.pdf) 넷리스트에서 직접 확인
+// (net "GPIO4"가 U4(ESP32-S3-WROOM-1U) 4번 핀과 H1 15번 핀에만 연결되고,
+// 다른 어떤 넷과도 공유되지 않음 — docs/hardware-verification.md "2-1"절에
+// 넷리스트 원문 발췌와 함께 상세 근거 기록).
+// CH1~6/RS485/부저/RGB/USB/부트스트랩/Flash·PSRAM 핀과 충돌하지 않음을 같은
+// 회로도로 교차검증함. 유량계는 이 핀에 절대 직접 연결하지 않고, 반드시
+// PC817 절연회로의 출력단(포토트랜지스터 쪽)만 연결한다(docs/wiring.md 참고).
 //
-// #define FLOW_PULSE_PIN   <확인된 GPIO 번호>
+// ⚠️ 남은 확인 사항: H1 15번 핀의 "물리적 방향"(보드 위 어느 위치가 1번 핀인지,
+// 헤더가 실제로 실크스크린 라벨과 일치하는지)은 회로도만으로는 알 수 없으므로
+// 실물 보드 실크스크린 사진으로 최종 대조가 필요합니다(NEEDS_HARDWARE_CONFIRMATION
+// 은 "GPIO 번호 자체"가 아니라 이 물리적 대조 항목으로 좁혀짐 — docs/wiring.md 참고).
+#define FLOW_PULSE_PIN   4
 
 // 인터럽트 엣지 방향 — 유량계가 오픈컬렉터(active-low)라 보통 FALLING이지만,
 // 실제 절연회로(포토커플러) 출력 극성에 따라 반전될 수 있으므로 실측 후 확정하세요

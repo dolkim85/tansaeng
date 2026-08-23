@@ -22,7 +22,7 @@ static void IRAM_ATTR flowISR() {
   // unsigned 뺄셈은 오버플로를 넘어도 올바른 경과시간을 준다).
   if ((unsigned long)(now - g_lastPulseMicros) < FLOW_MIN_PULSE_INTERVAL_US) return;
   g_lastPulseMicros = now;
-  g_rawPulseCount++;
+  g_rawPulseCount = g_rawPulseCount + 1;  // volatile 변수의 ++ 연산자는 C++20에서 폐기(deprecated) 예정
 }
 
 void FlowSensor::begin(RelayController* relays) {
@@ -62,7 +62,9 @@ void FlowSensor::publishSnapshot_(uint32_t rate, uint32_t interval, uint64_t tot
                                    uint16_t diag, uint16_t ppl, uint32_t raw) {
   // seqlock: 쓰기 시작(홀수) -> 필드 갱신 -> 쓰기 종료(짝수). 읽는 쪽(getSnapshot)이
   // 시작/끝 시퀀스가 같고 짝수일 때만 유효한 복사로 인정한다.
-  seq_++;
+  // volatile 변수에 ++ 대신 대입식을 쓰는 이유: C++20에서 volatile ++ 연산자가
+  // 폐기(deprecated) 예정이라 --warnings all 컴파일 시 경고가 남는다(2026-08-23 확인).
+  seq_ = seq_ + 1;
   sRateMlPerMin_ = rate;
   sIntervalMl_ = interval;
   sTotalMl_ = total;
@@ -70,7 +72,7 @@ void FlowSensor::publishSnapshot_(uint32_t rate, uint32_t interval, uint64_t tot
   sDiagFlags_ = diag;
   sPulsesPerLiter_ = ppl;
   sRawPulseCount_ = raw;
-  seq_++;
+  seq_ = seq_ + 1;
 }
 
 void FlowSensor::getSnapshot(FlowSnapshot& out) const {
