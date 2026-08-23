@@ -10,7 +10,7 @@
 #include "mqtt_manager.h"
 #include "rs485_master.h"
 #include "controller.h"
-#include "../../shared/protocol_version.h"
+#include "protocol_version.h"
 #include <ArduinoJson.h>  // v7.x — localReplay JSON 페이로드 파싱용
 
 EthernetManager ethMgr;

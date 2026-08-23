@@ -13,8 +13,11 @@ void MqttManager::begin(const char* host, uint16_t port, const char* user, const
   // 만든다 — 기존 WiFi ctlr-0004와 새 유선 메인 노드가 전환/롤백 테스트 중 동시에
   // 켜져 있어도 같은 clientId 때문에 브로커가 한쪽을 끊어버리는 사고를 방지한다.
   uint64_t mac = ESP.getEfuseMac();
+  // %X는 unsigned int를 기대하는데 uint32_t는 이 플랫폼에서 "long unsigned int"라
+  // 타입이 달라 -Wformat 경고가 남는다(값 자체는 동일 크기라 문제 없었지만 2026-08-23
+  // --warnings all 재검증 중 발견해 명시적으로 unsigned int로 캐스팅해 정리).
   snprintf(clientId_, sizeof(clientId_), "%s-%04X%08X", clientIdPrefix,
-           (uint16_t)(mac >> 32), (uint32_t)mac);
+           (unsigned int)(uint16_t)(mac >> 32), (unsigned int)(uint32_t)mac);
   Serial.printf("[MQTT] clientId: %s\n", clientId_);
 
   // 순수 호스트명만 허용 — 프로토콜/포트가 섞여 들어오는 흔한 실수 방어

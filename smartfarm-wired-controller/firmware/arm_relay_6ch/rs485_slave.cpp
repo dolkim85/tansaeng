@@ -1,6 +1,6 @@
 #include "rs485_slave.h"
 #include "board_pins.h"
-#include "../../shared/protocol_version.h"
+#include "protocol_version.h"
 #include <ModbusServerRTU.h>
 #include <vector>
 using std::vector;

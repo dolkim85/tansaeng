@@ -86,3 +86,18 @@ PC에서 8883 TCP 포트가 열려도(방화벽/서버는 문제없음), ESP32�
 **결정**: `FLOW_PULSE_PIN`을 `GPIO4`(물리 위치: 확장 헤더 H1 15번)로 확정하고, `firmware/arm_relay_6ch/config.example.h`에 `#define FLOW_PULSE_PIN 4`로 반영했습니다. `docs/hardware-verification.md` "2-1"절에 넷리스트 원문 발췌와 8개 충돌 확인 항목을 표로 기록했습니다.
 
 **남은 확인 사항**: 회로도는 전기적 연결만 증명하며, H1 15번 핀이 실물 보드에서 어느 물리적 위치인지는 실크스크린 라벨 사진으로 최종 대조해야 합니다(`docs/wiring.md` "팔 노드 GPIO 확정" 절). 이 대조가 끝나기 전까지는 실제 배선(통전)을 하지 않습니다 — 이 부분만 `NEEDS_HARDWARE_CONFIRMATION`으로 유지합니다.
+
+## 12. protocol_version.h 사본 동기화 — Arduino IDE의 스케치 폴더 밖 include 제약 (확정됨 — 2026-08-23)
+
+**문제**: `shared/protocol_version.h`를 `#include "../../shared/protocol_version.h"`로 참조하는 방식이 Linux `arduino-cli`에서는 컴파일됐지만, **Windows Arduino IDE에서 스케치를 단독으로 열어 컴파일하면 `fatal error: ... No such file or directory`로 실패**했습니다. 원인은 Arduino IDE가 스케치를 빌드할 때 컴파일러에 전달하는 include 검색 경로가 스케치 폴더(및 그 안의 파일들)를 기준으로 하고, 스케치 폴더 **밖**을 가리키는 `../../` 상대경로까지는 플랫폼/버전에 따라 안정적으로 해석하지 못할 수 있기 때문입니다(파일이 실제로 존재하고 경로가 맞아도 실패). `arduino-cli`에서 우연히 동작했던 것은 컴파일러 호출 방식의 차이 때문이며, Windows IDE에서의 실패가 이 구조의 근본적인 불안정성을 드러냈습니다.
+
+**결정**: `shared/protocol_version.h`를 **기준 원장(canonical)** 으로 유지하되, `firmware/arm_relay_6ch/protocol_version.h`와 `firmware/main_eth_8di_8ro/protocol_version.h`에 **byte-for-byte 동일한 사본**을 각 스케치 폴더 안에 둡니다. 모든 `#include`는 스케치 폴더 내부만 가리키는 `#include "protocol_version.h"`로 통일했습니다 — 이는 Arduino 스케치가 자신의 tab(같은 폴더 파일)을 include하는 표준 방식이라 모든 플랫폼(Windows/Mac/Linux, IDE/arduino-cli 무관)에서 안정적으로 동작합니다.
+
+**일관성 보장 방법**:
+- `scripts/sync_protocol_version.sh` — 옵션 없이 실행하면 기준 원장을 두 사본에 복사, `--check` 옵션으로 실행하면 세 파일이 byte-for-byte 동일한지만 검사(다르면 실패 종료코드)
+- `shared/protocol_version.h` 최상단에 "이 파일이 기준 원장이며, 사본은 직접 수정하지 말 것"이라는 배너 주석을 넣었고, 이 배너가 사본에도 그대로 복사되므로 **어느 파일을 열어도 기준 원장이 어디인지 알 수 있음**
+- `shared/protocol_version.h`를 고칠 때마다 `scripts/sync_protocol_version.sh`를 실행해야 함(자동 실행되지 않음 — Arduino IDE 빌드 과정에 훅을 걸 방법이 없어 수동 규칙으로 둠). 잊었을 경우 `--check`가 다음에 실행될 때(예: 다음 세션 시작 시 습관적으로 실행) 바로 걸러짐
+
+**런타임 버전 비교는 그대로 유지됨**: 매크로 이름(`PROTOCOL_VERSION`)과 값은 세 파일 모두 동일하므로, `rs485_master.cpp`가 매 RS485 폴링 주기마다 팔 노드가 보고하는 `IR_PROTOCOL_VERSION`과 메인 노드 자신의 `PROTOCOL_VERSION`을 비교하는 기존 로직(`Rs485Master::isFlowSupported()`)은 파일 구조 변경과 무관하게 동작합니다 — 코드 로직은 손대지 않았습니다.
+
+이 사본들은 자동 생성 파일이지만 **git에 커밋되는 일반 소스 파일**입니다(Arduino IDE가 빌드 시점에 참조해야 하므로 `.gitignore` 대상이 아님). `shared/protocol_version.h`만 편집하고 사본 갱신을 잊는 실수를 막기 위해, 코드 수정 후에는 항상 `scripts/sync_protocol_version.sh`를 실행하는 것을 표준 절차로 합니다.

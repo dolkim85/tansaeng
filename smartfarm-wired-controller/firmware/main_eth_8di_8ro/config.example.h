@@ -5,7 +5,7 @@
 // 상태였습니다. 아래 값은 예시이며, 반드시 실제 값으로 교체하되 절대 이 저장소에
 // (config.h 파일로도) 커밋하지 마세요. 가능하면 MQTT 비밀번호도 새로 발급받으세요.
 
-#include "../../shared/protocol_version.h"
+#include "protocol_version.h"
 
 // ── MQTT (HiveMQ Cloud, 기존과 동일 — 메인 노드는 WiFi가 아니라 유선 이더넷으로 붙는다) ──
 #define MQTT_HOST      "your-hivemq-host"

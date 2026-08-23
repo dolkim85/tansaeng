@@ -28,11 +28,25 @@ smartfarm-wired-controller/
 ├─ docs/                         (위 표 참고)
 ├─ firmware/
 │  ├─ main_eth_8di_8ro/          메인 노드 (ESP32-S3-ETH-8DI-8RO)
+│  │  └─ protocol_version.h      shared/의 사본(자동 생성, 직접 수정 금지 — 아래 참고)
 │  └─ arm_relay_6ch/             팔 노드 (ESP32-S3-Relay-6CH)
-├─ shared/                       두 펌웨어가 함께 쓰는 프로토콜 정의
+│     └─ protocol_version.h      shared/의 사본(자동 생성, 직접 수정 금지 — 아래 참고)
+├─ shared/
+│  └─ protocol_version.h         ⭐ 기준 원장(canonical) — 두 펌웨어가 함께 쓰는 프로토콜 정의
+├─ scripts/
+│  └─ sync_protocol_version.sh   shared/protocol_version.h → 두 스케치 사본 동기화/검증
 └─ test/
    └─ flow_pulse_generator/      유량계 펄스 시뮬레이터(다른 ESP32로 실행)
 ```
+
+### ⚠️ `protocol_version.h`는 파일이 3개 존재합니다 — 수정 규칙
+
+Arduino IDE(특히 Windows)가 스케치 폴더 밖(`../../shared/...`)을 가리키는 include를 안정적으로 찾지 못하는 문제가 있어(2026-08-23 실제 컴파일 오류로 확인), `shared/protocol_version.h`를 각 스케치 폴더 안에도 **byte-for-byte 동일한 사본**으로 둡니다.
+
+- **수정은 반드시 `shared/protocol_version.h`(기준 원장)에서만** 하세요.
+- 수정 후 `scripts/sync_protocol_version.sh`를 실행해 두 사본을 갱신하세요.
+- `scripts/sync_protocol_version.sh --check`로 세 파일이 실제로 동일한지 언제든 확인할 수 있습니다(다르면 실패 종료코드).
+- 상세 배경: `docs/open-decisions.md` "12. protocol_version.h 사본 동기화" 항목.
 
 ## 필요한 라이브러리
 

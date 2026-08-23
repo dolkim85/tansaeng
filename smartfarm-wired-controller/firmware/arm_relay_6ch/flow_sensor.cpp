@@ -1,7 +1,7 @@
 #include "flow_sensor.h"
 #include "config.h"
 #include "storage.h"
-#include "../../shared/protocol_version.h"
+#include "protocol_version.h"
 
 #ifndef FLOW_PULSE_PIN
 #error "FLOW_PULSE_PIN이 config.h에 정의되지 않았습니다. docs/hardware-verification.md \

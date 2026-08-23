@@ -2,7 +2,7 @@
 // 이 파일을 config.h로 복사해서 사용하세요 (config.h는 .gitignore에 등록되어 있습니다).
 // 팔 노드는 WiFi/MQTT를 쓰지 않으므로 네트워크 인증정보가 필요 없습니다.
 
-#include "../../shared/protocol_version.h"
+#include "protocol_version.h"
 
 // 이 팔 노드의 RS485 슬레이브 주소. 추가 팔 노드를 붙일 경우 서로 다른 값을 사용하세요.
 #define MY_SLAVE_ADDRESS   RS485_SLAVE_ADDR_RELAY1

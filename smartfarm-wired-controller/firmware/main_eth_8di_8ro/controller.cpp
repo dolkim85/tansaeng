@@ -1,6 +1,6 @@
 #include "controller.h"
 #include "config.h"
-#include "../../shared/protocol_version.h"
+#include "protocol_version.h"
 
 void Controller::begin(Rs485Master* rs485) {
   rs485_ = rs485;

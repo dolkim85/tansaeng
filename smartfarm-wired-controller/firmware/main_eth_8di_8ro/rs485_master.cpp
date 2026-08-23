@@ -1,6 +1,6 @@
 #include "rs485_master.h"
 #include "board_pins.h"
-#include "../../shared/protocol_version.h"
+#include "protocol_version.h"
 #include <ModbusClientRTU.h>
 
 // 하드웨어 자동 방향제어라 RTS/DE 핀 불필요(기본 생성자, rtsPin=-1) — hardware-verification.md

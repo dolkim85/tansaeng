@@ -1,5 +1,5 @@
 #include "safety_manager.h"
-#include "../../shared/protocol_version.h"
+#include "protocol_version.h"
 
 void SafetyManager::begin(RelayController* relays) {
   relays_ = relays;
