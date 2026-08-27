@@ -57,7 +57,12 @@ bool MqttManager::resolveHost_(IPAddress& outIp) {
   IPAddress dnsServer = Ethernet.dnsServerIP();
   Serial.printf("[DNS] 사용 중인 DNS 서버: %s\n", dnsServer.toString().c_str());
   if (dnsServer == IPAddress((uint32_t)0)) {
-    Serial.println("[DNS] ⚠️ DHCP로 DNS 서버 IP를 받지 못함(0.0.0.0) — 공유기 DHCP 설정 확인 필요");
+    // [2026-08-27] 현장 실측: 공유기가 DHCP로 DNS 서버를 계속(1분 이상 반복) 안 줌 —
+    // 일시적 끊김이 아니라 지속되는 상태였음. 공유기 설정 수정을 기다릴 수 없으므로
+    // 공용 DNS(8.8.8.8, Google Public DNS)로 대체해 MQTT 호스트명 조회가 계속
+    // 동작하게 한다. 공유기 DHCP 문제 자체는 별도로 점검이 필요하다는 경고는 유지.
+    dnsServer = IPAddress(8, 8, 8, 8);
+    Serial.println("[DNS] ⚠️ DHCP로 DNS 서버 IP를 받지 못함(0.0.0.0) — 공유기 DHCP 설정 확인 필요. 임시로 8.8.8.8(공용 DNS)로 대체 조회함");
   }
 
   DNSClient dns;
