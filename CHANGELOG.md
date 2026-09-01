@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-09-02 — 분무수경 데몬 재시작 시 AUTO 미재개 버그 수정
+
+> 배경: "오전 6시 27분 이후로 분무가 안된다"는 문의로 조사. 06:28~06:29 우분투 자동보안업데이트(unattended-upgrades)가 mysql-server 등을 업그레이드하면서 needrestart가 `tansaeng-mist.service`를 함께 재시작시켰는데, 재시작 후 구역A가 20분간(06:29~06:49) 전혀 작동하지 않았음. 유량감지(flowGuard) 자동전환은 로그·라이브 조회 모두에서 꺼진 상태로 확인되어 원인이 아니었음.
+
+- **원인**: `loadSettingsFromFile()`이 로컬 설정파일(`config/device_settings.json`)에서 `mode`/`daySchedule`/`nightSchedule`만 복원하고 `isRunning`은 복원하지 않았음. `isRunning`은 MQTT retain 메시지로만 복원되는 구조라, 데몬 재시작 시 그 retain이 구독 후 3초(`setTimeout`) 안에 도착해야만 AUTO 사이클이 재개됐음 — 이번엔 시스템 업데이트로 부하가 몰린 타이밍과 겹쳐 retain이 그 안에 도착하지 않았고, 사용자가 06:49에 수동으로 구역A 스위치를 껐다 켤 때까지 데몬이 조용히 정지 상태로 대기함.
+- **수정 (`daemons/smartfarm_mist_daemon.cjs`)**: `loadSettingsFromFile()`에서 `isRunning`도 설정파일에서 직접 읽어 복원하도록 추가 (`z.isRunning ?? false`). UI가 작동시작/중지 시 이미 `saveDeviceSettings()`로 `isRunning`을 같은 파일에 저장하고 있었으므로, 파일을 신뢰 가능한 소스로 그대로 활용. 이제 재시작 즉시(MQTT retain 도착을 기다리지 않고) 원래 작동 상태가 복원됨 — 실제 재시작 테스트에서 재기동 직후 `[구역A] 설정 로드: mode=AUTO, isRunning=true` → `[CYCLE] 설정 로드 완료 — 활성 구역: [zone_a, fogging] → 독립 사이클 시작`으로 즉시 재개되는 것 확인.
+- 배포: 개별 파일 scp + `systemctl restart tansaeng-mist.service`로 반영, 정상 기동 확인.
+
+---
+
 ## 2026-08-18 — ctlr-heat-001 ESP32 온보드 AUTO 로직 제거 (실사고 확인 및 수정) + 후순환 서버 이전
 
 > 배경: 장치제어실 ESP32(ctlr-heat-001) 코드 리뷰 요청. 라이브 MQTT를 직접 구독해 확인한 결과 `tansaeng/ctlr-heat-001/mode/state`(retain)가 실제로 `AUTO`로 고정되어 있었음 — ESP32가 서버 데몬의 개별 pump/heater/fan 명령을 무시하고 자체 하드코딩 기준값(공기 18/20°C, 물 22/25°C)으로 펌프·히터·팬을 하나로 묶어 작동시키던 사고가 실제로 진행 중이었음.

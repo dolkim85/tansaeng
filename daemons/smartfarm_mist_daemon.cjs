@@ -898,7 +898,10 @@ function loadSettingsFromFile(client) {
       zoneState[zoneId].mode          = z.mode          ?? 'OFF';
       zoneState[zoneId].daySchedule   = z.daySchedule   ?? null;
       zoneState[zoneId].nightSchedule = z.nightSchedule ?? null;
-      log(`[${ZONES[zoneId].name}] 설정 로드: mode=${zoneState[zoneId].mode}`);
+      // isRunning은 MQTT retain 도착 타이밍에 좌우되지 않도록 설정파일에서 직접 복원한다.
+      // (재시작 시 retain 메시지가 3초 내에 도착하지 않으면 AUTO가 재개되지 않는 버그가 있었음)
+      zoneState[zoneId].isRunning     = z.isRunning     ?? false;
+      log(`[${ZONES[zoneId].name}] 설정 로드: mode=${zoneState[zoneId].mode}, isRunning=${zoneState[zoneId].isRunning}`);
     });
 
     // 설정 로드 후 활성 구역이 있으면 각 구역 독립 사이클 시작
