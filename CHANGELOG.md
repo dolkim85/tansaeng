@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-09-20 — SSL 인증서 갱신 (www.tansaeng.com)
+
+> 배경: 가비아를 통해 발급받은 신규 SSL 인증서(cert/key/중개인증서 체인)와 한국정보인증(KICA) Apache 설치가이드를 받아, 만료 예정(2026-10-10)이던 인증서를 교체.
+
+- 기존 인증서(GlobalSign GCC R6 AlphaSSL CA 2025, 만료 2026-10-10)를 신규 인증서(GlobalSign GCC R46 AlphaSSL CA 2025, 유효기간 2026-09-10~2027-03-28)로 교체.
+- 서버 `/etc/ssl/tansaeng/www.tansaeng.com.crt`(도메인인증서 + 중개인증서 2개를 합친 fullchain, 루트 인증서는 기존 구성과 동일하게 제외)와 `www.tansaeng.com.key`를 교체. 기존 파일은 `/etc/ssl/tansaeng/backup/`에 타임스탬프로 백업.
+- 인증서-개인키 modulus 일치 확인 → `apache2ctl configtest` 통과 → `systemctl reload apache2`로 무중단 반영.
+- `openssl s_client`로 실제 서비스 체인(리프+중개2개) 및 SAN(www.tansaeng.com, tansaeng.com) 정상 확인.
+- 인증서/개인키 원본 파일은 민감정보라 git 저장소에는 포함하지 않고 서버 `/etc/ssl/tansaeng/`에서만 관리(본 CHANGELOG 기록만 버전관리 대상).
+
+---
+
 ## 2026-09-02 — 분무수경 데몬 재시작 시 AUTO 미재개 버그 수정
 
 > 배경: "오전 6시 27분 이후로 분무가 안된다"는 문의로 조사. 06:28~06:29 우분투 자동보안업데이트(unattended-upgrades)가 mysql-server 등을 업그레이드하면서 needrestart가 `tansaeng-mist.service`를 함께 재시작시켰는데, 재시작 후 구역A가 20분간(06:29~06:49) 전혀 작동하지 않았음. 유량감지(flowGuard) 자동전환은 로그·라이브 조회 모두에서 꺼진 상태로 확인되어 원인이 아니었음.
